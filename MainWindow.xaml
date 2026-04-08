@@ -28,6 +28,7 @@
 
 
         -->
+        <Converters:ConverterFullPathToNameConverter x:Key="ConverterFullPathToNameConverter"/>
         <!--  Template für Videos  -->
         <Converters:CLconverterCountBildchenFuerLinks x:Key="CLconverterCountBildchenFuerLinks" />
         <!--
@@ -226,7 +227,7 @@
                 <TextBlock Margin="0,0,0,2"><Run Text="Pos: " /><Run Text=" " /><Run Text="{Binding AufgabenView.CurrentPosition, Converter={StaticResource CLconverterProgressbarIntPlusEins}, Mode=OneWay}" /><Run Text=" " /><Run Text=" / " /><Run Text=" " /><Run Text="{Binding AufgabenView.Count, Mode=OneWay}" /><Run Text=" " /><Run Text="   (" /><Run Text=" " /><Run Text="{Binding CountBildchenFürLinks, Mode=OneWay}" /><Run Text=" " /><Run Text=" verschoben)" /></TextBlock>
 
                 <!--  Zweite Zeile: Name  -->
-                <TextBlock Margin="0,0,0,2"><Run Foreground="Gray" Text="  Name: " /><Run Text=" " /><Run Text="{Binding SelectedBildchen.BName}" /></TextBlock>
+                <TextBlock Margin="0,0,0,2"><Run Foreground="Gray" Text="  Name: " /><Run Text=" " /><Run Text="{Binding SelectedBildchen.BName, Converter={StaticResource ConverterFullPathToNameConverter}}" /></TextBlock>
 
                 <!--  Dritte Zeile: weitere Metadaten  -->
                 <TextBlock><Run Text="  " /><Run Text=" " /><Run Foreground="LightBlue" Text="{Binding Version}" /></TextBlock>
