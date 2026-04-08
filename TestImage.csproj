@@ -1,0 +1,100 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.18362.0</TargetFramework>
+	
+<!-- Optional, wenn du C#-Features brauchst -->
+    <LangVersion>latest</LangVersion>
+	
+	
+<!-- Empfohlen für saubere Nullability-/Binding-Hinweise -->
+    <Nullable>enable</Nullable>
+
+    <UseWPF>true</UseWPF>
+	 <!-- Optional: disable problematic analyzers -->
+    <EnableRoslynAnalyzers>true</EnableRoslynAnalyzers>
+    <SupportedOSPlatformVersion>10.0.18362.0</SupportedOSPlatformVersion>
+    <ApplicationIcon>Sternchen.ico</ApplicationIcon>
+    <PlatformTarget>x64</PlatformTarget>
+    <Platforms>AnyCPU;x64</Platforms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="DXD.jpg" />
+    <None Remove="HeavyO.jpg" />
+    <None Remove="Images\Abbrechen.png" />
+    <None Remove="Images\Abbrechenn.png" />
+    <None Remove="Images\EinGleicher.svg" />
+    <None Remove="Images\EinGleicherKlein.png" />
+    <None Remove="Images\Gleich.png" />
+    <None Remove="Images\HeavyO.jpg" />
+    <None Remove="Images\KIFehler.png" />
+    <None Remove="Images\PfeilNachLinks.png" />
+    <None Remove="Images\PfeilNachOben.png" />
+    <None Remove="Images\PfeilNachRechts.png" />
+    <None Remove="Images\PfeilNachUnten.png" />
+    <None Remove="Images\Rueckwerts.png" />
+    <None Remove="Images\Scallieren.png" />
+    <None Remove="Images\Sternchen.ico" />
+    <None Remove="Images\Sternchen.png" />
+    <None Remove="Images\uebertragen.png" />
+    <None Remove="Images\UngefährGleich.png" />
+    <None Remove="Images\UngefährGleich.svg" />
+    <None Remove="Images\UngefährGleichKlein.png" />
+    <None Remove="Images\VieleGleiche.ico" />
+    <None Remove="Images\VieleGleiche.svg" />
+    <None Remove="Images\VieleGleicheKlein.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Remove="Images\PfeilNachLinks.xaml" />
+    <Page Remove="Images\Scallieren.xaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Images\EinGleicher.svg" />
+    <Resource Include="Images\EinGleicherKlein.png" />
+    <Resource Include="Images\HeavyO.jpg" />
+    <Resource Include="Images\KIFehler.png" />
+    <Content Include="Sternchen.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Images\Abbrechenn.png" />
+    <Resource Include="Images\Gleich.png" />
+    <Resource Include="Images\Scallieren.png" />
+    <Resource Include="Images\Scallieren.xaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="DotNetProjects.SVGImage" Version="5.2.13" />
+    <PackageReference Include="Emgu.CV" Version="4.12.0.5764" />
+    <PackageReference Include="Emgu.CV.runtime.windows" Version="4.12.0.5764" />
+    <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.142" />
+    <PackageReference Include="System.Drawing.Common" Version="10.0.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="DXD.jpg" />
+    <Resource Include="HeavyO.jpg" />
+    <Resource Include="Images\Abbrechen.png" />
+    <Resource Include="Images\PfeilNachLinks.png" />
+    <Resource Include="Images\PfeilNachLinks.xaml" />
+    <Resource Include="Images\PfeilNachOben.png" />
+    <Resource Include="Images\PfeilNachRechts.png" />
+    <Resource Include="Images\PfeilNachUnten.png" />
+    <Resource Include="Images\Rueckwerts.png" />
+    <Resource Include="Images\Sternchen.ico" />
+    <Resource Include="Images\Sternchen.png" />
+    <Resource Include="Images\uebertragen.png" />
+    <Resource Include="Images\UngefährGleich.png" />
+    <Resource Include="Images\UngefährGleich.svg" />
+    <Resource Include="Images\UngefährGleichKlein.png" />
+    <Resource Include="Images\VieleGleiche.ico" />
+    <Resource Include="Images\VieleGleiche.svg" />
+    <Resource Include="Images\VieleGleicheKlein.png" />
+  </ItemGroup>
+
+</Project>

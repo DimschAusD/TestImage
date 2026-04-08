@@ -1,0 +1,11 @@
+﻿<Application x:Class="TestImage.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:TestImage"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <ResourceDictionary Source="/Images/PfeilNachLinks.xaml" />
+        
+        
+    </Application.Resources>
+</Application>
