@@ -918,8 +918,8 @@
                     <ProgressBar
                         Width="40"
                         Height="10"
-                        Margin="0,1,0,0"
                         Maximum="6"
+                        d:Visibility="Visible"
                         Visibility="{Binding CommandExecuteKleinesBildGrossesBildLadenCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}, Mode=OneWay}"
                         Value="{Binding ProgressValue, Mode=OneWay}" />
 
@@ -971,7 +971,6 @@
                 Background="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}"
                 BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkDarkBrushKey}}"
                 Command="{Binding CommandExecuteBildStretchAnpassenCommand, Mode=OneWay}"
-                Content="Button"
                 MouseOverBackground="#FFB7F393"
                 MouseOverBorderBrush="{DynamicResource {x:Static SystemColors.ActiveCaptionBrushKey}}"
                 PressedBackground="#FFCACFFE"
@@ -1194,33 +1193,37 @@
         </Border>
         <Grid
             Grid.Row="1"
-            Width="80"
+            Width="auto"
             Height="12"
             Margin="15,0,0,43"
             HorizontalAlignment="Left"
             VerticalAlignment="Bottom">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="80" />
+                <ColumnDefinition Width="68" />
             </Grid.ColumnDefinitions>
             <ProgressBar
-                Width="294"
+                Width="248"
+                d:Visibility="Visible"
                 Height="8"
-                Margin="0,2,0,2"
                 HorizontalAlignment="Left"
-                VerticalAlignment="Bottom"
+                VerticalAlignment="Center"
                 Visibility="{Binding PrüfungLäuft, Converter={StaticResource CLconverterVisiblityBoolian}, Mode=OneWay}"
                 Value="{Binding PercentageValueVerschieben, Mode=OneWay}" />
             <StackPanel Grid.Column="1" Orientation="Horizontal">
+
+
+
                 <TextBlock
                     x:Name="TXBL_ProzentProgressbar"
                     Width="50"
-                    Height="12"
+                    Height="14"
                     Padding="4,0,4,0"
                     Background="#FFF9C234"
                     FontSize="10"
                     FontWeight="Medium"
                     Language="de-DE"
+                    d:Visibility="Visible"
                     Text="{Binding ProzentAbgleich, StringFormat=\{0:F2\} %}"
                     TextWrapping="NoWrap"
                     Visibility="{Binding PrüfungLäuft, Converter={StaticResource CLconverterVisiblityBoolian}, Mode=OneWay}"
