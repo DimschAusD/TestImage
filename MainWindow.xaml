@@ -775,7 +775,7 @@
 
             <TextBox
                 x:Name="TXB_SuchenInFertige"
-                Width="126"
+                Width="70"
                 Height="26"
                 VerticalContentAlignment="Center"
                 BorderBrush="#FF9AB0F3"
@@ -1088,6 +1088,7 @@
                 <RibbonButton
                     Width="22"
                     Height="22"
+                    d:Visibility="Visible"
                     Background="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}"
                     BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkDarkBrushKey}}"
                     Command="{Binding CommandExecuteSuchenGleichesBildByteVergleichCancelCommand, Mode=OneWay}"
