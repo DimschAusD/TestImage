@@ -72,7 +72,7 @@
             Stretch="None">
             <VisualBrush.Visual>
                 <Label
-                    Content="Filter Aufgabe, Notiz"
+                    Content="Filter Name"
                     FontStyle="Italic"
                     Foreground="Gray"
                     Opacity="0.5" />
@@ -302,6 +302,7 @@
             d:ItemsSource="{d:SampleData ItemCount=4}"
             local:HorizontalListBoxBehavior.CenterSelectedItem="True"
             local:HorizontalListBoxBehavior.EnableHorizontalMouseWheel="True"
+            Visibility="{Binding IsObenMinimiert, Converter={StaticResource CLconverterVisiblityBoolian}}"
             IsSynchronizedWithCurrentItem="True"
             ItemsSource="{Binding AufgabenView}"
             ScrollViewer.HorizontalScrollBarVisibility="Auto"
@@ -747,7 +748,7 @@
             PressedBackground="#FFCACFFE" />
         <StackPanel
             Grid.Row="0"
-            Width="262"
+            MinWidth="262"
             Height="26"
             Margin="0,0,10,0"
             HorizontalAlignment="Right"
@@ -806,6 +807,7 @@
                 Label="X"
                 MouseOverBackground="#FFB7F393"
                 PressedBackground="#FFCACFFE"
+                d:Visibility="Visible"
                 SmallImageSource="/Images/Abbrechen.png"
                 Visibility="{Binding IsEnabled, Converter={StaticResource CLconverterVisiblityBoolian}, ElementName=BTN_AbbrechenKonsistenz}" />
             <TextBlock
@@ -1250,9 +1252,9 @@
             Grid.Row="2"
             Width="10"
             Height="10"
-            Margin="0,0,10,138"
+            Margin="0,10,10,0"
             HorizontalAlignment="Right"
-            VerticalAlignment="Bottom"
+            VerticalAlignment="Top"
             Background="{Binding SelectedBildchen.BildFürLinks, Converter={StaticResource CLconverterColorBoolianMasterHintergrund}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
             HorizontalScrollBarVisibility="{Binding MyHorizontalScrollBarVisibility}"
             VerticalScrollBarVisibility="{Binding MyHorizontalScrollBarVisibility}">
@@ -1287,8 +1289,9 @@
                 Width="38"
                 Height="38"
                 Margin="4,0,0,0"
-                Command="{Binding CommandExecuteObenMinimierenCommand, Mode=OneWay}"
-                Content="Un ⭿" />
+                Command="{Binding CommandExecuteAlleBilderNeuEinlesenCommand, Mode=OneWay}"
+                FontFamily="Segoe UI Symbol"
+                Content="" />
 
 
         </StackPanel>

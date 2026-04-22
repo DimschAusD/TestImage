@@ -2,26 +2,17 @@
 using CommunityToolkit.Mvvm.Input;
 using Emgu.CV;
 using Emgu.CV.CvEnum;
-using Emgu.CV.Structure;
-using Microsoft.VisualBasic.FileIO;
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Net;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
@@ -466,7 +457,7 @@ namespace TestImage
             }
 
             InnerZählerCount++;
-          
+
 
             if (filepaths.Length == 1)
             {
@@ -486,8 +477,9 @@ namespace TestImage
                 // !fullDateiName.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase)
 
                 LabelDropContent = Path.GetFileName(fullDateiName);
+                DropDateiName = fullDateiName;
 
-                ocAufgabens.Clear();  
+                ocAufgabens.Clear();
                 OnPropertyChanged(nameof(CountBildchenFürLinks));
 
                 // Über die interface Files einlesen
@@ -728,8 +720,10 @@ namespace TestImage
             var indexSelecded = _AufgabenViewIndex;
 
 
-            if (indexSelecded == -1) return;
-
+            if (indexSelecded == -1)
+            {
+                return;
+            }
 
             var kl = indexSelecded - 5;
             if (kl < 0)
@@ -1417,7 +1411,7 @@ namespace TestImage
         [ObservableProperty]
         private string _SWgrossesBild = string.Empty;
 
-      
+
 
 
 
@@ -1722,7 +1716,7 @@ namespace TestImage
                         await Application.Current.Dispatcher.InvokeAsync(() =>
                         {
                             LabelDropContent = "Rest " + pgs.Restzeit + "  ( " + pgs.StückPerSecond.ToString("F0") + " Stk/Sek )";
-                            ProzentAbgleich =  pgs.Percent.ToString("F2");
+                            ProzentAbgleich = pgs.Percent.ToString("F2");
                         });
                     }
 
@@ -2336,7 +2330,9 @@ namespace TestImage
         private async Task CommandExecuteBildInsKIFehlerVerschieben()
         {
             if (SelectedBildchen == null)
+            {
                 return;
+            }
             else
             {
                 var sw = Stopwatch.StartNew();
@@ -2524,9 +2520,9 @@ namespace TestImage
 
                 // Paralleler Vergleich der Hashes
                 zähler = 0;
-                total = results.Count * results.Count+ results.Count;
-                CountInnerZählerTest= 1;
-                var pgsL = new CLProgressStückzahl(started, 100, (long)(100D/3D), false);
+                total = results.Count * results.Count + results.Count;
+                CountInnerZählerTest = 1;
+                var pgsL = new CLProgressStückzahl(started, 100, (long)(100D / 3D), false);
                 progressStück?.Report(pgsL);
 
                 var results2 = new ConcurrentBag<CLSHA256Bild>();
@@ -2599,7 +2595,7 @@ namespace TestImage
                         }
                         // });
                     }
-                },token);
+                }, token);
 
 
 
@@ -2665,7 +2661,7 @@ namespace TestImage
         [RelayCommand(CanExecute = nameof(CanExecuteObenMinimieren))]
         private void CommandExecuteObenMinimieren()
         {
-          
+
 
             // in abhängigkeit vom zustand IsObenMinimiert
             // immer ins gegenteile wechseln
@@ -2685,6 +2681,26 @@ namespace TestImage
 
         #endregion
 
+        #region Command Alle Bilder neu einlesen
+
+        private bool CanExecuteCommandAlleBilderNeuEinlesen()
+        {
+            return ocAufgabens.Any(); /*& !IsEineAufgabeLäuft;*/
+        }
+
+        [RelayCommand(CanExecute = nameof(CanExecuteCommandAlleBilderNeuEinlesen))]
+        private async Task CommandExecuteAlleBilderNeuEinlesen()
+        {
+            // OnFileDrop(string[] filepaths) neu initialisieren, um die Bilder neu einzulesen
+            var dateien = new string[] { DropDateiName };
+
+            await OnFileDrop(dateien);
+        }
+
+        [ObservableProperty]
+        public partial string DropDateiName { get; set; }
+
+        #endregion
     }
 }
 
