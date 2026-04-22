@@ -59,7 +59,8 @@ namespace TestImage
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteSuchenUngefährGleichesBildEmguCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteBildInsKIFehlerVerschiebenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteAlleBilderMiteinanderAufByteGleichheitPrüfenCommand))]
-        private bool _PrüfungLäuft = false;
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteAlleBilderNeuEinlesenCommand))]
+        public partial bool PrüfungLäuft { get; set; } = false;
 
 
         /// <summary>
@@ -2685,16 +2686,26 @@ namespace TestImage
 
         private bool CanExecuteCommandAlleBilderNeuEinlesen()
         {
-            return ocAufgabens.Any(); /*& !IsEineAufgabeLäuft;*/
+            return ocAufgabens.Any() & !PrüfungLäuft & OcAufgabens.Any(x => x.BildFürLinks);
         }
 
         [RelayCommand(CanExecute = nameof(CanExecuteCommandAlleBilderNeuEinlesen))]
         private async Task CommandExecuteAlleBilderNeuEinlesen()
         {
-            // OnFileDrop(string[] filepaths) neu initialisieren, um die Bilder neu einzulesen
-            var dateien = new string[] { DropDateiName };
 
-            await OnFileDrop(dateien);
+            try
+            {
+                PrüfungLäuft = true;
+                // OnFileDrop(string[] filepaths) neu initialisieren, um die Bilder neu einzulesen
+                var dateien = new string[] { DropDateiName };
+
+                await OnFileDrop(dateien);
+            }
+            finally
+            {
+                PrüfungLäuft = false;
+            }
+
         }
 
         [ObservableProperty]

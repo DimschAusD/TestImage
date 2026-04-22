@@ -28,7 +28,7 @@
 
 
         -->
-        <Converters:ConverterFullPathToNameConverter x:Key="ConverterFullPathToNameConverter"/>
+        <Converters:ConverterFullPathToNameConverter x:Key="ConverterFullPathToNameConverter" />
         <!--  Template für Videos  -->
         <Converters:CLconverterCountBildchenFuerLinks x:Key="CLconverterCountBildchenFuerLinks" />
         <!--
@@ -302,14 +302,14 @@
             d:ItemsSource="{d:SampleData ItemCount=4}"
             local:HorizontalListBoxBehavior.CenterSelectedItem="True"
             local:HorizontalListBoxBehavior.EnableHorizontalMouseWheel="True"
-            Visibility="{Binding IsObenMinimiert, Converter={StaticResource CLconverterVisiblityBoolian}}"
             IsSynchronizedWithCurrentItem="True"
             ItemsSource="{Binding AufgabenView}"
             ScrollViewer.HorizontalScrollBarVisibility="Auto"
             ScrollViewer.VerticalScrollBarVisibility="Auto"
             SelectedItem="{Binding SelectedBildchen, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
             VirtualizingPanel.IsVirtualizing="True"
-            VirtualizingPanel.ScrollUnit="Pixel">
+            VirtualizingPanel.ScrollUnit="Pixel"
+            Visibility="{Binding IsObenMinimiert, Converter={StaticResource CLconverterVisiblityBoolian}}">
 
             <!--  Hintergrundfarbe per Style, damit DataTrigger greifen kann  -->
             <ListBox.Style>
@@ -748,8 +748,8 @@
             PressedBackground="#FFCACFFE" />
         <StackPanel
             Grid.Row="0"
-            MinWidth="262"
             Height="26"
+            MinWidth="262"
             Margin="0,0,10,0"
             HorizontalAlignment="Right"
             VerticalAlignment="Top"
@@ -800,6 +800,7 @@
                 Width="22"
                 Height="20"
                 Margin="4,0,4,0"
+                d:Visibility="Visible"
                 Background="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}"
                 BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkDarkBrushKey}}"
                 Command="{Binding CommandExecuteFilterLeerenCommandCommand, Mode=OneWay}"
@@ -807,7 +808,6 @@
                 Label="X"
                 MouseOverBackground="#FFB7F393"
                 PressedBackground="#FFCACFFE"
-                d:Visibility="Visible"
                 SmallImageSource="/Images/Abbrechen.png"
                 Visibility="{Binding IsEnabled, Converter={StaticResource CLconverterVisiblityBoolian}, ElementName=BTN_AbbrechenKonsistenz}" />
             <TextBlock
@@ -920,8 +920,8 @@
                     <ProgressBar
                         Width="40"
                         Height="10"
-                        Maximum="6"
                         d:Visibility="Visible"
+                        Maximum="6"
                         Visibility="{Binding CommandExecuteKleinesBildGrossesBildLadenCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}, Mode=OneWay}"
                         Value="{Binding ProgressValue, Mode=OneWay}" />
 
@@ -1206,10 +1206,10 @@
             </Grid.ColumnDefinitions>
             <ProgressBar
                 Width="248"
-                d:Visibility="Visible"
                 Height="8"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Center"
+                d:Visibility="Visible"
                 Visibility="{Binding PrüfungLäuft, Converter={StaticResource CLconverterVisiblityBoolian}, Mode=OneWay}"
                 Value="{Binding PercentageValueVerschieben, Mode=OneWay}" />
             <StackPanel Grid.Column="1" Orientation="Horizontal">
@@ -1221,11 +1221,11 @@
                     Width="50"
                     Height="14"
                     Padding="4,0,4,0"
+                    d:Visibility="Visible"
                     Background="#FFF9C234"
                     FontSize="10"
                     FontWeight="Medium"
                     Language="de-DE"
-                    d:Visibility="Visible"
                     Text="{Binding ProzentAbgleich, StringFormat=\{0:F2\} %}"
                     TextWrapping="NoWrap"
                     Visibility="{Binding PrüfungLäuft, Converter={StaticResource CLconverterVisiblityBoolian}, Mode=OneWay}"
@@ -1250,8 +1250,8 @@
         <!--  Visibility="{Binding PrüfungLäuft, Converter={StaticResource CLconverterVisiblityBoolian}, Mode=OneWay}"  -->
         <ScrollViewer
             Grid.Row="2"
-            Width="10"
-            Height="10"
+            Width="8"
+            Height="8"
             Margin="0,10,10,0"
             HorizontalAlignment="Right"
             VerticalAlignment="Top"
@@ -1290,8 +1290,8 @@
                 Height="38"
                 Margin="4,0,0,0"
                 Command="{Binding CommandExecuteAlleBilderNeuEinlesenCommand, Mode=OneWay}"
-                FontFamily="Segoe UI Symbol"
-                Content="" />
+                Content=""
+                FontFamily="Segoe UI Symbol" />
 
 
         </StackPanel>
