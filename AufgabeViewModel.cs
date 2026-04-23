@@ -68,10 +68,10 @@ namespace TestImage
         /// Hintergrund soll dann rot werden.
         /// </summary>
         [ObservableProperty]
-        private bool _AlleBilderVerschoben = false;
+        public partial bool AlleBilderVerschoben { get; set; } = false;
 
         [ObservableProperty]
-        private int _InnerZählerCount = 0;
+        public partial int InnerZählerCount { get; set; } = 0;
 
         [ObservableProperty]
         private string _ProzentAbgleich = "0";
