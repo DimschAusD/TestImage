@@ -503,6 +503,8 @@ namespace TestImage
                     }
                 }
 
+                AlterDropCount = ocAufgabens.Count;
+
                 AufgabenView.Refresh();
 
                 //ocAufgabens?.OrderBy(k => System.IO.Path.GetFileName(k.BName));
@@ -681,116 +683,6 @@ namespace TestImage
                 && !OcAufgabens.Any(b => b.BildFürLinks == false);
         }
 
-        private void MeUI_10BilderInViewBringen()
-        {
-            //throw new NotImplementedException();
-            //var indexSelecded = _AufgabenViewIndex;
-            //var hhh = AufgabenView.Count;
-
-            //if (indexSelecded == -1) return true;
-
-
-            //var kl = indexSelecded - 2;
-            //if (kl < 0)
-            //{
-            //    kl = 0;
-            //}
-
-            //var gr = indexSelecded + 2;
-            //if (gr > ocAufgabens.Count)
-            //{
-            //    gr = ocAufgabens.Count - 1;
-            //}
-
-
-            //var test = ocAufgabens.IndexOf(aufgabe);
-
-            //if (test >= kl & test <= gr)
-            //{
-
-            //    Debug.WriteLine($"Index: {indexSelecded} kl: {kl} gr: {gr}  test: {test}");
-            //    return true;
-            //}
-            //else
-            //{
-            //    return false;
-            //}
-
-            InnerZählerCount++;
-
-            var indexSelecded = _AufgabenViewIndex;
-
-
-            if (indexSelecded == -1)
-            {
-                return;
-            }
-
-            var kl = indexSelecded - 5;
-            if (kl < 0)
-            {
-                kl = 0;
-            }
-
-            var gr = indexSelecded + 5;
-            if (gr > ocAufgabens.Count)
-            {
-                gr = ocAufgabens.Count - 1;
-            }
-
-            // Leere die kleine Collection
-            //ocAufgabensKlein.Clear();
-            var liAnzuzeigendeBilder = ocAufgabens.Skip(kl).Take(gr - kl + 1).ToList();
-
-            // Füge die Bilder in die kleine Collection ein
-            // und lösche aus der ocAufgabensKlein die nicht mehr benötigten Bilder
-
-            for (int i = ocAufgabensKlein.Count - 1; i >= 0; i--)   // int i = 0; i < ocAufgabensKlein.Count; i++
-            {
-                MeinBildchen? item = ocAufgabensKlein[i];
-                if (!liAnzuzeigendeBilder.Contains(item))
-                {
-                    ocAufgabensKlein.Remove(item);
-                }
-
-            }
-
-
-
-            //foreach (var item in liAnzuzeigendeBilder)
-            //{
-            //    var qs=ocAufgabensKlein.se
-            //    if (!liAnzuzeigendeBilder.Contains(item))
-            //    {
-            //        ocAufgabensKlein.Remove(item);
-            //    }
-
-            //}
-
-
-
-
-
-
-
-
-            foreach (var item in liAnzuzeigendeBilder)
-            {
-                if (!ocAufgabensKlein.Contains(item))
-                {
-                    ocAufgabensKlein.Add(item);
-                }
-
-
-            }
-
-            ocAufgabensKlein?.OrderBy(k => System.IO.Path.GetFileName(k.BName));
-            // AufgabenViewKlein.Refresh();
-
-        }
-
-
-
         #region Command Bild ins kein_Fav Verzeichnis verschieben
 
         private bool CanExecuteBildInsKeinFavVerzeichnisVerschiebenCommand()
@@ -812,6 +704,8 @@ namespace TestImage
         [RelayCommand(CanExecute = nameof(CanExecuteBildInsKeinFavVerzeichnisVerschiebenCommand))]
         private async Task CommandExecuteBildInsKeinFavVerzeichnisVerschieben()
         {
+            PrüfungLäuft = true;
+
             // Verzeichnis kein_Fav anlegen wenn nicht vorhanden
             string zielVerzeichnis = Path.Combine(Path.GetDirectoryName(SelectedBildchen.BName), "kein_Fav");
             if (!Directory.Exists(zielVerzeichnis))
@@ -916,8 +810,12 @@ namespace TestImage
             {
                 BildchenVorher = zielDateiName;
 
+
+
                 AufgabenView.Refresh();
                 UpdateAlleBilderVerschoben();
+
+                PrüfungLäuft = false;
             }
         }
 
@@ -1378,8 +1276,11 @@ namespace TestImage
 
         }
 
-        [ObservableProperty] private bool _HeaderPasstZurErweiterung;
-        [ObservableProperty] private string _ErkanntesFormat = "unknown";
+        [ObservableProperty]
+        public partial bool HeaderPasstZurErweiterung { get; set; }
+
+        [ObservableProperty]
+        public partial string ErkanntesFormat { get; set; } = "unknown";
 
         #endregion
 
@@ -2686,7 +2587,7 @@ namespace TestImage
 
         private bool CanExecuteCommandAlleBilderNeuEinlesen()
         {
-            return ocAufgabens.Any() & !PrüfungLäuft & OcAufgabens.Any(x => x.BildFürLinks);
+            return ocAufgabens.Any() & !PrüfungLäuft & OcAufgabens.Any(x => x.BildFürLinks) & (AlterDropCount != OcAufgabens.Count);
         }
 
         [RelayCommand(CanExecute = nameof(CanExecuteCommandAlleBilderNeuEinlesen))]
@@ -2710,6 +2611,9 @@ namespace TestImage
 
         [ObservableProperty]
         public partial string DropDateiName { get; set; }
+
+        [ObservableProperty]
+        public partial int AlterDropCount { get; set; }
 
         #endregion
     }
