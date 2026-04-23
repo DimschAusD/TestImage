@@ -60,6 +60,7 @@ namespace TestImage
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteBildInsKIFehlerVerschiebenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteAlleBilderMiteinanderAufByteGleichheitPrüfenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteAlleBilderNeuEinlesenCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteBildInsHauptVerzeichnisZuruckVerschiebenCommand))]
         public partial bool PrüfungLäuft { get; set; } = false;
 
 
@@ -837,6 +838,8 @@ namespace TestImage
         [RelayCommand(CanExecute = nameof(CanExecuteBildInsHauptVerzeichnisZuruckVerschiebenCommand))]
         private void CommandExecuteBildInsHauptVerzeichnisZuruckVerschieben()
         {
+            PrüfungLäuft = true;
+
             // Datei ins Haupt-Verzeichnis zurück verschieben
 
             var dateiname = Path.GetFileName(SelectedBildchen.BName);
@@ -920,6 +923,8 @@ namespace TestImage
             {
                 AufgabenView.Refresh();
                 UpdateAlleBilderVerschoben();
+
+                PrüfungLäuft = false;
                 //AufgabenViewKlein.Refresh();
             }
         }
