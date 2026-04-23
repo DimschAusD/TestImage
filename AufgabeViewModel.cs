@@ -22,18 +22,12 @@ namespace TestImage
     {
         // v2x.0.367.242 Beta 2026-01-31 (.NETCore v9.0)
         // v2x.0.300.842 Beta 2026-02-08 (.NETCore v9.0)
+        // v2x.0.300.842 Beta 2026-02-08 (.NETCore v9.0)
         [ObservableProperty]
-        private string _Version = "v2x.0.300.842 Beta 2026-02-08 (.NETCore v9.0)";
-
-
+        public partial string Version { get; set; } = "v2x.0.195.838 Beta 2026-04-23 (.NETCore v10.0)";
 
         [ObservableProperty]
         private int _CountInnerZählerTest;
-
-
-
-
-
 
 
 
@@ -1527,9 +1521,7 @@ namespace TestImage
 
         private bool CanExecuteSuchenGleichesBildByteVergleich()
         {
-            return OcAufgabens.Count > 1
-                && (!PrüfungLäuft)
-               ;
+            return OcAufgabens.Count > 1 && (!PrüfungLäuft);
         }
 
         [RelayCommand(CanExecute = nameof(CanExecuteSuchenGleichesBildByteVergleich), IncludeCancelCommand = true)]
@@ -2580,11 +2572,7 @@ namespace TestImage
             {
                 IsObenMinimiert = true;
             }
-
-
         }
-
-
 
         #endregion
 
@@ -2592,7 +2580,7 @@ namespace TestImage
 
         private bool CanExecuteCommandAlleBilderNeuEinlesen()
         {
-            return ocAufgabens.Any() & !PrüfungLäuft & OcAufgabens.Any(x => x.BildFürLinks) & (AlterDropCount != OcAufgabens.Count);
+            return ocAufgabens.Any() & !PrüfungLäuft & /*OcAufgabens.Any(x => x.BildFürLinks) &*/ (AlterDropCount != OcAufgabens.Count);
         }
 
         [RelayCommand(CanExecute = nameof(CanExecuteCommandAlleBilderNeuEinlesen))]
