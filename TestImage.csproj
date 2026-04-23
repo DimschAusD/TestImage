@@ -50,6 +50,7 @@
   <ItemGroup>
     <Page Remove="Images\PfeilNachLinks.xaml" />
     <Page Remove="Images\Scallieren.xaml" />
+    <Page Remove="Scallieren.xaml" />
   </ItemGroup>
 
   <ItemGroup>
@@ -57,7 +58,12 @@
     <Resource Include="Images\EinGleicherKlein.png" />
     <Resource Include="Images\HeavyO.jpg" />
     <Resource Include="Images\KIFehler.png" />
-    <Content Include="Sternchen.ico" />
+    <Resource Include="Scallieren.xaml">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Sternchen.ico">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Resource>
   </ItemGroup>
 
   <ItemGroup>

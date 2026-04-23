@@ -69,11 +69,11 @@ namespace TestImage
         public partial int InnerZählerCount { get; set; } = 0;
 
         [ObservableProperty]
-        private string _ProzentAbgleich = "0";
+        public partial string ProzentAbgleich { get; set; } = "0";
 
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteSuchenUngefährGleichesBildEmguCommand))]
-        private int _BildAbgleichProzent = 80;
+        public partial int BildAbgleichProzent { get; set; } = 80;
 
         /// <summary>
         /// Gets or sets a value indicating whether the image file is damaged.
@@ -2555,7 +2555,7 @@ namespace TestImage
         #endregion
 
         #region Command Oben Minimieren
-        private bool CanExecuteObenMinimieren() { return true; }
+        private static bool CanExecuteObenMinimieren() { return true; }
 
         [RelayCommand(CanExecute = nameof(CanExecuteObenMinimieren))]
         private void CommandExecuteObenMinimieren()
@@ -2609,6 +2609,47 @@ namespace TestImage
         public partial int AlterDropCount { get; set; }
 
         #endregion
+
+        #region Command Ordner der Anwendung öffnen
+        private bool CanExecuteCommandOrdnerDerAnwendungÖffnen()
+        {
+            return true;
+        }
+        [RelayCommand(CanExecute = nameof(CanExecuteCommandOrdnerDerAnwendungÖffnen))]
+        private void CommandExecuteOrdnerDerAnwendungÖffnen()
+        {
+            //  string anwendungsOrdner = AppDomain.CurrentDomain.BaseDirectory;
+            try
+            {
+                //if (Directory.Exists(anwendungsOrdner))
+                //{
+                //    Process.Start(new ProcessStartInfo
+                //    {
+                //        FileName = anwendungsOrdner,
+                //        UseShellExecute = true,
+                //        Verb = "open"
+                //    });
+                //}
+
+
+                string exePath = Environment.ProcessPath!;
+                string exeDir = Path.GetDirectoryName(exePath)!;
+
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = exeDir,
+                    UseShellExecute = true
+                });
+
+            }
+            catch
+            {
+                // bewusst ignoriert (oder Logging) 
+            }
+
+
+        #endregion
+        }
     }
 }
 
