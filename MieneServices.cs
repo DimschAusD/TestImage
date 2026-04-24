@@ -1,28 +1,19 @@
 ﻿using Emgu.CV;
 using Emgu.CV.CvEnum;
 using Emgu.CV.Features2D;
-using Emgu.CV.Reg;
 using Emgu.CV.Structure;
 using Emgu.CV.Util;
-using Emgu.CV.XObjdetect;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.Metrics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
 using System.Linq;
-using System.Reflection.PortableExecutable;
-using System.Runtime.ConstrainedExecution;
-using System.Security.Cryptography;
-using System.Security.Policy;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Windows.Media.Media3D;
 
 
 namespace TestImage
@@ -106,7 +97,10 @@ namespace TestImage
         /// <returns>true if the file exists and its header matches a known image format signature; otherwise, false.</returns>
         internal static bool HasValidImageHeader(string filePath)
         {
-            if (!File.Exists(filePath)) return false;
+            if (!File.Exists(filePath))
+            {
+                return false;
+            }
 
             // Wir lesen nur die ersten 8 Bytes
             byte[] buffer = new byte[8];
@@ -133,7 +127,10 @@ namespace TestImage
         {
 
 
-            if (!File.Exists(filePath)) return false;
+            if (!File.Exists(filePath))
+            {
+                return false;
+            }
 
             var ext = Path.GetExtension(filePath).ToLowerInvariant().TrimStart('.'); // "webp", "png", ...
 
@@ -168,7 +165,9 @@ namespace TestImage
                         // ImageHeaders["PNG"] = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
                         var key = ext.ToUpperInvariant();
                         if (!ImageHeaders.TryGetValue(key, out var magic) || magic == null)
+                        {
                             return false;
+                        }
 
                         int n = Math.Min(buffer.Length, magic.Length);
                         return buffer.Take(n).SequenceEqual(magic);
@@ -211,7 +210,9 @@ namespace TestImage
         internal static bool IsFrameImBildDrin(string filePath)
         {
             if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+            {
                 return false;
+            }
 
             try
             {
@@ -408,7 +409,11 @@ namespace TestImage
                 // Bild für die ObservableCollection
                 ImageSource imageHiden = renderBitmap;
                 //return imageHiden;
-                if (imageHiden is BitmapSource bs && bs.CanFreeze) bs.Freeze();
+                if (imageHiden is BitmapSource bs && bs.CanFreeze)
+                {
+                    bs.Freeze();
+                }
+
                 return Task.FromResult(imageHiden);
             }
 
@@ -463,7 +468,11 @@ namespace TestImage
                 // Bild für die ObservableCollection
                 ImageSource imageHiden = renderBitmap;
                 //return imageHiden;
-                if (imageHiden is BitmapSource bs && bs.CanFreeze) bs.Freeze();
+                if (imageHiden is BitmapSource bs && bs.CanFreeze)
+                {
+                    bs.Freeze();
+                }
+
                 return Task.FromResult(imageHiden);
             }
 
@@ -487,7 +496,10 @@ namespace TestImage
                             bitmap.DecodePixelWidth = decodeWidth.Value;
                         }
                         bitmap.EndInit();
-                        if (bitmap.CanFreeze) bitmap.Freeze();
+                        if (bitmap.CanFreeze)
+                        {
+                            bitmap.Freeze();
+                        }
 
                         return NormalizeDpi(bitmap);
                     }
@@ -498,11 +510,19 @@ namespace TestImage
 
 
                     if (string.IsNullOrWhiteSpace(path))
+                    {
                         throw new ArgumentException("Pfad ist leer.", nameof(path));
+                    }
+
                     if (!File.Exists(path))
+                    {
                         throw new FileNotFoundException("Datei nicht gefunden.", path);
+                    }
+
                     if (decodeWidth is int w && w <= 0)
+                    {
                         throw new ArgumentOutOfRangeException(nameof(decodeWidth), "decodeWidth muss > 0 sein.");
+                    }
 
                     // BitmapImage verwenden, um DecodePixelWidth effizient an den Decoder zu übergeben
                     var bmp = new BitmapImage();
@@ -517,18 +537,22 @@ namespace TestImage
 
                         // Effizientes Downscaling (wenn Decoder es unterstützt; WIC tut das i. d. R.)
                         if (decodeWidth.HasValue)
+                        {
                             bmp.DecodePixelWidth = decodeWidth.Value;
+                        }
 
                         bmp.EndInit();
                     }
 
                     // Jetzt ist alles im Speicher; Datei freigegeben
                     if (bmp.PixelWidth == 0 || bmp.PixelHeight == 0)
+                    {
                         throw new InvalidDataException("Bild konnte nicht dekodiert werden (möglicherweise beschädigt oder Codec fehlt).");
+                    }
 
                     bmp.Freeze(); // threadsicher
                     return NormalizeDpi(bmp);
-                   // return bmp;
+                    // return bmp;
 
                 }
 
@@ -543,7 +567,11 @@ namespace TestImage
                 var pixels = new byte[stride * 200];
                 //return BitmapSource.Create(200, 200, 96, 96, pixelFormat, null, pixels, stride);
                 var bmp = BitmapSource.Create(200, 200, 96, 96, pixelFormat, null, pixels, stride);
-                if (bmp.CanFreeze) bmp.Freeze();   // <-- WICHTIG: macht das Objekt thread-sicher
+                if (bmp.CanFreeze)
+                {
+                    bmp.Freeze();   // <-- WICHTIG: macht das Objekt thread-sicher
+                }
+
                 return NormalizeDpi(bmp);
             }
 
@@ -558,12 +586,19 @@ namespace TestImage
         /// <returns></returns>
         private static BitmapSource NormalizeDpi(BitmapSource src)
         {
-            if (src == null) return null!;
+            if (src == null)
+            {
+                return null!;
+            }
 
             // Bereits 96 DPI -> nichts tun
             if (Math.Abs(src.DpiX - 96.0) < 0.01 && Math.Abs(src.DpiY - 96.0) < 0.01)
             {
-                if (src.CanFreeze) src.Freeze();
+                if (src.CanFreeze)
+                {
+                    src.Freeze();
+                }
+
                 return src;
             }
 
@@ -578,7 +613,11 @@ namespace TestImage
 
             var rtb = new RenderTargetBitmap(px, py, 96, 96, PixelFormats.Pbgra32);
             rtb.Render(dv);
-            if (rtb.CanFreeze) rtb.Freeze();
+            if (rtb.CanFreeze)
+            {
+                rtb.Freeze();
+            }
+
             return rtb;
         }
 
@@ -599,23 +638,57 @@ namespace TestImage
                 // kleine Dateien 
                 // mittlere Dateien
                 // 81920 Grosse Dateien  = 80 * 1024
+
+
+
                 const int bufferSize = 8 * 1024;
+
                 using (var sourceStream = new FileStream(sourceFilePath, FileMode.Open, FileAccess.Read, FileShare.Read))
                 using (var destStream = new FileStream(destFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
                 {
                     await sourceStream.CopyToAsync(destStream, bufferSize, cancellationToken);
-
-                    // Datetime der datei übernehmen
-                    File.SetLastWriteTime(destFilePath, File.GetLastWriteTime(sourceFilePath));
-                    File.SetCreationTime(destFilePath, File.GetCreationTime(sourceFilePath));
                 }
 
-                // Originaldatei löschen
-                if (File.Exists(destFilePath))
+                // Zeitstempel übernehmen (nachdem Streams zu sind)
+                File.SetLastWriteTime(destFilePath, File.GetLastWriteTime(sourceFilePath));
+                File.SetCreationTime(destFilePath, File.GetCreationTime(sourceFilePath));
+
+                //// Originaldatei löschen
+                //if (File.Exists(destFilePath))
+                //{
+                //    File.Delete(sourceFilePath);
+                //}
+
+
+
+                // ✅ ROBUSTES LÖSCHEN
+                const int maxRetries = 5;
+                for (int i = 0; i < maxRetries; i++)
                 {
-                    File.Delete(sourceFilePath);
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    try
+                    {
+                        if (File.Exists(sourceFilePath))
+                        {
+                            File.Delete(sourceFilePath);
+                        }
+
+                        return;
+                    }
+                    catch (IOException)
+                    {
+                        await Task.Delay(100, cancellationToken);
+                    }
+                    catch (UnauthorizedAccessException)
+                    {
+                        await Task.Delay(100, cancellationToken);
+                    }
                 }
-                  
+
+
+
+
                 //// Puffergroesse 8 KB ist oft optimal für kleine Dateien
                 //int bufferSize2 = 8 * 1024;
                 //using (FileStream input = new FileStream(sourceFilePath, FileMode.Open, FileAccess.Read, FileShare.Read)) 
@@ -633,19 +706,21 @@ namespace TestImage
                 // Original Datei wird nicht immer gelöscht
                 // Schreib mir mall eine Lösung
 
-               
+
 
 
             }
+
             catch (OperationCanceledException)
             {
-                //Abbruchbehandlung
                 if (File.Exists(destFilePath))
                 {
                     File.Delete(destFilePath);
                 }
+
                 throw;
             }
+
             catch (Exception ex)
             {
                 // Fehlerbehandlung
@@ -693,13 +768,17 @@ namespace TestImage
 
 
             if (!File.Exists(quelle) || !File.Exists(ziel))
+            {
                 throw new FileNotFoundException("Eine oder beide Dateien existieren nicht.");
+            }
 
             using (var stream1 = new FileStream(quelle, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize, true))
             using (var stream2 = new FileStream(ziel, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize, true))
             {
                 if (stream1.Length != stream2.Length)
+                {
                     return false;
+                }
 
                 byte[] buffer1 = new byte[bufferSize];
                 byte[] buffer2 = new byte[bufferSize];
@@ -712,8 +791,9 @@ namespace TestImage
                     bytesRead2 = await stream2.ReadAsync(buffer2.AsMemory(0, buffer2.Length), token);
 
                     if (bytesRead1 != bytesRead2 || !buffer1.AsSpan(0, bytesRead1).SequenceEqual(buffer2.AsSpan(0, bytesRead2)))
+                    {
                         return false;
-
+                    }
                 } while (bytesRead1 > 0);
 
                 return true;
@@ -728,7 +808,9 @@ namespace TestImage
             using (var stream2 = new FileStream(bName, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize, true))
             {
                 if (stream1.Length != stream2.Length)
+                {
                     return false;
+                }
 
                 byte[] buffer1 = new byte[bufferSize];
                 byte[] buffer2 = new byte[bufferSize];
@@ -741,8 +823,9 @@ namespace TestImage
                     bytesRead2 = await stream2.ReadAsync(buffer2.AsMemory(0, buffer2.Length), token);
 
                     if (bytesRead1 != bytesRead2 || !buffer1.AsSpan(0, bytesRead1).SequenceEqual(buffer2.AsSpan(0, bytesRead2)))
+                    {
                         return false;
-
+                    }
                 } while (bytesRead1 > 0);
 
                 return true;
@@ -779,7 +862,11 @@ namespace TestImage
 
                         // 3. Durchschnitt berechnen
                         double avg = 0;
-                        foreach (var val in grayValues) avg += val;
+                        foreach (var val in grayValues)
+                        {
+                            avg += val;
+                        }
+
                         avg /= grayValues.Length;
 
                         // 4. Hash erstellen (1 = heller als Durchschnitt, 0 = dunkler)
@@ -787,7 +874,9 @@ namespace TestImage
                         for (int i = 0; i < grayValues.Length; i++)
                         {
                             if (grayValues[i] >= avg)
+                            {
                                 hash |= (1UL << i);
+                            }
                         }
 
                         return hash;
@@ -810,7 +899,7 @@ namespace TestImage
                 }
                 return setBits;
             }, token);
-           
+
         }
 
         internal static async Task<double> CompareImagesORB(Image<Bgr, byte> img1, Image<Bgr, byte> img2)
@@ -833,7 +922,9 @@ namespace TestImage
                 orb.DetectAndCompute(img2, null, keypoints2, descriptors2, false);
 
                 if (descriptors1.IsEmpty || descriptors2.IsEmpty)
+                {
                     return 0;
+                }
 
                 // Matcher erstellen
                 using var matcher = new BFMatcher(DistanceType.Hamming, crossCheck: true);
@@ -841,7 +932,9 @@ namespace TestImage
                 matcher.Match(descriptors1, descriptors2, matches);
 
                 if (matches.Size == 0)
+                {
                     return 0;
+                }
 
                 // Gute Matches zählen (Schwelle: Distanz < 50)
                 int goodMatches = 0;
@@ -849,7 +942,9 @@ namespace TestImage
                 {
                     var m = matches[i];
                     if (m.Distance < 50)
+                    {
                         goodMatches++;
+                    }
                 }
 
                 // Ähnlichkeit in Prozent
@@ -876,7 +971,9 @@ namespace TestImage
 
                 // Falls Größen unterschiedlich → skalieren
                 if (image1.Size != image2.Size)
+                {
                     CvInvoke.Resize(image2, image2, image1.Size);
+                }
 
                 //using var orb = new Emgu.CV.Features2D.ORB(500, 1.2f, 8);
                 // ORB-Detector erstellen
@@ -899,7 +996,7 @@ namespace TestImage
                     return 0.0;
                     // throw new Exception("Keine Features gefunden – Bilder zu einfarbig oder unscharf?");
                 }
-                   
+
 
                 // Matcher erstellen (BruteForce-Hamming für ORB)
                 var bfMatcher = new BFMatcher(DistanceType.Hamming, crossCheck: true);
@@ -909,12 +1006,16 @@ namespace TestImage
                 bfMatcher.Match(desc1, desc2, matches);
 
                 if (matches.Size == 0)
+                {
                     return 0.0;
+                }
 
                 // Durchschnittliche Distanz berechnen
                 double totalDistance = 0;
                 foreach (var m in matches.ToArray())
+                {
                     totalDistance += m.Distance;
+                }
 
                 double avgDistance = totalDistance / matches.Size;
 
@@ -939,7 +1040,9 @@ namespace TestImage
             // Läuft
             // Gegekontrolle certutil -hashfile "C:\Users\Bill-6e\Desktop\ZL4\Test 1\he17_同人CG集2025-09-10\At home by DavidMnr on DeviantArt[1].jpg" SHA256
             if (string.IsNullOrWhiteSpace(bName) || !File.Exists(bName))
+            {
                 throw new FileNotFoundException("Datei nicht gefunden", bName);
+            }
 
             const int bufferSize = 4 * 1024 * 1024; // 4 MB Puffer
             using var sha = System.Security.Cryptography.SHA256.Create();
@@ -1029,6 +1132,6 @@ namespace TestImage
 }
 
 
-        
-    
+
+
 

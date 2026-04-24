@@ -37,7 +37,8 @@ namespace TestImage
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteBildInsHauptVerzeichnisZuruckVerschiebenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteVerschiebenZurückCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteBildInsKeinFavVerzeichnisVerschiebenCommand))]
-        private string _BildchenVorher = string.Empty; /*@"HeavyO.jpg";*/
+        public partial string BildchenVorher { get; set; } = string.Empty;
+
         private string _filterText = string.Empty;
 
 
@@ -54,7 +55,6 @@ namespace TestImage
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteBildInsKIFehlerVerschiebenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteAlleBilderMiteinanderAufByteGleichheitPrüfenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteAlleBilderNeuEinlesenCommand))]
-        [NotifyCanExecuteChangedFor(nameof(CommandExecuteBildInsHauptVerzeichnisZuruckVerschiebenCommand))]
         public partial bool PrüfungLäuft { get; set; } = false;
 
 
@@ -235,28 +235,23 @@ namespace TestImage
 
         private bool CanExecuteBildNachLinksCommand()
         {
-            if (((AufgabenView.CurrentPosition) > 0) & (!PrüfungLäuft))
-            {
-                return true;
-            }
-            else
-            {
-                return false;
-            }
+            //if (((AufgabenView.CurrentPosition) > 0) & (!PrüfungLäuft))
+            //{
+            //    return true;
+            //}
+            //else
+            //{
+            //    return false;
+            //}
+
+
+            return !PrüfungLäuft
+                    && AufgabenView != null
+                    && AufgabenView.CurrentPosition > 0;
+
         }
 
 
-        private bool CanExecuteBildNachRechtsCommand()
-        {
-            if (((AufgabenView.CurrentPosition + 1) < (AufgabenView.Count)) & !PrüfungLäuft)
-            {
-                return true;
-            }
-            else
-            {
-                return false;
-            }
-        }
 
 
 
@@ -265,108 +260,191 @@ namespace TestImage
         [RelayCommand(CanExecute = nameof(CanExecuteBildNachLinksCommand))]
         private void CommandExecuteBildLinks()
         {
-            //AufgabenView.MoveCurrentToPrevious();
+            ////AufgabenView.MoveCurrentToPrevious();
 
-            // nächstes Bild anzeigen
-            var indexBild = AufgabenView.CurrentPosition;
-            if (AufgabenView.Count >= indexBild + 1)
+            //// nächstes Bild anzeigen
+            //var indexBild = AufgabenView.CurrentPosition;
+            //if (AufgabenView.Count >= indexBild + 1)
+            //{
+            //    while ((AufgabenView.CurrentPosition > -1) & (indexBild > 0))
+            //    {
+            //        var pos = AufgabenView.GetItemAt(indexBild - 1) as MeinBildchen;
+            //        indexBild--;
+
+            //        if (pos != null && pos.BildFürLinks == false)
+            //        {
+            //            AufgabenView.MoveCurrentToPosition(indexBild);
+            //            break;
+            //        }
+
+            //        //144 if Anfang erreicht, dann erstes Bild anzeigen
+            //        if (indexBild == 0)
+            //        {
+            //            AufgabenView.MoveCurrentToPosition(0);
+
+            //            AufgabenView.Refresh();
+
+            //        }
+
+            //        // Bildchen entfernen
+            //        var bildchen = OcAufgabens.FirstOrDefault(b => b.BName == SelectedBildchen?.BName);
+            //        //var indexSelected = AufgabenView.CurrentPosition;
+
+            //        if (bildchen != null)
+            //        {
+            //            // Löschen if Bild nicht mehr da ist
+            //            if (!File.Exists(bildchen.BName))
+            //            {
+            //                OcAufgabens.Remove(bildchen);
+            //                //AufgabenView.MoveCurrentToNext();
+
+            //                //AufgabenView.Refresh();
+
+            //                // Spruch
+            //                // If Not Program.isWorking Then Code.Debug Else Code.DoNotTouch
+            //            }
+
+            //        }
+
+
+            //    }
+            //}
+
+            // Copilot Code
+
+            // 422
+
+
+            if (AufgabenView.CurrentPosition < 0)
             {
-                while ((AufgabenView.CurrentPosition > -1) & (indexBild > 0))
+                return;
+            }
+
+            //// Falls aktuelles Bild physisch nicht mehr existiert → entfernen
+            //var current = SelectedBildchen;
+            //if (current != null && !File.Exists(current.BName))
+            //{
+            //    OcAufgabens.Remove(current);
+            //}
+
+            // Falls das aktuell selektierte Bild physisch nicht mehr existiert → entfernen
+            var current = SelectedBildchen;
+            if (current != null && !File.Exists(current.BName))
+            {
+                if (RemoveMissingFilesBulk())
                 {
-                    var pos = AufgabenView.GetItemAt(indexBild - 1) as MeinBildchen;
-                    indexBild--;
-
-                    if (pos != null && pos.BildFürLinks == false)
-                    {
-                        AufgabenView.MoveCurrentToPosition(indexBild);
-                        break;
-                    }
-
-                    //144 if Anfang erreicht, dann erstes Bild anzeigen
-                    if (indexBild == 0)
-                    {
-                        AufgabenView.MoveCurrentToPosition(0);
-
-                        AufgabenView.Refresh();
-
-                    }
-
-                    // Bildchen entfernen
-                    var bildchen = OcAufgabens.FirstOrDefault(b => b.BName == SelectedBildchen?.BName);
-                    //var indexSelected = AufgabenView.CurrentPosition;
-
-                    if (bildchen != null)
-                    {
-                        // Löschen if Bild nicht mehr da ist
-                        if (!File.Exists(bildchen.BName))
-                        {
-                            OcAufgabens.Remove(bildchen);
-                            //AufgabenView.MoveCurrentToNext();
-
-                            //AufgabenView.Refresh();
-
-                            // Spruch
-                            // If Not Program.isWorking Then Code.Debug Else Code.DoNotTouch
-                        }
-
-                    }
-
-
+                    // Zustand wurde repariert → nächste Aktion bewusst im nächsten Klick
+                    // return;
                 }
             }
 
+            // Kein aktuelles Element → nichts zu tun
+            if (AufgabenView.CurrentPosition <= 0 || AufgabenView.Count == 0)
+            {
+                return;
+            }
+
+            // Eine eindeutige Ausgangsposition
+            int startIndex = AufgabenView.CurrentPosition;
+
+            // Nach links suchen: startIndex - 1 → 0
+            for (int i = startIndex - 1; i >= 0; i--)
+            {
+                if (AufgabenView.GetItemAt(i) is MeinBildchen mb &&
+                    mb.BildFürLinks == false)
+                {
+                    AufgabenView.MoveCurrentToPosition(i);
+                    return;
+                }
+            }
+
+            // Falls links nichts mehr existiert → erstes Bild anzeigen
+            if (AufgabenView.Count > 0)
+            {
+                AufgabenView.MoveCurrentToFirst();
+            }
+
+
         }
+
+
+        private bool CanExecuteBildNachRechtsCommand()
+        {
+            return !PrüfungLäuft && AufgabenView != null && AufgabenView.CurrentPosition >= 0
+                 && AufgabenView.CurrentPosition < AufgabenView.Count - 1;
+        }
+
 
 
         [RelayCommand(CanExecute = nameof(CanExecuteBildNachRechtsCommand))]
         private void CommandExecuteBildNachRechts()
         {
-            var indexBild = AufgabenView.CurrentPosition;
+            // Copilot Code
 
-            // fals das selected Bild nicht mehr da ist, dann löschen
-            var bildchen = OcAufgabens.FirstOrDefault(b => b.BName == SelectedBildchen?.BName);
-            if (bildchen != null)
+            // Falls das aktuell selektierte Bild physisch nicht mehr existiert → entfernen
+            var current = SelectedBildchen;
+            if (current != null && !File.Exists(current.BName))
             {
-                // Löschen if Bild nicht mehr da ist
-                if (!File.Exists(bildchen.BName))
+                if (RemoveMissingFilesBulk())
                 {
-                    OcAufgabens.Remove(bildchen);
-
-                    //
-                    AufgabenView.MoveCurrentToNext();
+                    // Zustand wurde repariert → nächste Aktion bewusst im nächsten Klick
+                    // return;
                 }
             }
 
-            if (AufgabenView.Count >= indexBild + 1)
+            // Kein aktuelles Element → nichts zu tun
+            if (AufgabenView.CurrentPosition < 0 || AufgabenView.Count == 0)
             {
-                while ((AufgabenView.CurrentPosition + 1 < AufgabenView.Count) & (AufgabenView.Count > indexBild + 1))
-                {
-                    var pos = AufgabenView.GetItemAt(indexBild + 1) as MeinBildchen;
-                    indexBild++;
-
-                    if (pos != null && pos.BildFürLinks == false)
-                    {
-                        AufgabenView.MoveCurrentToPosition(indexBild);
-                        break;
-                    }
-
-                    // if Ende erreicht, dann letzes Bild anzeigen
-                    if (AufgabenView.Count <= indexBild + 1)
-                    {
-                        AufgabenView.MoveCurrentToPosition(AufgabenView.Count - 1);
-
-                    }
-                    else
-                    {
-                        ;
-                    }
-
-
-                }
-                AufgabenView.Refresh();
+                return;
             }
-            //AufgabenView.MoveCurrentToNext();
+
+
+            // Ausgangsposition festhalten (eine einzige Index-Wahrheit)
+            int startIndex = AufgabenView.CurrentPosition;
+
+            // Nächstes Bild suchen, das noch nicht "für Links" markiert ist
+            for (int i = startIndex + 1; i < AufgabenView.Count; i++)
+            {
+                if (AufgabenView.GetItemAt(i) is MeinBildchen mb &&
+                    mb.BildFürLinks == false)
+                {
+                    AufgabenView.MoveCurrentToPosition(i);
+                    return;
+                }
+            }
+
+            // Falls rechts kein passendes Bild mehr existiert → letztes anzeigen
+            if (AufgabenView.Count > 0)
+            {
+                AufgabenView.MoveCurrentToLast();
+            }
         }
+
+        // private bool _isBulkSyncRunning;
+
+        private bool RemoveMissingFilesBulk()
+        {
+            var neueListe = OcAufgabens
+                   .Where(b => File.Exists(b.BName))
+                   .ToList();
+
+            if (neueListe.Count == OcAufgabens.Count)
+            {
+                return false; // nichts geändert
+            }
+
+            OcAufgabens.Clear();
+            foreach (var item in neueListe)
+            {
+                OcAufgabens.Add(item);
+            }
+
+            return true;
+        }
+
+
+
+
 
         private bool PersonViewSource_Filter(object obj)
         {
@@ -699,120 +777,215 @@ namespace TestImage
         [RelayCommand(CanExecute = nameof(CanExecuteBildInsKeinFavVerzeichnisVerschiebenCommand))]
         private async Task CommandExecuteBildInsKeinFavVerzeichnisVerschieben()
         {
+            //PrüfungLäuft = true;
+
+            //// Verzeichnis kein_Fav anlegen wenn nicht vorhanden
+            //string zielVerzeichnis = Path.Combine(Path.GetDirectoryName(SelectedBildchen.BName), "kein_Fav");
+            //if (!Directory.Exists(zielVerzeichnis))
+            //{
+            //    Directory.CreateDirectory(zielVerzeichnis);
+            //}
+            //// Datei verschieben
+            //var source = SelectedBildchen.BName;
+            //string zielDateiName = Path.Combine(zielVerzeichnis, Path.GetFileName(source));
+            //try
+            //{
+            //    // In die linke Collection hinzufügen
+            //    // an die erste stelle
+            //    //OcLinkeBilder.Insert(0, new MeinBildchen { BName = zielDateiName, BildFürLinks = true });
+
+            //    if (!File.Exists(zielDateiName) & File.Exists(source))
+            //    {
+            //        var länge = new FileInfo(source).Length;
+            //        if (länge != 0)
+            //        {
+            //            await Task.Run(() => File.Move(source, zielDateiName));
+            //        }
+
+
+            //        //// Aus der Collection entfernen
+            //        //OcAufgabens.Remove(SelectedBildchen);
+            //        //BildchenVorher = zielDateiName;
+
+            //        var bildchen = OcAufgabens.FirstOrDefault(b => b.BName == SelectedBildchen.BName);
+            //        var indexSelected = AufgabenView.CurrentPosition;
+
+            //        if (bildchen != null)
+            //        {
+            //            var index = OcAufgabens.IndexOf(bildchen);
+
+            //            bildchen.BName = zielDateiName;
+            //            bildchen.BildFürLinks = true;
+            //            OnPropertyChanged(nameof(CountBildchenFürLinks));
+
+            //            // Funktioniert so nicht
+            //            //// den nächsten BildFürLinks = false finden und dort hin verschieben
+
+            //            //// var nextIndex = OcAufgabens.IndexOf(bildchen) + 1;
+            //            //var nextIndex = OcAufgabens.Skip(index).FirstOrDefault(x=>x.BildFürLinks==false);
+            //            //if (nextIndex != null)
+            //            //{
+            //            //    var ni = OcAufgabens.IndexOf(nextIndex);
+            //            //    OcAufgabens.Move(index, ni);
+            //            //}
+            //            //else
+            //            //{
+            //            //    // ans Ende verschieben
+            //            //    OcAufgabens.Move(index, OcAufgabens.Count - 1);
+            //            //}
+            //            //12
+
+
+            //            //OcAufgabens.Move(index, indexSelected);
+            //        }
+
+            //        // hier evtl eine checkbox einfügen ob zum nächsten Bild gesprungen werden soll
+
+            //        var indexBild = AufgabenView.CurrentPosition;
+            //        if (AufgabenView.Count >= indexBild + 1)
+            //        {
+            //            while ((AufgabenView.CurrentPosition + 1 < AufgabenView.Count) & (AufgabenView.Count > indexBild + 1))
+            //            {
+            //                var pos = AufgabenView.GetItemAt(indexBild + 1) as MeinBildchen;
+            //                indexBild++;
+
+            //                if (pos != null && pos.BildFürLinks == false)
+            //                {
+            //                    AufgabenView.MoveCurrentToPosition(indexBild);
+            //                    break;
+            //                }
+
+            //                // if Ende erreicht, dann letzes Bild anzeigen
+            //                if (AufgabenView.Count <= indexBild + 1)
+            //                {
+            //                    AufgabenView.MoveCurrentToPosition(AufgabenView.Count - 1);
+            //                    CommandExecuteBildInsKeinFavVerzeichnisVerschiebenCommand?.NotifyCanExecuteChanged();
+            //                }
+            //                else
+            //                {
+            //                    ;
+            //                }
+            //            }
+            //            AufgabenView.Refresh();
+            //            //AufgabenViewKlein.Refresh();
+            //        }
+            //    }
+
+
+
+            //}
+            //catch (Exception ex)
+            //{
+            //    MessageBox.Show("Fehler beim Verschieben der Datei: " + ex.Message);
+            //}
+            //finally
+            //{
+            //    BildchenVorher = zielDateiName;
+
+            //    AufgabenView.Refresh();
+            //    UpdateAlleBilderVerschoben();
+
+            //    PrüfungLäuft = false;
+            //}
+
+            // Copilot Code
+
+
             PrüfungLäuft = true;
 
-            // Verzeichnis kein_Fav anlegen wenn nicht vorhanden
-            string zielVerzeichnis = Path.Combine(Path.GetDirectoryName(SelectedBildchen.BName), "kein_Fav");
-            if (!Directory.Exists(zielVerzeichnis))
-            {
-                Directory.CreateDirectory(zielVerzeichnis);
-            }
-            // Datei verschieben
-            string zielDateiName = Path.Combine(zielVerzeichnis, Path.GetFileName(SelectedBildchen.BName));
+            bool moveErfolgreich = false;
+
+            var source = SelectedBildchen.BName;
+            string zielVerzeichnis = Path.Combine(
+                Path.GetDirectoryName(source),
+                "kein_Fav");
+
+            string zielDateiName = Path.Combine(
+                zielVerzeichnis,
+                Path.GetFileName(source));
+
             try
             {
-                // In die linke Collection hinzufügen
-                // an die erste stelle
-                //OcLinkeBilder.Insert(0, new MeinBildchen { BName = zielDateiName, BildFürLinks = true });
-
-                if (!File.Exists(zielDateiName) & File.Exists(SelectedBildchen.BName))
+                // Verzeichnis sicherstellen
+                if (!Directory.Exists(zielVerzeichnis))
                 {
-                    var länge = new FileInfo(SelectedBildchen.BName).Length;
-                    if (länge != 0)
-                    {
-                        await Task.Run(() => File.Move(SelectedBildchen.BName, zielDateiName));
-
-
-                    }
-
-
-                    //// Aus der Collection entfernen
-                    //OcAufgabens.Remove(SelectedBildchen);
-                    //BildchenVorher = zielDateiName;
-
-                    var bildchen = OcAufgabens.FirstOrDefault(b => b.BName == SelectedBildchen.BName);
-                    var indexSelected = AufgabenView.CurrentPosition;
-
-                    if (bildchen != null)
-                    {
-                        var index = OcAufgabens.IndexOf(bildchen);
-
-                        bildchen.BName = zielDateiName;
-                        bildchen.BildFürLinks = true;
-                        OnPropertyChanged(nameof(CountBildchenFürLinks));
-
-                        // Funktioniert so nicht
-                        //// den nächsten BildFürLinks = false finden und dort hin verschieben
-
-                        //// var nextIndex = OcAufgabens.IndexOf(bildchen) + 1;
-                        //var nextIndex = OcAufgabens.Skip(index).FirstOrDefault(x=>x.BildFürLinks==false);
-                        //if (nextIndex != null)
-                        //{
-                        //    var ni = OcAufgabens.IndexOf(nextIndex);
-                        //    OcAufgabens.Move(index, ni);
-                        //}
-                        //else
-                        //{
-                        //    // ans Ende verschieben
-                        //    OcAufgabens.Move(index, OcAufgabens.Count - 1);
-                        //}
-                        //12
-
-
-                        //OcAufgabens.Move(index, indexSelected);
-                    }
-
-                    // hier evtl eine checkbox einfügen ob zum nächsten Bild gesprungen werden soll
-
-                    var indexBild = AufgabenView.CurrentPosition;
-                    if (AufgabenView.Count >= indexBild + 1)
-                    {
-                        while ((AufgabenView.CurrentPosition + 1 < AufgabenView.Count) & (AufgabenView.Count > indexBild + 1))
-                        {
-                            var pos = AufgabenView.GetItemAt(indexBild + 1) as MeinBildchen;
-                            indexBild++;
-
-                            if (pos != null && pos.BildFürLinks == false)
-                            {
-                                AufgabenView.MoveCurrentToPosition(indexBild);
-                                break;
-                            }
-
-                            // if Ende erreicht, dann letzes Bild anzeigen
-                            if (AufgabenView.Count <= indexBild + 1)
-                            {
-                                AufgabenView.MoveCurrentToPosition(AufgabenView.Count - 1);
-                                CommandExecuteBildInsKeinFavVerzeichnisVerschiebenCommand?.NotifyCanExecuteChanged();
-                            }
-                            else
-                            {
-                                ;
-                            }
-                        }
-                        AufgabenView.Refresh();
-                        //AufgabenViewKlein.Refresh();
-                    }
+                    Directory.CreateDirectory(zielVerzeichnis);
                 }
 
-
-
+                // Dateisystem === EINZIGER kritischer Teil
+                if (!File.Exists(zielDateiName) && File.Exists(source))
+                {
+                    var länge = new FileInfo(source).Length;
+                    if (länge > 0)
+                    {
+                        await Task.Run(() => File.Move(source, zielDateiName));
+                        moveErfolgreich = true;
+                    }
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Fehler beim Verschieben der Datei: " + ex.Message);
+                MessageBox.Show(
+                    "Fehler beim Verschieben der Datei:\n\n" + ex.Message,
+                    "Verschieben fehlgeschlagen",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
             }
             finally
             {
-                BildchenVorher = zielDateiName;
-
-
-
-                AufgabenView.Refresh();
-                UpdateAlleBilderVerschoben();
-
                 PrüfungLäuft = false;
             }
+
+            // ❗ Ab hier NUR weiter, wenn Move wirklich erfolgreich war
+            if (!moveErfolgreich)
+            {
+                return;
+            }
+
+            // === MODEL / COLLECTION ===
+
+            var bildchen = OcAufgabens
+                .FirstOrDefault(b => b.BName == source);
+
+            if (bildchen != null)
+            {
+                bildchen.BName = zielDateiName;
+                bildchen.BildFürLinks = true;
+
+                OnPropertyChanged(nameof(CountBildchenFürLinks));
+            }
+
+            BildchenVorher = zielDateiName;
+
+            // === NAVIGATION ===
+            MoveToNextNichtLinkesBild();
+
+            AufgabenView.Refresh();
+            UpdateAlleBilderVerschoben();
+
         }
+
+
+        private void MoveToNextNichtLinkesBild()
+        {
+            var startIndex = AufgabenView.CurrentPosition;
+
+            for (int i = startIndex + 1; i < AufgabenView.Count; i++)
+            {
+                if (AufgabenView.GetItemAt(i) is MeinBildchen mb &&
+                    mb.BildFürLinks == false)
+                {
+                    AufgabenView.MoveCurrentToPosition(i);
+                    return;
+                }
+            }
+
+            // Falls nichts mehr gefunden
+            AufgabenView.MoveCurrentToLast();
+            CommandExecuteBildInsKeinFavVerzeichnisVerschiebenCommand
+                ?.NotifyCanExecuteChanged();
+        }
+
 
         #endregion
 
@@ -830,97 +1003,156 @@ namespace TestImage
                 & (SelectedBildchen.BildFürLinks == true & (!PrüfungLäuft));
         }
         [RelayCommand(CanExecute = nameof(CanExecuteBildInsHauptVerzeichnisZuruckVerschiebenCommand))]
-        private void CommandExecuteBildInsHauptVerzeichnisZuruckVerschieben()
+        private async Task CommandExecuteBildInsHauptVerzeichnisZuruckVerschieben()
         {
+            //PrüfungLäuft = true;
+
+            //// Datei ins Haupt-Verzeichnis zurück verschieben
+
+            //var dateiname = Path.GetFileName(SelectedBildchen.BName);
+            //// "C:\...\kein_Fav\lala[1].jpg"
+            //var hauptVerzeichnis = Path.GetDirectoryName(Path.GetDirectoryName(SelectedBildchen.BName));
+
+            //string zielVollPfad = Path.Combine(hauptVerzeichnis, dateiname);
+            //try
+            //{
+            //    File.Move(SelectedBildchen.BName, zielVollPfad);
+            //    // Aus der Collection entfernen
+            //    //var altesBildchen = OcLinkeBilder.FirstOrDefault(b => b.BName == BildchenVorher);
+            //    //OcLinkeBilder.Remove(altesBildchen);
+
+            //    //SelectedBildchen.BName = zielVollPfad;
+            //    //SelectedBildchen.BildFürLinks = false;
+
+            //    //AufgabenView.Refresh();
+
+            //    //aus
+            //    //var bildchen = OcAufgabens.FirstOrDefault(b => b.BName == SelectedBildchen.BName);
+            //    //var indexSelected = AufgabenView.CurrentPosition;
+
+            //    //if (bildchen != null)
+            //    //{
+            //    //    var index = OcAufgabens.IndexOf(bildchen);
+
+            //    //    bildchen.BName = zielDateiName;
+            //    //    bildchen.BildFürLinks = true;
+
+            //    //    OcAufgabens.Move(index, indexSelected);
+            //    //}
+
+            //    var bildchen = OcAufgabens.FirstOrDefault(b => b.BName == SelectedBildchen.BName);
+            //    var indexSelected = AufgabenView.CurrentPosition;
+
+            //    if (bildchen != null)
+            //    {
+            //        var index = OcAufgabens.IndexOf(bildchen);
+
+            //        bildchen.BName = zielVollPfad;
+            //        bildchen.BildFürLinks = false;
+            //        OnPropertyChanged(nameof(CountBildchenFürLinks));
+
+            //        OcAufgabens.Move(index, indexSelected);
+            //    }
+
+
+            //    //// Position in der OcAufgabens finden, es ist die SelctedBildchen
+            //    //// und dort einfügen
+            //    //var insertIndex = 0;
+            //    //if (SelectedBildchen != null)
+            //    //{
+            //    //    insertIndex = AufgabenView.CurrentPosition;
+
+            //    //    // In die rechte Collection hinzufügen
+            //    //    // an die erste stelle
+            //    //    //OcAufgabens.Insert(insertIndex, new MeinBildchen { BName = zielVollPfad });
+
+
+
+            //    //}
+
+            //    BildchenVorher = string.Empty;
+
+            //    //AufgabenView.MoveCurrentToPosition(0);
+            //    SelectedBildchen = null;
+            //    AufgabenView.MoveCurrentToPosition(indexSelected);
+            //    //AufgabenView.Refresh();
+            //    //AufgabenView.Refresh();
+
+
+
+            //}
+            //catch (Exception ex)
+            //{
+            //    MessageBox.Show("Fehler beim Verschieben der Datei: " + ex.Message);
+            //}
+
+            //finally
+            //{
+            //    AufgabenView.Refresh();
+            //    UpdateAlleBilderVerschoben();
+
+            //    PrüfungLäuft = false;
+            //    //AufgabenViewKlein.Refresh();
+            //}
+
+
             PrüfungLäuft = true;
 
-            // Datei ins Haupt-Verzeichnis zurück verschieben
+            bool moveErfolgreich = false;
 
-            var dateiname = Path.GetFileName(SelectedBildchen.BName);
-            // "C:\Users\Bill-6e\Desktop\ZL4\Test 1\he17_同人CG集2025-09-10\kein_Fav\Printemps by DavidMnr on DeviantArt[1].jpg"
-            var hauptVerzeichnis = Path.GetDirectoryName(Path.GetDirectoryName(SelectedBildchen.BName));
+            var source = SelectedBildchen.BName;
+            var dateiname = Path.GetFileName(source);
+            var hauptVerzeichnis = Path.GetDirectoryName(Path.GetDirectoryName(source));
+            var zielVollPfad = Path.Combine(hauptVerzeichnis, dateiname);
 
-            string zielVollPfad = Path.Combine(hauptVerzeichnis, dateiname);
             try
             {
-                File.Move(SelectedBildchen.BName, zielVollPfad);
-                // Aus der Collection entfernen
-                //var altesBildchen = OcLinkeBilder.FirstOrDefault(b => b.BName == BildchenVorher);
-                //OcLinkeBilder.Remove(altesBildchen);
-
-                //SelectedBildchen.BName = zielVollPfad;
-                //SelectedBildchen.BildFürLinks = false;
-
-                //AufgabenView.Refresh();
-
-                //aus
-                //var bildchen = OcAufgabens.FirstOrDefault(b => b.BName == SelectedBildchen.BName);
-                //var indexSelected = AufgabenView.CurrentPosition;
-
-                //if (bildchen != null)
-                //{
-                //    var index = OcAufgabens.IndexOf(bildchen);
-
-                //    bildchen.BName = zielDateiName;
-                //    bildchen.BildFürLinks = true;
-
-                //    OcAufgabens.Move(index, indexSelected);
-                //}
-
-                var bildchen = OcAufgabens.FirstOrDefault(b => b.BName == SelectedBildchen.BName);
-                var indexSelected = AufgabenView.CurrentPosition;
-
-                if (bildchen != null)
+                if (!File.Exists(zielVollPfad) && File.Exists(source))
                 {
-                    var index = OcAufgabens.IndexOf(bildchen);
-
-                    bildchen.BName = zielVollPfad;
-                    bildchen.BildFürLinks = false;
-                    OnPropertyChanged(nameof(CountBildchenFürLinks));
-
-                    OcAufgabens.Move(index, indexSelected);
+                    await Task.Run(() => File.Move(source, zielVollPfad));
+                    moveErfolgreich = true;
                 }
-
-
-                //// Position in der OcAufgabens finden, es ist die SelctedBildchen
-                //// und dort einfügen
-                //var insertIndex = 0;
-                //if (SelectedBildchen != null)
-                //{
-                //    insertIndex = AufgabenView.CurrentPosition;
-
-                //    // In die rechte Collection hinzufügen
-                //    // an die erste stelle
-                //    //OcAufgabens.Insert(insertIndex, new MeinBildchen { BName = zielVollPfad });
-
-
-
-                //}
-
-                BildchenVorher = string.Empty;
-
-                //AufgabenView.MoveCurrentToPosition(0);
-                SelectedBildchen = null;
-                AufgabenView.MoveCurrentToPosition(indexSelected);
-                //AufgabenView.Refresh();
-                //AufgabenView.Refresh();
-
-
-
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Fehler beim Verschieben der Datei: " + ex.Message);
+                MessageBox.Show(
+                    "Fehler beim Zurückverschieben der Datei:\n\n" + ex.Message,
+                    "Verschieben fehlgeschlagen",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
             }
-
             finally
             {
-                AufgabenView.Refresh();
-                UpdateAlleBilderVerschoben();
-
                 PrüfungLäuft = false;
-                //AufgabenViewKlein.Refresh();
             }
+
+            // ❗ nur bei echtem Erfolg
+            if (!moveErfolgreich)
+            {
+                return;
+            }
+
+            // === MODEL / COLLECTION UPDATE ===
+
+            var bildchen = OcAufgabens.FirstOrDefault(b => b.BName == source);
+            if (bildchen != null)
+            {
+                var index = OcAufgabens.IndexOf(bildchen);
+                var indexSelected = AufgabenView.CurrentPosition;
+
+                bildchen.BName = zielVollPfad;
+                bildchen.BildFürLinks = false;
+
+                OnPropertyChanged(nameof(CountBildchenFürLinks));
+                OcAufgabens.Move(index, indexSelected);
+            }
+
+            BildchenVorher = string.Empty;
+
+            AufgabenView.MoveCurrentToPosition(AufgabenView.CurrentPosition);
+            AufgabenView.Refresh();
+            UpdateAlleBilderVerschoben();
+
         }
 
         #endregion
@@ -1362,10 +1594,16 @@ namespace TestImage
 
                 await MeTa_AlleBilderInsKeinFavVerschieben(token);
             }
-            catch (Exception)
-            {
 
+            catch (OperationCanceledException)
+            {
+                // Abbruch ist ok
             }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
+            }
+
             finally
             {
                 PrüfungLäuft = false;
@@ -1379,140 +1617,221 @@ namespace TestImage
 
         private async Task MeTa_AlleBilderInsKeinFavVerschieben(CancellationToken token)
         {
-            var vorherSelectedFullName = SelectedBildchen?.BName;
-            var vorherSelectedName = Path.GetFileName(vorherSelectedFullName);
-            // 755
-            // Verzeichnis kein_Fav anlegen wenn nicht vorhanden
-            string zielVerzeichnis = Path.Combine(Path.GetDirectoryName(SelectedBildchen?.BName), "kein_Fav");
-            if (!Directory.Exists(zielVerzeichnis))
+            //var vorherSelectedFullName = SelectedBildchen?.BName;
+            //var vorherSelectedName = Path.GetFileName(vorherSelectedFullName);
+            //// 755
+            //// Verzeichnis kein_Fav anlegen wenn nicht vorhanden
+            //string zielVerzeichnis = Path.Combine(Path.GetDirectoryName(SelectedBildchen?.BName), "kein_Fav");
+            //if (!Directory.Exists(zielVerzeichnis))
+            //{
+            //    Directory.CreateDirectory(zielVerzeichnis);
+            //}
+
+            //// Zur vorletzten Position springen
+            //// Geht so schneller und der Abbruch Button wird nicht blockiert
+            //if (ocAufgabens.Count > 2)
+            //{
+            //    // später wieder setzen
+            //    // AufgabenView.MoveCurrentToPosition(AufgabenView.Count - 1);
+            //}
+
+            //// Bau mir mal eine Progressbar ein , butte
+            //var sw = Stopwatch.StartNew();
+            //DateTime started = DateTime.Now;
+            //IProgress<CLProgressStückzahl> progressStück = new Progress<CLProgressStückzahl>(value => PercentageValueVerschieben = value.Percent);
+
+
+
+            //var bilderZuVerschieben = OcAufgabens.Where(b => b.BildFürLinks == false).ToList();
+            //long gszähler = bilderZuVerschieben.Count;
+            //int zähler = 0;
+            //foreach (var bildchen in bilderZuVerschieben)
+            //{
+
+            //    try
+            //    {
+            //        // Datei verschieben
+            //        //string zielDateiName = Path.Combine(zielVerzeichnis, Path.GetFileName(SelectedBildchen.BName));
+            //        string quellDateiFullName = bildchen.BName;
+            //        var zielDateiName = Path.GetFileName(quellDateiFullName);
+            //        //var zielPfad= Path.Combine(zielVerzeichnis, zielDateiName);
+            //        var zielDateiFullName = Path.Combine(zielVerzeichnis, zielDateiName);
+
+            //        // In die linke Collection hinzufügen
+            //        // an die erste stelle
+            //        //OcLinkeBilder.Insert(0, new MeinBildchen { BName = zielDateiName, BildFürLinks = true });
+
+
+
+            //        if (File.Exists(quellDateiFullName) & !File.Exists(zielDateiFullName))
+            //        {
+            //            var länge = new FileInfo(quellDateiFullName).Length;
+            //            if (länge != 0)
+            //            {
+            //                // Datei verschieben mit visual basic
+            //                // in Task auslagern
+
+
+            //                // Langsam
+            //                //await Task.Run(() =>
+            //                //{
+            //                //    Microsoft.VisualBasic.FileIO.FileSystem.MoveFile(quellDateiFullName, zielDateiFullName, Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs, Microsoft.VisualBasic.FileIO.UICancelOption.DoNothing);
+            //                //}, token);
+
+            //                // Schneller
+            //                await MieneServices.CopyAndDeleteFileAsync(quellDateiFullName, zielDateiFullName, token);
+
+            //                // Langsam
+            //                //await Task.Run(() => File.Move(quellDateiFullName, zielDateiFullName));
+
+            //                bildchen.BName = zielDateiFullName;
+            //                bildchen.BildFürLinks = true;
+            //                OnPropertyChanged(nameof(CountBildchenFürLinks));
+
+            //                var pgs = new CLProgressStückzahl(started, gszähler, zähler++, false);
+
+            //                progressStück?.Report(pgs);
+
+            //                LabelDropContent = pgs.Restzeit;
+
+            //                // prüfen ob original datei gelöscht wurde, sonnst lösche
+            //                if (File.Exists(quellDateiFullName))
+            //                {
+            //                    // byte abglech der original Datei mit ziel Datei
+
+
+            //                }
+            //            }
+            //        }
+            //    }
+            //    catch (Exception ex)
+            //    {
+            //        MessageBox.Show("Fehler beim Verschieben der Datei: " + ex.Message);
+            //    }
+            //    finally
+            //    {
+            //        //BildchenVorher = zielVerzeichnis;
+            //        //AufgabenView.Refresh();
+            //    }
+
+
+            //    // Kaufen
+            //    // roborock Saros Z70 Saugroboter mit Wischfunktion, OmniGrip Arm, KI-gestützt
+            //    // Roomba® Max 706 Combo-Roboter + AutoWash™ Dock – Schwarz
+
+            //}
+
+            //// Curent Position wiederherstellen
+            //var wiederZuWählendesBildchen = OcAufgabens.FirstOrDefault(b => Path.GetFileName(b.BName) == vorherSelectedName);
+            //if (wiederZuWählendesBildchen != null)
+            //{
+            //    SelectedBildchen = wiederZuWählendesBildchen;
+            //}
+
+            // Copilot Code
+
+
+            // ---------- SELECTION SNAPSHOT ----------
+            string? vorherSelectedFullName = SelectedBildchen?.BName;
+            string? vorherSelectedFileName = Path.GetFileName(vorherSelectedFullName);
+
+            // ---------- GUARDS ----------
+            if (vorherSelectedFullName is null)
             {
-                Directory.CreateDirectory(zielVerzeichnis);
+                return;
             }
 
-            // Zur vorletzten Position springen
-            // Geht so schneller und der Abbruch Button wird nicht blockiert
-            if (ocAufgabens.Count > 2)
+            string? baseDir = Path.GetDirectoryName(vorherSelectedFullName);
+            if (string.IsNullOrEmpty(baseDir))
             {
-                // später wieder setzen
-                // AufgabenView.MoveCurrentToPosition(AufgabenView.Count - 1);
+                return;
             }
 
-            // Bau mir mal eine Progressbar ein , butte
-            var sw = Stopwatch.StartNew();
-            DateTime started = DateTime.Now;
-            IProgress<CLProgressStückzahl> progressStück = new Progress<CLProgressStückzahl>(value => PercentageValueVerschieben = value.Percent);
+            // ---------- ZIELVERZEICHNIS ----------
+            string zielVerzeichnis = Path.Combine(baseDir, "kein_Fav");
 
+            // CreateDirectory ist idempotent (existiert schon → kein Fehler)
+            Directory.CreateDirectory(zielVerzeichnis);
 
-
+            // ---------- SNAPSHOT DER ARBEITSLISTE ----------
             var bilderZuVerschieben = OcAufgabens.Where(b => b.BildFürLinks == false).ToList();
-            long gszähler = bilderZuVerschieben.Count;
-            int zähler = 0;
+
+            if (bilderZuVerschieben.Count == 0)
+            {
+                return;
+            }
+
+            // ---------- PROGRESS ----------
+            int total = bilderZuVerschieben.Count;
+            int done = 0;
+            DateTime started = DateTime.Now;
+
+            IProgress<CLProgressStückzahl> progress = new Progress<CLProgressStückzahl>(p =>
+                {
+                    PercentageValueVerschieben = p.Percent;
+                    LabelDropContent = p.Restzeit;
+                });
+
+            // ---------- HAUPTSCHLEIFE ----------
             foreach (var bildchen in bilderZuVerschieben)
             {
+                token.ThrowIfCancellationRequested();
+
+                string source = bildchen.BName;
+                string zielDateiFullName = Path.Combine(zielVerzeichnis, Path.GetFileName(source));
+
+                // Defensive Guards pro Datei
+                if (!File.Exists(source) || File.Exists(zielDateiFullName))
+                {
+                    done++;
+                    progress.Report(new CLProgressStückzahl(started, total, done, false));
+                    continue;
+                }
 
                 try
                 {
-                    // Datei verschieben
-                    //string zielDateiName = Path.Combine(zielVerzeichnis, Path.GetFileName(SelectedBildchen.BName));
-                    string quellDateiFullName = bildchen.BName;
-                    var zielDateiName = Path.GetFileName(quellDateiFullName);
-                    //var zielPfad= Path.Combine(zielVerzeichnis, zielDateiName);
-                    var zielDateiFullName = Path.Combine(zielVerzeichnis, zielDateiName);
+                    await MieneServices.CopyAndDeleteFileAsync(source, zielDateiFullName, token);
 
-                    // In die linke Collection hinzufügen
-                    // an die erste stelle
-                    //OcLinkeBilder.Insert(0, new MeinBildchen { BName = zielDateiName, BildFürLinks = true });
+                    // ✅ NUR BEI ERFOLG Model ändern
+                    bildchen.BName = zielDateiFullName;
+                    bildchen.BildFürLinks = true;
 
+                    done++;
+                    OnPropertyChanged(nameof(CountBildchenFürLinks));
 
-
-                    if (File.Exists(quellDateiFullName) & !File.Exists(zielDateiFullName))
-                    {
-                        var länge = new FileInfo(quellDateiFullName).Length;
-                        if (länge != 0)
-                        {
-                            // Datei verschieben mit visual basic
-                            // in Task auslagern
-
-
-                            // Langsam
-                            //await Task.Run(() =>
-                            //{
-                            //    Microsoft.VisualBasic.FileIO.FileSystem.MoveFile(quellDateiFullName, zielDateiFullName, Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs, Microsoft.VisualBasic.FileIO.UICancelOption.DoNothing);
-                            //}, token);
-
-                            // Schneller
-                            await MieneServices.CopyAndDeleteFileAsync(quellDateiFullName, zielDateiFullName, token);
-
-                            // Langsam
-                            //await Task.Run(() => File.Move(quellDateiFullName, zielDateiFullName));
-
-                            bildchen.BName = zielDateiFullName;
-                            bildchen.BildFürLinks = true;
-                            OnPropertyChanged(nameof(CountBildchenFürLinks));
-
-                            var pgs = new CLProgressStückzahl(started, gszähler, zähler++, false);
-
-                            progressStück?.Report(pgs);
-
-                            LabelDropContent = pgs.Restzeit;
-
-                            // prüfen ob original datei gelöscht wurde, sonnst lösche
-                            if (File.Exists(quellDateiFullName))
-                            {
-                                // byte abglech der original Datei mit ziel Datei
-
-
-
-                            }
-
-
-                        }
-
-
-
-
-                    }
-
+                    progress.Report(new CLProgressStückzahl(started, total, done, false));
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("Fehler beim Verschieben der Datei: " + ex.Message);
+                    MessageBox.Show(
+                        $"Fehler beim Verschieben:\n{source}\n\n{ex.Message}",
+                        "Verschieben fehlgeschlagen",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
                 }
-                finally
-                {
-                    //BildchenVorher = zielVerzeichnis;
-                    //AufgabenView.Refresh();
-
-                }
-
-
-
-
-
-
-
-                // Kaufen
-                // roborock Saros Z70 Saugroboter mit Wischfunktion, OmniGrip Arm, KI-gestützt
-                // Roomba® Max 706 Combo-Roboter + AutoWash™ Dock – Schwarz
-
-                // Sehr geerter Herr Janschke
-
-                // leider kann ich mich an ihr Obulus gespräch errinern, hab es aber irgendwie verdrängt und nicht
-                // mit Mehr kosten in dem Sinne verbunden, daher war der höhere Preis gerechtfertigt.
-                // Vielen Dank das Sie mir keine 2000-3000 €  zusatzrechnung aufgebrummt haben und und sehr 
-                // gemässigt im rahmen geblieben sind.
-
-                // hab aber trotzdem das Problem mit schiefen Roladenkasten in Küche und Wohnzimmer
-                // was meine Mama sehr stört und optisch nicht passt.
-
             }
 
-            // Curent Position wiederherstellen
-            var wiederZuWählendesBildchen = OcAufgabens.FirstOrDefault(b => Path.GetFileName(b.BName) == vorherSelectedName);
-            if (wiederZuWählendesBildchen != null)
+            // ---------- SELECTION WIEDERHERSTELLEN ----------
+            if (!string.IsNullOrEmpty(vorherSelectedFileName))
             {
-                SelectedBildchen = wiederZuWählendesBildchen;
+                var wiederZuWählendesBildchen = OcAufgabens.FirstOrDefault(b => Path.GetFileName(b.BName)
+                .Equals(vorherSelectedFileName, StringComparison.OrdinalIgnoreCase));
+
+                if (wiederZuWählendesBildchen != null)
+                {
+                    SelectedBildchen = wiederZuWählendesBildchen;
+                }
+                else if (OcAufgabens.Count > 0)
+                {
+                    // Fallback: erstes Bild
+                    SelectedBildchen = OcAufgabens[0];
+                }
             }
+
         }
 
         #endregion
@@ -2222,63 +2541,149 @@ namespace TestImage
         #region Command Bild ins KI Fehler verschieben
         private bool CanExecuteBildInsKIFehlerVerschiebenCommand()
         {
-            return (SelectedBildchen != null) & !PrüfungLäuft;
+            return SelectedBildchen != null && !PrüfungLäuft;
         }
 
         [RelayCommand(CanExecute = nameof(CanExecuteBildInsKIFehlerVerschiebenCommand))]
         private async Task CommandExecuteBildInsKIFehlerVerschieben()
         {
-            if (SelectedBildchen == null)
+            //if (SelectedBildchen == null)
+            //{
+            //    return;
+            //}
+            //else
+            //{
+            //    var sw = Stopwatch.StartNew();
+            //    try
+            //    {
+            //        string quellDateiFullName = SelectedBildchen.BName;
+            //        string zielVerzeichnis = Path.Combine(Path.GetDirectoryName(quellDateiFullName), "KI_Fehler");
+            //        string zielDateiFullName = Path.Combine(zielVerzeichnis, Path.GetFileName(quellDateiFullName));
+            //        if (File.Exists(quellDateiFullName))
+            //        {
+            //            if (!Directory.Exists(zielVerzeichnis))
+            //            {
+            //                Directory.CreateDirectory(zielVerzeichnis);
+            //            }
+            //            if (File.Exists(zielDateiFullName))
+            //            {
+            //                MessageBox.Show("Die Datei existiert bereits im Zielverzeichnis: " + zielDateiFullName);
+            //            }
+            //            else
+            //            {
+            //                File.Move(quellDateiFullName, zielDateiFullName);
+
+            //                // 820
+            //                var bildchen = OcAufgabens.FirstOrDefault(b => b.BName == SelectedBildchen.BName);
+            //                var indexSelected = AufgabenView.CurrentPosition;
+
+            //                if (bildchen != null)
+            //                {
+            //                    var index = OcAufgabens.IndexOf(bildchen);
+
+            //                    bildchen.BName = zielDateiFullName;
+            //                    bildchen.BildFürLinks = true;
+            //                    OnPropertyChanged(nameof(SelectedBildchen));
+            //                    OnPropertyChanged(nameof(CountBildchenFürLinks));
+
+            //                }
+            //                Debug.WriteLine($"Datei verschoben von {quellDateiFullName} nach {zielDateiFullName}");
+            //            }
+            //        }
+            //    }
+            //    finally
+            //    {
+            //        sw.Stop();
+            //        Debug.WriteLine($"Dauer: {sw.ElapsedMilliseconds} ms");
+            //        AufgabenView.Refresh();
+            //    }
+            //}
+
+            // copilot Lösung, die den Code aufräumt und die Logik beibehält
+
+            // ---------- GUARDS (Null & State) ----------
+
+            if (SelectedBildchen?.BName is not string source)
             {
                 return;
             }
-            else
+
+            string? baseDirectory = Path.GetDirectoryName(source);
+            if (string.IsNullOrEmpty(baseDirectory))
             {
-                var sw = Stopwatch.StartNew();
-                try
-                {
-                    string quellDateiFullName = SelectedBildchen.BName;
-                    string zielVerzeichnis = Path.Combine(Path.GetDirectoryName(quellDateiFullName), "KI_Fehler");
-                    string zielDateiFullName = Path.Combine(zielVerzeichnis, Path.GetFileName(quellDateiFullName));
-                    if (File.Exists(quellDateiFullName))
-                    {
-                        if (!Directory.Exists(zielVerzeichnis))
-                        {
-                            Directory.CreateDirectory(zielVerzeichnis);
-                        }
-                        if (File.Exists(zielDateiFullName))
-                        {
-                            MessageBox.Show("Die Datei existiert bereits im Zielverzeichnis: " + zielDateiFullName);
-                        }
-                        else
-                        {
-                            File.Move(quellDateiFullName, zielDateiFullName);
-
-                            // 820
-                            var bildchen = OcAufgabens.FirstOrDefault(b => b.BName == SelectedBildchen.BName);
-                            var indexSelected = AufgabenView.CurrentPosition;
-
-                            if (bildchen != null)
-                            {
-                                var index = OcAufgabens.IndexOf(bildchen);
-
-                                bildchen.BName = zielDateiFullName;
-                                bildchen.BildFürLinks = true;
-                                OnPropertyChanged(nameof(SelectedBildchen));
-                                OnPropertyChanged(nameof(CountBildchenFürLinks));
-
-                            }
-                            Debug.WriteLine($"Datei verschoben von {quellDateiFullName} nach {zielDateiFullName}");
-                        }
-                    }
-                }
-                finally
-                {
-                    sw.Stop();
-                    Debug.WriteLine($"Dauer: {sw.ElapsedMilliseconds} ms");
-                    AufgabenView.Refresh();
-                }
+                return;
             }
+
+            // ---------- PATHS (jetzt garantiert non-null) ----------
+
+            string zielVerzeichnis = Path.Combine(baseDirectory, "KI_Fehler");
+            string zielDateiFullName = Path.Combine(zielVerzeichnis, Path.GetFileName(source));
+
+            PrüfungLäuft = true;
+            bool moveErfolgreich = false;
+
+            var sw = Stopwatch.StartNew();
+
+
+            try
+            {
+                if (!File.Exists(source))
+                {
+                    return;
+                }
+
+                if (!Directory.Exists(zielVerzeichnis))
+                {
+                    Directory.CreateDirectory(zielVerzeichnis);
+                }
+
+                if (File.Exists(zielDateiFullName))
+                {
+                    MessageBox.Show(
+                        "Die Datei existiert bereits im Zielverzeichnis:\n" + zielDateiFullName,
+                        "Datei vorhanden",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                    return;
+                }
+
+                // ✅ Dateisystem async
+                await Task.Run(() => File.Move(source, zielDateiFullName));
+                moveErfolgreich = true;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    "Fehler beim Verschieben der Datei:\n\n" + ex.Message,
+                    "Verschieben fehlgeschlagen",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+            finally
+            {
+                sw.Stop();
+                Debug.WriteLine($"Dauer: {sw.ElapsedMilliseconds} ms");
+                PrüfungLäuft = false;
+            }
+
+            if (!moveErfolgreich)
+            {
+                return;
+            }
+
+            // ✅ Model / Collection Update NUR bei Erfolg
+            var bildchen = OcAufgabens.FirstOrDefault(b => b.BName == source);
+            if (bildchen != null)
+            {
+                bildchen.BName = zielDateiFullName;
+                bildchen.BildFürLinks = true;
+
+                OnPropertyChanged(nameof(SelectedBildchen));
+                OnPropertyChanged(nameof(CountBildchenFürLinks));
+            }
+
+            AufgabenView.Refresh();
+
         }
 
         #endregion

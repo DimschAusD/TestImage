@@ -735,12 +735,12 @@
             <StackPanel
                 Width="70"
                 Height="auto"
-                MaxHeight="144"
+                
                 Orientation="Vertical">
                 <Image
                     x:Name="image_Kopieren1"
                     Width="70"
-                    Height="70"
+                    Height="auto"
                     Margin="0,0,0,4"
                     Source="{Binding SelectedBildchen.BName, Converter={StaticResource CLconverterStringZuKleinemImage}}"
                     Visibility="{Binding IsEnabled, Converter={StaticResource CLconverterVisiblityBoolian}, ElementName=RDBTN_BildEKeinFav}" />
@@ -809,6 +809,7 @@
                     x:Name="RBTN_AbbrechenNixFavVerschieben"
                     Width="40"
                     Height="40"
+                    d:Visibility="Visible"
                     Margin="4,4,4,0"
                     Background="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}"
                     BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkDarkBrushKey}}"
@@ -822,6 +823,7 @@
                     Width="60"
                     Height="10"
                     Margin="4,4,4,0"
+                    d:Visibility="Visible"
                     Visibility="{Binding CommandExecuteAlleBilderInsKeinFavVerschiebenCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}, Mode=OneWay}"
                     Value="{Binding PercentageValueVerschieben}" />
             </StackPanel>
