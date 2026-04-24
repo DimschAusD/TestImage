@@ -23,11 +23,14 @@ namespace TestImage
         // v2x.0.367.242 Beta 2026-01-31 (.NETCore v9.0)
         // v2x.0.300.842 Beta 2026-02-08 (.NETCore v9.0)
         // v2x.0.300.842 Beta 2026-02-08 (.NETCore v9.0)
+        // v2x.0.195.838 Beta 2026-04-23 (.NETCore v10.0)
         [ObservableProperty]
-        public partial string Version { get; set; } = "v2x.0.195.838 Beta 2026-04-23 (.NETCore v10.0)";
+        public partial string Version { get; set; } = "v2x.0.175.654 Beta 2026-04-24 (.NETCore v10.0)";
 
         [ObservableProperty]
         private int _CountInnerZählerTest;
+
+
 
 
 
@@ -381,6 +384,7 @@ namespace TestImage
         {
             // Copilot Code
 
+
             // Falls das aktuell selektierte Bild physisch nicht mehr existiert → entfernen
             var current = SelectedBildchen;
             if (current != null && !File.Exists(current.BName))
@@ -420,7 +424,6 @@ namespace TestImage
             }
         }
 
-        // private bool _isBulkSyncRunning;
 
         private bool RemoveMissingFilesBulk()
         {
@@ -434,12 +437,18 @@ namespace TestImage
             }
 
             OcAufgabens.Clear();
+
+            PrüfungLäuft = true;
+
             foreach (var item in neueListe)
             {
                 OcAufgabens.Add(item);
             }
 
+            PrüfungLäuft = false;
+
             return true;
+
         }
 
 
@@ -2985,7 +2994,9 @@ namespace TestImage
 
         private bool CanExecuteCommandAlleBilderNeuEinlesen()
         {
-            return ocAufgabens.Any() & !PrüfungLäuft & /*OcAufgabens.Any(x => x.BildFürLinks) &*/ (AlterDropCount != OcAufgabens.Count);
+            if (PrüfungLäuft) { return false; }
+
+            return OcAufgabens.Any(x => x.BildFürLinks) || (AlterDropCount != OcAufgabens.Count);
         }
 
         [RelayCommand(CanExecute = nameof(CanExecuteCommandAlleBilderNeuEinlesen))]
