@@ -1128,6 +1128,22 @@ namespace TestImage
             //    return BitConverter.ToString(finalHash).Replace("-", "").ToLowerInvariant();
             //}
         }
+
+        internal static (int originalWidth, int originalHeight) ReadOriginalSize(string path)
+        {
+            // throw new NotImplementedException();
+
+            using var stream = File.OpenRead(path);
+
+            var decoder = BitmapDecoder.Create(
+                stream,
+                BitmapCreateOptions.IgnoreColorProfile,
+                BitmapCacheOption.None);
+
+            var frame = decoder.Frames[0];
+            return (frame.PixelWidth, frame.PixelHeight);
+
+        }
     }
 }
 

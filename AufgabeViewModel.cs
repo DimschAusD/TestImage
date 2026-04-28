@@ -138,30 +138,10 @@ namespace TestImage
         [ObservableProperty]
         private bool _IsObenMinimiert = true;
 
-        public bool ZehnBilderAnzeigen
-        {
-            get => _zehnBilderAnzeigen;
-            set
-            {
-                if (SetProperty(ref _zehnBilderAnzeigen, value))
-                {
-                    if (value & AufgabenView.CanFilter)
-                    {
-                        // Filter löschen
-                        AufgabenView.Filter += PersonViewSource_Filter;
-                    }
-                    else
-                    {
-                        // Filter setzen
-                        AufgabenView.Filter -= PersonViewSource_Filter;
-                    }
-
-
-                    AufgabenView.Refresh();
-                }
-
-            }
-        }
+        [ObservableProperty]
+        public partial double OriginalImageWidth { get; set; } = -1;
+        [ObservableProperty]
+        public partial double OriginalImageHeight { get; set; } = -1;
 
         // [ObservableProperty]
         private int _aufgabenViewIndex = 0;
@@ -1336,7 +1316,7 @@ namespace TestImage
                 {
                     DisplayImage = gr;
                 });
-
+                (int originalWidth, int originalHeight) = MieneServices.ReadOriginalSize(path);
                 // Lade Balcke
                 ProgressValue = 6;
 
