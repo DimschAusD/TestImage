@@ -5,6 +5,7 @@ using Emgu.CV.Structure;
 using Emgu.CV.Util;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
@@ -479,7 +480,7 @@ namespace TestImage
 
         }
 
-        internal static BitmapSource CreateBitmap(string path, int? decodeWidth = null)
+        internal static BitmapSource CreateBitmap(string path, int? decodeWidth = null, int? decodeHeight = 0)
         {
             try
             {
@@ -494,6 +495,10 @@ namespace TestImage
                         if (decodeWidth.HasValue)
                         {
                             bitmap.DecodePixelWidth = decodeWidth.Value;
+                        }
+                        if (decodeHeight.HasValue)
+                        {
+                            bitmap.DecodePixelHeight = decodeHeight.Value;
                         }
                         bitmap.EndInit();
                         if (bitmap.CanFreeze)
@@ -539,6 +544,11 @@ namespace TestImage
                         if (decodeWidth.HasValue)
                         {
                             bmp.DecodePixelWidth = decodeWidth.Value;
+                        }
+
+                        if (decodeHeight.HasValue)
+                        {
+                            bmp.DecodePixelHeight = decodeHeight.Value;
                         }
 
                         bmp.EndInit();
@@ -1133,15 +1143,25 @@ namespace TestImage
         {
             // throw new NotImplementedException();
 
-            using var stream = File.OpenRead(path);
+            try
+            {
+                using var stream = File.OpenRead(path);
 
-            var decoder = BitmapDecoder.Create(
-                stream,
-                BitmapCreateOptions.IgnoreColorProfile,
-                BitmapCacheOption.None);
+                var decoder = BitmapDecoder.Create(
+                    stream,
+                    BitmapCreateOptions.IgnoreColorProfile,
+                    BitmapCacheOption.None);
 
-            var frame = decoder.Frames[0];
-            return (frame.PixelWidth, frame.PixelHeight);
+                var frame = decoder.Frames[0];
+                return (frame.PixelWidth, frame.PixelHeight);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex); // optional
+                return (0, 0);
+
+            }
+
 
         }
 
@@ -1164,6 +1184,43 @@ namespace TestImage
             int pixelWidth = (int)(wpfWidth * dpi.DpiScaleX);
 
             return pixelWidth;
+
+        }
+
+
+        internal static int GetMonitorDecodeHeight()
+        {
+            // Hauptfenster muss sichtbar sein
+            var window = Application.Current.MainWindow;
+            if (window == null)
+            {
+                return 1080; // sinnvoller Fallback für Höhe
+            }
+
+            // WPF‑DPI korrekt ermitteln
+            var dpi = VisualTreeHelper.GetDpi(window);
+
+            // WPF‑Einheiten → echte Pixel
+            double wpfHeight = SystemParameters.PrimaryScreenHeight;
+            int pixelHeight = (int)(wpfHeight * dpi.DpiScaleY);
+
+            return pixelHeight;
+        }
+
+        internal static (int monitorWidth, int monitorHeight) GetMonitorDecodeSize()
+        {
+            var window = Application.Current.MainWindow;
+            if (window == null)
+            {
+                return (1920, 1080);
+            }
+
+            var dpi = VisualTreeHelper.GetDpi(window);
+
+            int width = (int)(SystemParameters.PrimaryScreenWidth * dpi.DpiScaleX);
+            int height = (int)(SystemParameters.PrimaryScreenHeight * dpi.DpiScaleY);
+
+            return (width, height);
 
         }
     }

@@ -1258,6 +1258,39 @@ namespace TestImage
                 return;
             }
 
+            // Zeit stoppen
+            var stopwatch = Stopwatch.StartNew();
+
+            int decodeWidth = 0;
+            int decodeHeight = 0;
+
+            // Image pixel abfragen
+            (OriginalImageWidth, OriginalImageHeight) = MieneServices.ReadOriginalSize(path);
+
+            // Monitor‑Decode‑Größe
+            (int monitorWidth, int monitorHeight) = MieneServices.GetMonitorDecodeSize();
+
+            // Sicherheitsprüfung VOR Berechnung
+            if (OriginalImageWidth <= 0 || OriginalImageHeight <= 0)
+            {
+                decodeWidth = monitorWidth;
+                decodeHeight = monitorHeight;
+            }
+            else
+            {
+                double scale = Math.Min(
+                    (double)monitorWidth / OriginalImageWidth,
+                    (double)monitorHeight / OriginalImageHeight);
+
+                // Nie hochskalieren
+                scale = Math.Min(scale, 1.0);
+
+                decodeWidth = (int)Math.Round(OriginalImageWidth * scale);
+                decodeHeight = (int)Math.Round(OriginalImageHeight * scale);
+            }
+
+
+
             // Nachschauen ob Bild geprüft werden soll
             // Bild soll nicht geprüft werden
             if (!SollBildGeprüftWerden)
@@ -1278,18 +1311,6 @@ namespace TestImage
 
                 // Lade Balcke
                 ProgressValue = 1;
-
-                // Zeit stoppen
-                var stopwatch = Stopwatch.StartNew();
-
-                // Image pixel abfragen
-                (OriginalImageWidth, OriginalImageHeight) = MieneServices.ReadOriginalSize(path);
-
-
-                // Monitor‑begrenzte Decode‑Breite bestimmen
-                int monitorWidth = MieneServices.GetMonitorDecodeWidth();
-                int decodeWidth = Math.Min(OriginalImageWidth, monitorWidth);
-
 
                 // 1. Stufe: Kleines Vorschaubild laden (сто Pixel)
                 var kl = await Task.Run(() => MieneServices.CreateBitmap(path, 100));
@@ -1318,15 +1339,16 @@ namespace TestImage
                 }
 
                 // 2. Stufe: Volles Bild laden
-                var gr = await Task.Run(() => MieneServices.CreateBitmap(path));
-
-                // SWgrossesBild 
-                SWgrossesBild = stopwatch.Elapsed.TotalMilliseconds.ToString("F3") + " ms";
+                var gr = await Task.Run(() => MieneServices.CreateBitmap(path, decodeWidth, decodeHeight));
 
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
                     DisplayImage = gr;
                 });
+
+                // SWgrossesBild 
+                SWgrossesBild = stopwatch.Elapsed.TotalMilliseconds.ToString("F3") + " ms";
+
 
                 // Lade Balcke
                 ProgressValue = 6;
@@ -1398,12 +1420,14 @@ namespace TestImage
                 //await Task.Delay(20);
 
                 // 2. Stufe: Volles Bild laden
-                var gr = await Task.Run(() => MieneServices.CreateBitmap(SelectedBildchen.BName));
+                var gr = await Task.Run(() => MieneServices.CreateBitmap(SelectedBildchen.BName, decodeWidth, decodeHeight));
                 ProgressValue = 2;
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
                     DisplayImage = gr;
                 });
+
+                SWgrossesBild = stopwatch.Elapsed.TotalMilliseconds.ToString("F3") + " ms";
 
                 //    ProgressValue = сто; // Fertig
                 //await Task.Delay(200); // Kurz anzeigen

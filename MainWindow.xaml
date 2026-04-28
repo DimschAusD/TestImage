@@ -901,7 +901,7 @@
             <TextBlock
                 Margin="0,0,8,0"
                 VerticalAlignment="Center"
-                Background="#FFDCDADA"><Run Text="{Binding Source.PixelWidth, ElementName=imgCurrent, Mode=OneWay, StringFormat=' \{0:D\}'}" /><Run Text=" x " /><Run Text="{Binding Source.PixelHeight, ElementName=imgCurrent, Mode=OneWay, StringFormat=' \{0:D\} '}" /></TextBlock>
+                Background="#FFDCDADA"><Run Text="{Binding OriginalImageWidth, Mode=OneWay, StringFormat=' \{0:D\}'}" /><Run Text=" x " /><Run Text="{Binding OriginalImageHeight, Mode=OneWay, StringFormat=' \{0:D\} '}" /></TextBlock>
 
 
             <TextBox
