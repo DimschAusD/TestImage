@@ -1144,6 +1144,28 @@ namespace TestImage
             return (frame.PixelWidth, frame.PixelHeight);
 
         }
+
+        internal static int GetMonitorDecodeWidth()
+        {
+            // throw new NotImplementedException();
+
+            // Hauptfenster muss sichtbar sein
+            var window = Application.Current.MainWindow;
+            if (window == null)
+            {
+                return 1920; // Fallback
+            }
+
+            // WPF‑DPI korrekt ermitteln
+            var dpi = VisualTreeHelper.GetDpi(window);
+
+            // WPF‑Einheiten → echte Pixel
+            double wpfWidth = SystemParameters.PrimaryScreenWidth;
+            int pixelWidth = (int)(wpfWidth * dpi.DpiScaleX);
+
+            return pixelWidth;
+
+        }
     }
 }
 

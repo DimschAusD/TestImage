@@ -138,10 +138,12 @@ namespace TestImage
         [ObservableProperty]
         private bool _IsObenMinimiert = true;
 
+        #region UI_Output
         [ObservableProperty]
-        public partial double OriginalImageWidth { get; set; } = -1;
+        public partial int OriginalImageWidth { get; set; } = -1;
         [ObservableProperty]
-        public partial double OriginalImageHeight { get; set; } = -1;
+        public partial int OriginalImageHeight { get; set; } = -1;
+        #endregion
 
         // [ObservableProperty]
         private int _aufgabenViewIndex = 0;
@@ -1280,6 +1282,15 @@ namespace TestImage
                 // Zeit stoppen
                 var stopwatch = Stopwatch.StartNew();
 
+                // Image pixel abfragen
+                (OriginalImageWidth, OriginalImageHeight) = MieneServices.ReadOriginalSize(path);
+
+
+                // Monitor‑begrenzte Decode‑Breite bestimmen
+                int monitorWidth = MieneServices.GetMonitorDecodeWidth();
+                int decodeWidth = Math.Min(OriginalImageWidth, monitorWidth);
+
+
                 // 1. Stufe: Kleines Vorschaubild laden (сто Pixel)
                 var kl = await Task.Run(() => MieneServices.CreateBitmap(path, 100));
                 ProgressValue = 1;
@@ -1316,7 +1327,7 @@ namespace TestImage
                 {
                     DisplayImage = gr;
                 });
-                (int originalWidth, int originalHeight) = MieneServices.ReadOriginalSize(path);
+
                 // Lade Balcke
                 ProgressValue = 6;
 
