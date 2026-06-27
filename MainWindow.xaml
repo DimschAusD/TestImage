@@ -32,6 +32,9 @@
         <Converters:ConverterFullPathToNameConverter x:Key="ConverterFullPathToNameConverter" />
         <!--  Template für Videos  -->
         <Converters:CLconverterCountBildchenFuerLinks x:Key="CLconverterCountBildchenFuerLinks" />
+
+        <Converters:ConverterVerschobenSegment x:Key="VerschobenSegmentConverter" />
+
         <!--
         <DataTemplate DataType="{x:Type MediaElement}">
             <MediaElement
@@ -487,7 +490,7 @@
                     Height="70"
                     Source="{Binding SelectedBildchen.BName, Converter={StaticResource CLconverterStringZuKleinemImage}}"
                     Visibility="{Binding IsEnabled, Converter={StaticResource CLconverterVisiblityBoolian}, ElementName=RDBTN_BildNachOben}" />
-                <!--MouseOverBackground="#FFB7F393"-->
+                <!--  MouseOverBackground="#FFB7F393"  -->
                 <RibbonButton
                     x:Name="RDBTN_BildNachOben"
                     Height="70"
@@ -497,29 +500,28 @@
                     Content="Button"
                     Label="In die Liste"
                     LargeImageSource="/Images/PfeilNachOben.png"
-                    
                     MouseOverBorderBrush="{DynamicResource {x:Static SystemColors.ActiveCaptionBrushKey}}"
-                    PressedBackground="#FFCACFFE" >
+                    PressedBackground="#FFCACFFE">
 
                     <RibbonButton.MouseOverBackground>
 
                         <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
 
-                            <!-- Ziel: oben = klar gut, dominant -->
-                            <GradientStop Offset="0.0" Color="#FF8FE88F"/>
-                            <!-- sattes, positives Grün -->
-                            <GradientStop Offset="0.35" Color="#FFBFF0BF"/>
-                            <!-- weiches Übergangsgrün -->
+                            <!--  Ziel: oben = klar gut, dominant  -->
+                            <GradientStop Offset="0.0" Color="#FF8FE88F" />
+                            <!--  sattes, positives Grün  -->
+                            <GradientStop Offset="0.35" Color="#FFBFF0BF" />
+                            <!--  weiches Übergangsgrün  -->
 
-                            <!-- Übergang -->
-                            <GradientStop Offset="0.6" Color="#FFF6D880"/>
-                            <!-- Amber -->
+                            <!--  Übergang  -->
+                            <GradientStop Offset="0.6" Color="#FFF6D880" />
+                            <!--  Amber  -->
 
-                            <!-- Abstieg: Problemzone unten, kompakt -->
-                            <GradientStop Offset="0.82" Color="#FFF0A070"/>
-                            <!-- warmes Orange -->
-                            <GradientStop Offset="1.0" Color="#FFD96666"/>
-                            <!-- gedämpftes Rot -->
+                            <!--  Abstieg: Problemzone unten, kompakt  -->
+                            <GradientStop Offset="0.82" Color="#FFF0A070" />
+                            <!--  warmes Orange  -->
+                            <GradientStop Offset="1.0" Color="#FFD96666" />
+                            <!--  gedämpftes Rot  -->
 
                         </LinearGradientBrush>
 
@@ -724,20 +726,19 @@
             x:Name="BRD_NachUntenVerschieben"
             Grid.Row="1"
             Width="78"
-           Height="auto"
+            Height="auto"
             MaxHeight="156"
-            d:MaxHeight="200"
             Margin="0,0,10,10"
             Padding="2,2,2,2"
             HorizontalAlignment="Right"
             VerticalAlignment="Bottom"
+            d:MaxHeight="200"
             BorderBrush="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"
             BorderThickness="2,2,2,2"
             CornerRadius="2,2,2,2">
             <StackPanel
                 Width="70"
                 Height="auto"
-                
                 Orientation="Vertical">
                 <Image
                     x:Name="image_Kopieren1"
@@ -767,17 +768,17 @@
                     <RibbonButton.MouseOverBackground>
                         <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
 
-                            <!-- verblasstes Grün: war mal wichtig -->
-                            <GradientStop Offset="0.0" Color="#FFB8F5B8"/>
+                            <!--  verblasstes Grün: war mal wichtig  -->
+                            <GradientStop Offset="0.0" Color="#FFB8F5B8" />
 
-                            <!-- Übergang: staubiges Gelb / Amber -->
-                            <GradientStop Offset="0.45" Color="#FFF5D87A"/>
+                            <!--  Übergang: staubiges Gelb / Amber  -->
+                            <GradientStop Offset="0.45" Color="#FFF5D87A" />
 
-                            <!-- Entscheidung kippt -->
-                            <GradientStop Offset="0.75" Color="#FFF0A35E"/>
+                            <!--  Entscheidung kippt  -->
+                            <GradientStop Offset="0.75" Color="#FFF0A35E" />
 
-                            <!-- Ziel: unten = schlecht / ablegen -->
-                            <GradientStop Offset="1.0" Color="#FFE57373"/>
+                            <!--  Ziel: unten = schlecht / ablegen  -->
+                            <GradientStop Offset="1.0" Color="#FFE57373" />
                         </LinearGradientBrush>
                     </RibbonButton.MouseOverBackground>
                     <RibbonButton.ContextMenu>
@@ -812,8 +813,8 @@
                     x:Name="RBTN_AbbrechenNixFavVerschieben"
                     Width="40"
                     Height="40"
-                    d:Visibility="Visible"
                     Margin="4,4,4,0"
+                    d:Visibility="Visible"
                     Background="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}"
                     BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkDarkBrushKey}}"
                     Command="{Binding CommandExecuteAlleBilderInsKeinFavVerschiebenCancelCommand, Mode=OneWay}"
@@ -1449,6 +1450,70 @@
             VerticalAlignment="Top"
             Command="{Binding CommandExecuteOrdnerDerAnwendungÖffnenCommand, Mode=OneWay}"
             Content="OÖ" />
+        <Border
+            Grid.Row="2"
+            Width="32"
+            Height="32"
+            Margin="0,21,5,0"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Top"
+            BorderBrush="#FF82E4F5"
+            BorderThickness="0.4">
+            <Grid>
+
+                <!--  Oben  -->
+                <Border Margin="3,2,3,25" d:Background="Gold">
+                    <Border.Background>
+                        <MultiBinding Converter="{StaticResource VerschobenSegmentConverter}" ConverterParameter="1">
+                            <Binding Path="CountBildchenFürLinks" />
+                            <Binding Path="AufgabenView.Count" />
+                        </MultiBinding>
+                    </Border.Background>
+                </Border>
+
+                <!--  Rechts  -->
+                <Border Margin="24,2,3,2" d:Background="Gold">
+                    <Border.Background>
+                        <MultiBinding Converter="{StaticResource VerschobenSegmentConverter}" ConverterParameter="1">
+                            <Binding Path="CountBildchenFürLinks" />
+                            <Binding Path="AufgabenView.Count" />
+                        </MultiBinding>
+                    </Border.Background>
+                </Border>
+
+                <!--  Unten  -->
+                <Border Margin="3,25,3,2" d:Background="Gold">
+                    <Border.Background>
+                        <MultiBinding Converter="{StaticResource VerschobenSegmentConverter}" ConverterParameter="1">
+                            <Binding Path="CountBildchenFürLinks" />
+                            <Binding Path="AufgabenView.Count" />
+                        </MultiBinding>
+                    </Border.Background>
+                </Border>
+
+                <!--  Links  -->
+                <Border Margin="3,2,24,2" d:Background="Gold">
+                    <Border.Background>
+                        <MultiBinding Converter="{StaticResource VerschobenSegmentConverter}" ConverterParameter="1">
+                            <Binding Path="CountBildchenFürLinks" />
+                            <Binding Path="AufgabenView.Count" />
+                        </MultiBinding>
+                    </Border.Background>
+                </Border>
+
+
+                <!--  Position  -->
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    FontSize="11"
+                    FontWeight="Bold"
+                    Foreground="White"
+                    Text="{Binding AufgabenView.CurrentPosition, Converter={StaticResource CLconverterProgressbarIntPlusEins}}" />
+
+
+            </Grid>
+        </Border>
 
 
         <!--  Filter Breich  -->
