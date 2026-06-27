@@ -556,7 +556,7 @@ namespace TestImage
                 {
                     await Task.Yield();
                     //Debug.WriteLine(datei);
-                    if (extensions.Contains(System.IO.Path.GetExtension(datei)))
+                    if (extensions.Contains(System.IO.Path.GetExtension(datei).ToLower()))
                     {
                         ocAufgabens.Add(new MeinBildchen { BName = datei, BildFürLinks = false });
                         //if (datei == fullDateiName)
