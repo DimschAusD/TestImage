@@ -27,11 +27,20 @@ namespace TestImage.Converters
 
             int segment = int.Parse(parameter!.ToString()!);
 
-            double grenze = segment / 4.0;
+            double segmentStart = (segment - 1) / 4.0;
+            double segmentMid = (segment - 0.5) / 4.0;
+            double segmentEnd = segment / 4.0;
 
-            return quote >= grenze
-                ? Brushes.Gold
-                : Brushes.LightGray;
+            if (quote <= segmentStart)
+                return Brushes.LightGray;
+
+            if (quote >= segmentEnd)
+                return new SolidColorBrush(Color.FromRgb(0x00, 0x7A, 0xCC));
+
+            if (quote >= segmentMid)
+                return new SolidColorBrush(Color.FromRgb(0xFF, 0x8C, 0x00));
+
+            return Brushes.Gold;
 
         }
 

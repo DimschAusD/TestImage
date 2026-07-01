@@ -32,6 +32,8 @@
         <Converters:ConverterFullPathToNameConverter x:Key="ConverterFullPathToNameConverter" />
         <!--  Template für Videos  -->
         <Converters:CLconverterCountBildchenFuerLinks x:Key="CLconverterCountBildchenFuerLinks" />
+        <Converters:ConverterPositionZuViertel x:Key="ConverterPositionZuViertel" />
+        <Converters:ConverterPositionZuFarbe x:Key="ConverterPositionZuFarbe" />
 
         <Converters:ConverterVerschobenSegment x:Key="VerschobenSegmentConverter" />
 
@@ -1452,17 +1454,25 @@
             Content="OÖ" />
         <Border
             Grid.Row="2"
-            Width="32"
-            Height="32"
-            Margin="0,21,5,0"
-            HorizontalAlignment="Right"
+            Width="34"
+            Height="34"
+            Margin="8,20,0,0"
+            HorizontalAlignment="Left"
             VerticalAlignment="Top"
-            BorderBrush="#FF82E4F5"
-            BorderThickness="0.4">
+            BorderBrush="#44000000"
+            BorderThickness="0.6"
+            CornerRadius="6">
+            <Border.Effect>
+                <DropShadowEffect
+                    BlurRadius="6"
+                    Opacity="0.3"
+                    ShadowDepth="1"
+                    Color="Black" />
+            </Border.Effect>
             <Grid>
 
-                <!--  Oben  -->
-                <Border Margin="3,2,3,25" d:Background="Gold">
+                <!--  Links (Left)  -->
+                <Border Margin="2,2,23,2" CornerRadius="4,0,0,4" d:Background="Gold">
                     <Border.Background>
                         <MultiBinding Converter="{StaticResource VerschobenSegmentConverter}" ConverterParameter="1">
                             <Binding Path="CountBildchenFürLinks" />
@@ -1471,46 +1481,62 @@
                     </Border.Background>
                 </Border>
 
-                <!--  Rechts  -->
-                <Border Margin="24,2,3,2" d:Background="Gold">
+                <!--  Oben (Top)  -->
+                <Border Margin="2,2,2,24" CornerRadius="4,4,0,0" d:Background="Gold">
                     <Border.Background>
-                        <MultiBinding Converter="{StaticResource VerschobenSegmentConverter}" ConverterParameter="1">
+                        <MultiBinding Converter="{StaticResource VerschobenSegmentConverter}" ConverterParameter="2">
                             <Binding Path="CountBildchenFürLinks" />
                             <Binding Path="AufgabenView.Count" />
                         </MultiBinding>
                     </Border.Background>
                 </Border>
 
-                <!--  Unten  -->
-                <Border Margin="3,25,3,2" d:Background="Gold">
+                <!--  Rechts (Right)  -->
+                <Border Margin="23,2,2,2" CornerRadius="0,4,4,0" d:Background="Gold">
                     <Border.Background>
-                        <MultiBinding Converter="{StaticResource VerschobenSegmentConverter}" ConverterParameter="1">
+                        <MultiBinding Converter="{StaticResource VerschobenSegmentConverter}" ConverterParameter="3">
                             <Binding Path="CountBildchenFürLinks" />
                             <Binding Path="AufgabenView.Count" />
                         </MultiBinding>
                     </Border.Background>
                 </Border>
 
-                <!--  Links  -->
-                <Border Margin="3,2,24,2" d:Background="Gold">
+                <!--  Unten (Bottom)  -->
+                <Border Margin="2,24,2,2" CornerRadius="0,0,4,4" d:Background="Gold">
                     <Border.Background>
-                        <MultiBinding Converter="{StaticResource VerschobenSegmentConverter}" ConverterParameter="1">
+                        <MultiBinding Converter="{StaticResource VerschobenSegmentConverter}" ConverterParameter="4">
                             <Binding Path="CountBildchenFürLinks" />
                             <Binding Path="AufgabenView.Count" />
                         </MultiBinding>
                     </Border.Background>
                 </Border>
-
 
                 <!--  Position  -->
                 <TextBlock
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
-                    FontSize="11"
-                    FontWeight="Bold"
-                    Foreground="White"
-                    Text="{Binding AufgabenView.CurrentPosition, Converter={StaticResource CLconverterProgressbarIntPlusEins}}" />
-
+                    FontSize="12"
+                    FontWeight="Bold">
+                    <TextBlock.Foreground>
+                        <MultiBinding Converter="{StaticResource ConverterPositionZuFarbe}">
+                            <Binding Path="AufgabenView.CurrentPosition" />
+                            <Binding Path="AufgabenView.Count" />
+                        </MultiBinding>
+                    </TextBlock.Foreground>
+                    <TextBlock.Effect>
+                        <DropShadowEffect
+                            BlurRadius="3"
+                            Opacity="0.6"
+                            ShadowDepth="0"
+                            Color="#FF25B2C4" />
+                    </TextBlock.Effect>
+                    <TextBlock.Text>
+                        <MultiBinding Converter="{StaticResource ConverterPositionZuViertel}">
+                            <Binding Path="AufgabenView.CurrentPosition" />
+                            <Binding Path="AufgabenView.Count" />
+                        </MultiBinding>
+                    </TextBlock.Text>
+                </TextBlock>
 
             </Grid>
         </Border>

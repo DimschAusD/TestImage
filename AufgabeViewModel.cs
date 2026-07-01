@@ -24,13 +24,12 @@ namespace TestImage
         // v2x.0.300.842 Beta 2026-02-08 (.NETCore v9.0)
         // v2x.0.300.842 Beta 2026-02-08 (.NETCore v9.0)
         // v2x.0.195.838 Beta 2026-04-23 (.NETCore v10.0)
+        // v2x.0.175.654 Beta 2026-04-24 (.NETCore v10.0)
         [ObservableProperty]
-        public partial string Version { get; set; } = "v2x.0.175.654 Beta 2026-04-24 (.NETCore v10.0)";
+        public partial string Version { get; set; } = "v2x.0.172.205 Beta 2026-06-27 (.NETCore net10.0)";
 
         [ObservableProperty]
         private int _CountInnerZählerTest;
-
-
 
 
 
@@ -3009,7 +3008,8 @@ namespace TestImage
 
         private bool CanExecuteCommandAlleBilderNeuEinlesen()
         {
-            if (PrüfungLäuft) { return false; }
+            if (PrüfungLäuft)
+            { return false; }
 
             return OcAufgabens.Any(x => x.BildFürLinks) || (AlterDropCount != OcAufgabens.Count);
         }
