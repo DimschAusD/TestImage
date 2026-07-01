@@ -32,9 +32,6 @@ namespace TestImage
         private int _CountInnerZählerTest;
 
 
-
-
-
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteBildInsHauptVerzeichnisZuruckVerschiebenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteVerschiebenZurückCommand))]
