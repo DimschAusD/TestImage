@@ -134,6 +134,9 @@ namespace TestImage
         [ObservableProperty]
         private bool _IsObenMinimiert = true;
 
+        [ObservableProperty]
+        private bool _IsImageMaximiert = false;
+
         #region UI_Output
         [ObservableProperty]
         public partial int OriginalImageWidth { get; set; } = -1;
@@ -2997,6 +3000,16 @@ namespace TestImage
             {
                 IsObenMinimiert = true;
             }
+        }
+
+        #endregion
+
+        #region Command Image Maximieren Toggle
+
+        [RelayCommand]
+        private void CommandExecuteImageMaximierenToggle()
+        {
+            IsImageMaximiert = !IsImageMaximiert;
         }
 
         #endregion

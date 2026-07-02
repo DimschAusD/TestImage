@@ -166,6 +166,50 @@ namespace TestImage
 
         #endregion
 
+        #region CenterNow (manuell aufrufbar)
+
+        public static void CenterNow(ListBox lb)
+        {
+            if (lb?.SelectedItem == null) return;
+            // Simuliert exakt denselben Ablauf wie OnSelectionChangedCenter
+            lb.ScrollIntoView(lb.SelectedItem);
+            lb.Dispatcher.BeginInvoke(() =>
+            {
+                var sv = FindVisualChild<ScrollViewer>(lb);
+                if (sv == null) return;
+
+                var container = lb.ItemContainerGenerator.ContainerFromItem(lb.SelectedItem) as FrameworkElement;
+                if (container == null)
+                {
+                    lb.UpdateLayout();
+                    container = lb.ItemContainerGenerator.ContainerFromItem(lb.SelectedItem) as FrameworkElement;
+                    if (container == null) return;
+                }
+                try
+                {
+                    double itemCenter = container
+                        .TransformToAncestor(sv)
+                        .Transform(new Point(container.ActualWidth / 2.0, 0))
+                        .X;
+                    double targetOffset = sv.HorizontalOffset + itemCenter - (sv.ViewportWidth / 2.0);
+                    targetOffset = Math.Max(0, Math.Min(targetOffset, sv.ExtentWidth - sv.ViewportWidth));
+
+                    var animation = new DoubleAnimation
+                    {
+                        From = sv.HorizontalOffset,
+                        To = targetOffset,
+                        Duration = TimeSpan.FromMilliseconds(480),
+                        EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+                    };
+                    AnimatableScrollOffset.SetOffset(sv, sv.HorizontalOffset);
+                    sv.BeginAnimation(AnimatableScrollOffset.OffsetProperty, animation);
+                }
+                catch { }
+            }, DispatcherPriority.Background);
+        }
+
+        #endregion
+
         #region Helpers
 
         private static T? FindVisualChild<T>(DependencyObject? parent) where T : DependencyObject

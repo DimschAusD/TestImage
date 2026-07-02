@@ -34,6 +34,7 @@
         <Converters:CLconverterCountBildchenFuerLinks x:Key="CLconverterCountBildchenFuerLinks" />
         <Converters:ConverterPositionZuViertel x:Key="ConverterPositionZuViertel" />
         <Converters:ConverterPositionZuFarbe x:Key="ConverterPositionZuFarbe" />
+        <Converters:ConverterVisiblityBoolianInvertiert x:Key="ConverterVisiblityBoolianInvertiert" />
 
         <Converters:ConverterVerschobenSegment x:Key="VerschobenSegmentConverter" />
 
@@ -210,8 +211,22 @@
             Key="Z"
             Command="{Binding CommandExecuteVerschiebenZurückCommand, Mode=OneWay}"
             Modifiers="Ctrl" />
+
+        <!--  Bild maximieren Toggle  -->
+        <KeyBinding Key="F11" Command="{Binding CommandExecuteImageMaximierenToggleCommand}" />
     </Window.InputBindings>
-    <Grid Margin="10,10,10,10">
+    <Grid>
+        <Grid.Style>
+            <Style TargetType="Grid">
+                <Setter Property="Margin" Value="10,10,10,10" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsImageMaximiert}" Value="True">
+                        <Setter Property="Margin" Value="0" />
+                        <Setter Property="Background" Value="#FF111111" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Grid.Style>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -367,28 +382,27 @@
                                 VerticalAlignment="Center"
                                 Source="{Binding BName, Converter={StaticResource CLconverterStringZuKleinemImage}}"
                                 Stretch="Uniform" />
-                            <!--  falls Glyph aus MDL2 kommt  -->
-                            <TextBlock
-                                x:Name="TXBL_Sternchen"
-                                Width="19"
-                                Height="19"
-                                Margin="4,4,0,0"
-                                HorizontalAlignment="Left"
+                            <!--  Badge: Bild wurde verschoben  -->
+                            <Border
+                                Width="18"
+                                Height="18"
+                                Margin="0,4,4,0"
+                                HorizontalAlignment="Right"
                                 VerticalAlignment="Top"
-                                FontFamily="Segoe MDL2 Assets"
-                                FontSize="14"
-                                FontWeight="Bold"
-                                Foreground="White"
-                                Text="&#xE1CE;"
+                                Background="#DDCC2222"
+                                CornerRadius="9"
                                 Visibility="{Binding BildFürLinks, Converter={StaticResource CLconverterVisiblityBoolian}}">
-                                <TextBlock.Effect>
-                                    <DropShadowEffect
-                                        BlurRadius="5"
-                                        Opacity="0.8"
-                                        ShadowDepth="0"
-                                        Color="Black" />
-                                </TextBlock.Effect>
-                            </TextBlock>
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="4" Opacity="0.6" ShadowDepth="1" Color="Black" />
+                                </Border.Effect>
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="9"
+                                    Foreground="White"
+                                    Text="&#xE10B;" />
+                            </Border>
                         </Grid>
                     </Border>
                 </DataTemplate>
@@ -415,7 +429,7 @@
                     <Setter Property="Template">
                         <Setter.Value>
                             <ControlTemplate TargetType="{x:Type ListBoxItem}">
-                                <!--  💡 Default-Hintergrund JE ITEM = Converter (nur im Normalzustand sichtbar)  -->
+                                <!--  Default-Hintergrund JE ITEM = Converter (nur im Normalzustand sichtbar)  -->
                                 <Border
                                     x:Name="Bd"
                                     Background="{Binding BildFürLinks, Converter={StaticResource CLconverterColorBoolianMasterHintergrund}, FallbackValue={x:Static Brushes.Transparent}, TargetNullValue={x:Static Brushes.Transparent}}"
@@ -429,12 +443,11 @@
                                 </Border>
 
                                 <ControlTemplate.Triggers>
-                                    <!--  🟦 SELECTED: überschreibt Converter-Farbe  -->
+                                    <!--  SELECTED: überschreibt Converter-Farbe  -->
                                     <Trigger Property="IsSelected" Value="True">
                                         <Setter TargetName="Bd" Property="Background" Value="#FF007ACC" />
                                         <Setter TargetName="Bd" Property="BorderBrush" Value="DarkBlue" />
                                         <Setter Property="Foreground" Value="White" />
-                                        <!--  Optional: dezentes visuelles Feedback  -->
                                         <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
                                         <Setter Property="RenderTransform">
                                             <Setter.Value>
@@ -452,7 +465,7 @@
                                         </Setter>
                                     </Trigger>
 
-                                    <!--  🟩 MOUSEOVER nur wenn NICHT selected: überschreibt Converter-Farbe  -->
+                                    <!--  MOUSEOVER nur wenn NICHT selected: überschreibt Converter-Farbe  -->
                                     <MultiTrigger>
                                         <MultiTrigger.Conditions>
                                             <Condition Property="IsMouseOver" Value="True" />
@@ -473,6 +486,7 @@
         <Border
             x:Name="BRD_NachObenVerschieben"
             Grid.Row="2"
+            Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}"
             Width="78"
             Height="auto"
             Margin="10,0,0,10"
@@ -535,24 +549,33 @@
         <Border
             x:Name="ViewedPhotoArea"
             Grid.Row="1"
-            Margin="45,5,45,10"
-            Padding="4"
             BorderBrush="#22000000"
             BorderThickness="0"
             ClipToBounds="True"
             Visibility="Visible">
             <Border.Style>
                 <Style TargetType="{x:Type Border}">
+                    <Setter Property="Margin" Value="45,5,45,10" />
+                    <Setter Property="Padding" Value="4" />
                     <Setter Property="Background" Value="{Binding SelectedBildchen.BildFürLinks, Converter={StaticResource CLconverterColorBoolianMasterHintergrund}}" />
                     <Style.Triggers>
                         <!--  Alle Bilder verschoben → Rot  -->
                         <DataTrigger Binding="{Binding AlleBilderVerschoben}" Value="True">
                             <Setter Property="Background" Value="#FFE83030" />
                         </DataTrigger>
+                        <!--  Bildmodus: Margins weg, volle Fläche, dunkler Hintergrund  -->
+                        <DataTrigger Binding="{Binding IsImageMaximiert}" Value="True">
+                            <Setter Property="Margin" Value="0" />
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="Grid.RowSpan" Value="3" />
+                            <Setter Property="Grid.Row" Value="0" />
+                            <Setter Property="Background" Value="#FF111111" />
+                        </DataTrigger>
                     </Style.Triggers>
                 </Style>
             </Border.Style>
-            <!--  Image Display  -->
+            <!--  Image Display + Hover-Zone unten (blendet Miniaturleiste ein)  -->
+            <Grid>
             <ScrollViewer
                 x:Name="scdd"
                 HorizontalScrollBarVisibility="{Binding MyHorizontalScrollBarVisibility}"
@@ -601,6 +624,290 @@
                 </Image>
 
             </ScrollViewer>
+
+                <!--  Klickzone links: vorheriges Bild (nur im Vollbild-Modus)  -->
+                <Button
+                    Width="120"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Stretch"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Command="{Binding CommandExecuteBildLinksCommand}"
+                    Cursor="Arrow"
+                    FocusVisualStyle="{x:Null}"
+                    Panel.ZIndex="10"
+                    Visibility="{Binding IsImageMaximiert, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="Transparent" />
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+
+                <!--  Klickzone rechts: nächstes Bild (nur im Vollbild-Modus)  -->
+                <Button
+                    Width="120"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Stretch"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Command="{Binding CommandExecuteBildNachRechtsCommand}"
+                    Cursor="Arrow"
+                    FocusVisualStyle="{x:Null}"
+                    Panel.ZIndex="10"
+                    Visibility="{Binding IsImageMaximiert, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="Transparent" />
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+
+                <!--  Schwebende Filmstrip-Leiste: NUR im Vollbild-Modus, bei Hover im unteren Bereich  -->
+                <ListBox
+                    x:Name="Listbox_SchwebeMiniaturen"
+                    Height="110"
+                    VerticalAlignment="Bottom"
+                    d:ItemsSource="{d:SampleData ItemCount=8}"
+                    local:HorizontalListBoxBehavior.CenterSelectedItem="True"
+                    local:HorizontalListBoxBehavior.EnableHorizontalMouseWheel="True"
+                    IsSynchronizedWithCurrentItem="True"
+                    ItemsSource="{Binding AufgabenView}"
+                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                    ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                    SelectedItem="{Binding SelectedBildchen, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    VirtualizingPanel.IsVirtualizing="True"
+                    VirtualizingPanel.ScrollUnit="Pixel">
+
+                    <ListBox.Style>
+                        <Style TargetType="{x:Type ListBox}">
+                            <Setter Property="Background" Value="#CC0A0A0A" />
+                            <Setter Property="BorderBrush" Value="#66FFFFFF" />
+                            <Setter Property="BorderThickness" Value="0,1,0,0" />
+                            <Setter Property="Padding" Value="8,4" />
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Setter Property="Panel.ZIndex" Value="200" />
+                            <Style.Triggers>
+                                <!--  Vollbild + Hover in unterer Zone: einblenden  -->
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding IsImageMaximiert}" Value="True" />
+                                        <Condition Binding="{Binding IsMouseOver, ElementName=BRD_HoverZoneUnten}" Value="True" />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </MultiDataTrigger>
+                                <!--  Maus direkt auf der Leiste: sichtbar bleiben  -->
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ListBox.Style>
+
+                    <i:Interaction.Triggers>
+                        <i:EventTrigger EventName="SelectionChanged">
+                            <i:InvokeCommandAction Command="{Binding CommandExecuteKleinesBildGrossesBildLadenCommand}" />
+                        </i:EventTrigger>
+                    </i:Interaction.Triggers>
+
+                    <ListBox.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Command="{Binding CommandExecuteDateiImExplorerÖffnenCommand}" Header="Explorer öffnen" />
+                        </ContextMenu>
+                    </ListBox.ContextMenu>
+
+                    <!--  Moderne dünne Scrollleiste nur für diese ListBox  -->
+                    <ListBox.Resources>
+                        <Style TargetType="{x:Type ScrollBar}">
+                            <Setter Property="SnapsToDevicePixels" Value="True" />
+                            <Setter Property="OverridesDefaultStyle" Value="True" />
+                            <Style.Triggers>
+                                <Trigger Property="Orientation" Value="Horizontal">
+                                    <Setter Property="Height" Value="8" />
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="{x:Type ScrollBar}">
+                                                <Grid Height="8" Background="Transparent">
+                                                    <!--  Track-Hintergrund: sehr dezent  -->
+                                                    <Rectangle
+                                                        Height="2"
+                                                        VerticalAlignment="Center"
+                                                        RadiusX="1"
+                                                        RadiusY="1"
+                                                        Fill="#33FFFFFF" />
+                                                    <Track x:Name="PART_Track" IsDirectionReversed="False">
+                                                        <Track.DecreaseRepeatButton>
+                                                            <RepeatButton
+                                                                Focusable="False"
+                                                                Command="ScrollBar.PageLeftCommand"
+                                                                Opacity="0" />
+                                                        </Track.DecreaseRepeatButton>
+                                                        <Track.Thumb>
+                                                            <Thumb>
+                                                                <Thumb.Template>
+                                                                    <ControlTemplate TargetType="{x:Type Thumb}">
+                                                                        <Border
+                                                                            x:Name="ThBd"
+                                                                            Height="4"
+                                                                            VerticalAlignment="Center"
+                                                                            CornerRadius="2"
+                                                                            Background="#88FFFFFF" />
+                                                                        <ControlTemplate.Triggers>
+                                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                                <Setter TargetName="ThBd" Property="Height" Value="6" />
+                                                                                <Setter TargetName="ThBd" Property="Background" Value="#DDFFFFFF" />
+                                                                            </Trigger>
+                                                                            <Trigger Property="IsDragging" Value="True">
+                                                                                <Setter TargetName="ThBd" Property="Height" Value="8" />
+                                                                                <Setter TargetName="ThBd" Property="Background" Value="White" />
+                                                                            </Trigger>
+                                                                        </ControlTemplate.Triggers>
+                                                                    </ControlTemplate>
+                                                                </Thumb.Template>
+                                                            </Thumb>
+                                                        </Track.Thumb>
+                                                        <Track.IncreaseRepeatButton>
+                                                            <RepeatButton
+                                                                Focusable="False"
+                                                                Command="ScrollBar.PageRightCommand"
+                                                                Opacity="0" />
+                                                        </Track.IncreaseRepeatButton>
+                                                    </Track>
+                                                </Grid>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ListBox.Resources>
+
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <VirtualizingStackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+
+                    <!--  Kino-Karte: Bild vollständig sichtbar, Letterbox durch dunklen Hintergrund  -->
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type local:MeinBildchen}">
+                            <Grid Width="100" Height="72">
+                                <!--  Bild komplett sichtbar, kein Zuschnitt  -->
+                                <Border ClipToBounds="True" CornerRadius="5">
+                                    <Image
+                                        Source="{Binding BName, Converter={StaticResource CLconverterStringZuKleinemImage}}"
+                                        Stretch="Uniform" />
+                                </Border>
+                                <!--  Vignette unten (Kontrast für Stern-Icon)  -->
+                                <Rectangle Height="28" VerticalAlignment="Bottom" RadiusX="5" RadiusY="5">
+                                    <Rectangle.Fill>
+                                        <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+                                            <GradientStop Offset="0" Color="#00000000" />
+                                            <GradientStop Offset="1" Color="#AA000000" />
+                                        </LinearGradientBrush>
+                                    </Rectangle.Fill>
+                                </Rectangle>
+                                <!--  Badge: Datei verschoben  -->
+                                <Border
+                                    Width="18"
+                                    Height="18"
+                                    Margin="0,4,4,0"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Top"
+                                    Background="#DDCC2222"
+                                    CornerRadius="9"
+                                    Visibility="{Binding BildFürLinks, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                                    <Border.Effect>
+                                        <DropShadowEffect BlurRadius="4" Opacity="0.6" ShadowDepth="1" Color="Black" />
+                                    </Border.Effect>
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        FontFamily="Segoe MDL2 Assets"
+                                        FontSize="9"
+                                        Foreground="White"
+                                        Text="&#xE10B;" />
+                                </Border>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+
+                    <!--  Container: orangefarbener Akzentbalken oben + Glow bei Auswahl  -->
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="{x:Type ListBoxItem}">
+                            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                            <Setter Property="SnapsToDevicePixels" Value="True" />
+                            <Setter Property="OverridesDefaultStyle" Value="True" />
+                            <Setter Property="Margin" Value="4,0" />
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="{x:Type ListBoxItem}">
+                                        <Border
+                                            x:Name="Bd"
+                                            BorderBrush="Transparent"
+                                            BorderThickness="0"
+                                            CornerRadius="6">
+                                            <Grid>
+                                                <ContentPresenter />
+                                                <!--  Akzentbalken oben: nur bei Auswahl  -->
+                                                <Rectangle
+                                                    x:Name="AkzentOben"
+                                                    Height="3"
+                                                    VerticalAlignment="Top"
+                                                    RadiusX="3"
+                                                    RadiusY="3"
+                                                    Fill="#FFFF8C00"
+                                                    Visibility="Collapsed" />
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <!--  Ausgewählt: oranger Rahmen + Glow + Balken  -->
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="Bd" Property="BorderBrush" Value="#FFFF8C00" />
+                                                <Setter TargetName="Bd" Property="BorderThickness" Value="2" />
+                                                <Setter TargetName="AkzentOben" Property="Visibility" Value="Visible" />
+                                                <Setter Property="Effect">
+                                                    <Setter.Value>
+                                                        <DropShadowEffect
+                                                            BlurRadius="14"
+                                                            Opacity="0.75"
+                                                            ShadowDepth="0"
+                                                            Color="#FFFF8C00" />
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Trigger>
+                                            <!--  Hover (nicht ausgewählt): heller Rahmen + leichtes Vergrössern  -->
+                                            <MultiTrigger>
+                                                <MultiTrigger.Conditions>
+                                                    <Condition Property="IsMouseOver" Value="True" />
+                                                    <Condition Property="IsSelected" Value="False" />
+                                                </MultiTrigger.Conditions>
+                                                <Setter TargetName="Bd" Property="BorderBrush" Value="#88FFFFFF" />
+                                                <Setter TargetName="Bd" Property="BorderThickness" Value="1" />
+                                                <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+                                                <Setter Property="RenderTransform">
+                                                    <Setter.Value>
+                                                        <ScaleTransform ScaleX="1.05" ScaleY="1.05" />
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </MultiTrigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+
+                </ListBox>
+
+                <!--  Hover-Zone unten: Maus hier rein -> Filmstrip kommt nach vorne  -->
+                <Border
+                    x:Name="BRD_HoverZoneUnten"
+                    Height="150"
+                    VerticalAlignment="Bottom"
+                    Background="Transparent" />
+            </Grid>
         </Border>
         <!--<RibbonButton
             x:Name="RDBTN_BildNachRechts"
@@ -644,7 +951,8 @@
             Width="54"
             Margin="0,137,10,167"
             HorizontalAlignment="Right"
-            Background="Transparent">
+            Background="Transparent"
+            Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}">
 
             <!--  Klickfläche  -->
             <RibbonButton
@@ -693,6 +1001,7 @@
             Margin="0,10,10,0"
             Padding="2,2,2,2"
             HorizontalAlignment="Right"
+            Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}"
             VerticalAlignment="Top"
             BorderBrush="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"
             BorderThickness="2,2,2,2"
@@ -727,6 +1036,7 @@
         <Border
             x:Name="BRD_NachUntenVerschieben"
             Grid.Row="1"
+            Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}"
             Width="78"
             Height="auto"
             MaxHeight="156"
@@ -843,6 +1153,7 @@
             Width="54"
             Margin="10,172,0,139"
             HorizontalAlignment="Left"
+            Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}"
             Background="Transparent">
 
             <RibbonButton
@@ -885,6 +1196,7 @@
             Height="26"
             MinWidth="24"
             Margin="0,0,10,0"
+            Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}"
             HorizontalAlignment="Right"
             VerticalAlignment="Top"
             Orientation="Horizontal">
@@ -960,6 +1272,7 @@
         <CheckBox
             x:Name="checkBox"
             Grid.Row="1"
+            Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}"
             Width="58"
             Height="16"
             Margin="10,10,0,0"
@@ -971,6 +1284,7 @@
             Grid.Row="1"
             Width="52"
             Height="126"
+            Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}"
             Margin="10,31,0,0"
             HorizontalAlignment="Left"
             VerticalAlignment="Top"
@@ -1122,7 +1436,8 @@
             Margin="10,0,0,62"
             HorizontalAlignment="Left"
             VerticalAlignment="Bottom"
-            Stroke="Black">
+            Stroke="Black"
+            Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}">
             <Rectangle.Fill>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                     <GradientStop Offset="0.0" Color="Yellow" />
@@ -1139,7 +1454,8 @@
             Margin="25,0,0,62"
             HorizontalAlignment="Left"
             VerticalAlignment="Bottom"
-            Stroke="Black">
+            Stroke="Black"
+            Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}">
             <Rectangle.Fill>
                 <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
                     <GradientStop Color="#FFE7F926" />
@@ -1158,7 +1474,8 @@
             HorizontalAlignment="Left"
             VerticalAlignment="Bottom"
             BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
-            BorderThickness="1,1,1,1">
+            BorderThickness="1,1,1,1"
+            Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}">
             <StackPanel Orientation="Horizontal">
                 <CheckBox
                     x:Name="CHBX_MultiGleichheit"
@@ -1346,7 +1663,8 @@
             Height="12"
             Margin="15,0,0,43"
             HorizontalAlignment="Left"
-            VerticalAlignment="Bottom">
+            VerticalAlignment="Bottom"
+            Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="68" />
@@ -1399,6 +1717,7 @@
             Grid.Row="2"
             Width="8"
             Height="8"
+            Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}"
             Margin="0,10,10,0"
             HorizontalAlignment="Right"
             VerticalAlignment="Top"
@@ -1413,7 +1732,8 @@
             Margin="10,0,0,0"
             HorizontalAlignment="Left"
             VerticalAlignment="Center"
-            Orientation="Horizontal">
+            Orientation="Horizontal"
+            Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}">
             <Label
                 x:Name="label"
                 Width="190"
@@ -1445,6 +1765,7 @@
         <Button
             x:Name="BTN_OrdnerÖffnen"
             Grid.Row="2"
+            Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}"
             Width="25"
             Height="20"
             Margin="0,70,10,0"
@@ -1457,6 +1778,7 @@
             Width="34"
             Height="34"
             Margin="8,20,0,0"
+            Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}"
             HorizontalAlignment="Left"
             VerticalAlignment="Top"
             BorderBrush="#44000000"
@@ -1541,6 +1863,53 @@
             </Grid>
         </Border>
 
+
+        <!--  Schwebender Toggle-Button: Bildmodus umschalten (F11)  -->
+        <Button
+            Grid.Row="0"
+            Width="28"
+            Height="28"
+            Margin="0,4,100,0"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Top"
+            Command="{Binding CommandExecuteImageMaximierenToggleCommand}"
+            Cursor="Hand"
+            FontFamily="Segoe MDL2 Assets"
+            FontSize="14"
+            Panel.ZIndex="100"
+            ToolTip="Bildmodus umschalten (F11)">
+            <Button.Style>
+                <Style TargetType="Button">
+                    <Setter Property="Content" Value="&#xE740;" />
+                    <Setter Property="Opacity" Value="0.4" />
+                    <Setter Property="Background" Value="#88000000" />
+                    <Setter Property="Foreground" Value="White" />
+                    <Setter Property="BorderThickness" Value="0" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Border
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="6"
+                                    Padding="4">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                    <Style.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Opacity" Value="0.9" />
+                            <Setter Property="Background" Value="#CC007ACC" />
+                        </Trigger>
+                        <DataTrigger Binding="{Binding IsImageMaximiert}" Value="True">
+                            <Setter Property="Content" Value="&#xE73F;" />
+                            <Setter Property="Opacity" Value="0.6" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Button.Style>
+        </Button>
 
         <!--  Filter Breich  -->
         <VisualStateManager.VisualStateGroups>
