@@ -1201,69 +1201,6 @@
             VerticalAlignment="Top"
             Orientation="Horizontal">
 
-            <!--  Webcam-Indikator  -->
-            <Border
-                Width="22"
-                Height="22"
-                Margin="0,0,4,0"
-                CornerRadius="4"
-                ToolTip="Webcam — grün = wird gerade verwendet">
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Setter Property="Background" Value="#22000000" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsWebcamAktiv}" Value="True">
-                                <Setter Property="Background" Value="#3300C853" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontFamily="Segoe MDL2 Assets" FontSize="12">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Text" Value="&#xE714;" />
-                            <Setter Property="Foreground" Value="#FF888888" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsWebcamAktiv}" Value="True">
-                                    <Setter Property="Foreground" Value="#FF00C853" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-            </Border>
-
-            <!--  Mikrofon-Indikator  -->
-            <Border
-                Width="22"
-                Height="22"
-                Margin="0,0,8,0"
-                CornerRadius="4"
-                ToolTip="Mikrofon — grün = wird gerade verwendet">
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Setter Property="Background" Value="#22000000" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsMikrofonAktiv}" Value="True">
-                                <Setter Property="Background" Value="#3300C853" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontFamily="Segoe MDL2 Assets" FontSize="12">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Text" Value="&#xE720;" />
-                            <Setter Property="Foreground" Value="#FF888888" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsMikrofonAktiv}" Value="True">
-                                    <Setter Property="Foreground" Value="#FF00C853" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-            </Border>
 
             <TextBlock
                 Margin="0,0,7,0"
@@ -1811,19 +1748,81 @@
                 ToolTip="{Binding Version}" />
             <Button
                 x:Name="BTN_ObenMinimize1"
-                Width="38"
-                Height="38"
+                Width="28"
+                Height="28"
                 Margin="4,0,0,0"
                 Command="{Binding CommandExecuteObenMinimierenCommand, Mode=OneWay}"
-                Content="Ob ⭿" />
+                ToolTip="Oberen Bereich ein-/ausblenden"
+                Cursor="Hand">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Background" Value="#22000000" />
+                        <Setter Property="Foreground" Value="#FF444444" />
+                        <Setter Property="BorderThickness" Value="0" />
+                        <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+                        <Setter Property="FontSize" Value="13" />
+                        <Setter Property="Content" Value="&#xE70E;" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="5">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="bd" Property="Background" Value="#44000000" />
+                                        </Trigger>
+                                        <Trigger Property="IsPressed" Value="True">
+                                            <Setter TargetName="bd" Property="Background" Value="#66000000" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsObenMinimiert}" Value="True">
+                                <Setter Property="Content" Value="&#xE70D;" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
             <Button
-                x:Name="BTN_ObenMinimize2"
-                Width="38"
-                Height="38"
+                x:Name="BTN_BilderAktualisieren"
+                Width="28"
+                Height="28"
                 Margin="4,0,0,0"
                 Command="{Binding CommandExecuteAlleBilderNeuEinlesenCommand, Mode=OneWay}"
-                Content=""
-                FontFamily="Segoe UI Symbol" />
+                ToolTip="Alle Bilder neu einlesen"
+                Cursor="Hand">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Background" Value="#22000000" />
+                        <Setter Property="Foreground" Value="#FF444444" />
+                        <Setter Property="BorderThickness" Value="0" />
+                        <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+                        <Setter Property="FontSize" Value="13" />
+                        <Setter Property="Content" Value="&#xE72C;" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="5">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="bd" Property="Background" Value="#44000000" />
+                                        </Trigger>
+                                        <Trigger Property="IsPressed" Value="True">
+                                            <Setter TargetName="bd" Property="Background" Value="#66000000" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Button.Style>
+            </Button>
 
 
         </StackPanel>
@@ -1928,6 +1927,113 @@
             </Grid>
         </Border>
 
+
+        <!--  Webcam- und Mikrofon-Indikatoren — immer sichtbar (beide Ansichten)  -->
+        <StackPanel
+            Grid.Row="0"
+            Margin="0,7,136,0"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Top"
+            Orientation="Horizontal"
+            Panel.ZIndex="100">
+
+            <!--  Webcam-Indikator  -->
+            <Border
+                Width="22"
+                Height="22"
+                Margin="0,0,4,0"
+                CornerRadius="4"
+                ToolTip="Webcam — grün = wird gerade aufgenommen">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="#22000000" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsWebcamAktiv}" Value="True">
+                                <Setter Property="Background" Value="#3300C853" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontFamily="Segoe MDL2 Assets" FontSize="12">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="&#xE714;" />
+                            <Setter Property="Foreground" Value="#FF888888" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsWebcamAktiv}" Value="True">
+                                    <Setter Property="Foreground" Value="#FF00C853" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Border>
+
+            <!--  Mikrofon-Indikator  -->
+            <Border
+                Width="22"
+                Height="22"
+                Margin="0,0,4,0"
+                CornerRadius="4"
+                ToolTip="Mikrofon — grün = wird gerade aufgenommen">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="#22000000" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsMikrofonAktiv}" Value="True">
+                                <Setter Property="Background" Value="#3300C853" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontFamily="Segoe MDL2 Assets" FontSize="12">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="&#xE720;" />
+                            <Setter Property="Foreground" Value="#FF888888" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsMikrofonAktiv}" Value="True">
+                                    <Setter Property="Foreground" Value="#FF00C853" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Border>
+
+            <!--  Screen-Share-Indikator  -->
+            <Border
+                Width="22"
+                Height="22"
+                Margin="0,0,6,0"
+                CornerRadius="4"
+                ToolTip="Bildschirmaufnahme — grün = wird gerade geteilt">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="#22000000" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsScreenShareAktiv}" Value="True">
+                                <Setter Property="Background" Value="#3300C853" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontFamily="Segoe MDL2 Assets" FontSize="12">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="&#xE7F4;" />
+                            <Setter Property="Foreground" Value="#FF888888" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsScreenShareAktiv}" Value="True">
+                                    <Setter Property="Foreground" Value="#FF00C853" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Border>
+
+        </StackPanel>
 
         <!--  Schwebender Toggle-Button: Bildmodus umschalten (F11)  -->
         <Button

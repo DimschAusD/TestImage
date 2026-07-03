@@ -144,12 +144,16 @@ namespace TestImage
         [ObservableProperty]
         private bool _isMikrofonAktiv;
 
+        [ObservableProperty]
+        private bool _isScreenShareAktiv;
+
         private readonly System.Windows.Threading.DispatcherTimer _geraeteTimer;
 
         private void GeraeteTimerTick(object? sender, EventArgs e)
         {
-            IsWebcamAktiv   = DeviceMonitor.IstAktiv("webcam");
-            IsMikrofonAktiv = DeviceMonitor.IstAktiv("microphone");
+            IsWebcamAktiv      = DeviceMonitor.IstAktiv("webcam");
+            IsMikrofonAktiv    = DeviceMonitor.IstAktiv("microphone");
+            IsScreenShareAktiv = DeviceMonitor.IstAktiv("screenCapture");
         }
 
         #region UI_Output
@@ -552,6 +556,8 @@ namespace TestImage
                 var extensions = new[] { ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp" };
 
                 var fullDateiName = filepaths[0];
+
+                if (string.IsNullOrEmpty(fullDateiName)) return;
 
                 // Nachschauen ob es eine pdf ist
                 if (!extensions.Contains(Path.GetExtension(fullDateiName).ToLower()))
