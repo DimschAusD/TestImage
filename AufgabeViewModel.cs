@@ -1,6 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Emgu.CV;
+using WebcamMikroMonitor.Common.Devices;
 using Emgu.CV.CvEnum;
 using System;
 using System.Collections.Concurrent;
@@ -137,6 +138,20 @@ namespace TestImage
         [ObservableProperty]
         private bool _IsImageMaximiert = false;
 
+        [ObservableProperty]
+        private bool _isWebcamAktiv;
+
+        [ObservableProperty]
+        private bool _isMikrofonAktiv;
+
+        private readonly System.Windows.Threading.DispatcherTimer _geraeteTimer;
+
+        private void GeraeteTimerTick(object? sender, EventArgs e)
+        {
+            IsWebcamAktiv   = DeviceMonitor.IstAktiv("webcam");
+            IsMikrofonAktiv = DeviceMonitor.IstAktiv("microphone");
+        }
+
         #region UI_Output
         [ObservableProperty]
         public partial int OriginalImageWidth { get; set; } = -1;
@@ -164,6 +179,14 @@ namespace TestImage
 
         public AufgabeViewModel()
         {
+            _geraeteTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(2)
+            };
+            _geraeteTimer.Tick += GeraeteTimerTick;
+            _geraeteTimer.Start();
+            GeraeteTimerTick(null, EventArgs.Empty);
+
             ocAufgabens = new ObservableCollection<MeinBildchen>();
 
             ocAufgabensKlein = new ObservableCollection<MeinBildchen>();

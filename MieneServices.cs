@@ -848,7 +848,10 @@ namespace TestImage
             return await Task.Run(() =>
             {
 
-                using (var img = new Bitmap(imagePath))
+                Bitmap img;
+                try { img = new Bitmap(imagePath); }
+                catch { return 0UL; }
+                using (img)
                 {
                     // 1. Bild auf 8x8 verkleinern (Graustufen)
                     using (var smallImg = new Bitmap(8, 8))
