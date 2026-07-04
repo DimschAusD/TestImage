@@ -938,6 +938,7 @@ namespace TestImage
                     if (länge > 0)
                     {
                         await Task.Run(() => File.Move(source, zielDateiName));
+                        CLconverterStringZuKleinemImage.InvalidateCache(source);
                         moveErfolgreich = true;
                     }
                 }
@@ -1129,6 +1130,7 @@ namespace TestImage
                 if (!File.Exists(zielVollPfad) && File.Exists(source))
                 {
                     await Task.Run(() => File.Move(source, zielVollPfad));
+                    CLconverterStringZuKleinemImage.InvalidateCache(source);
                     moveErfolgreich = true;
                 }
             }
@@ -1213,6 +1215,7 @@ namespace TestImage
             if (File.Exists(BildchenVorher) & !File.Exists(zielVollPfad))
             {
                 File.Move(BildchenVorher, zielVollPfad);
+                CLconverterStringZuKleinemImage.InvalidateCache(BildchenVorher);
 
                 var bildchen = OcAufgabens.FirstOrDefault(b => b.BName == BildchenVorher);
                 //var indexSelected = AufgabenView.CurrentPosition;
@@ -2701,6 +2704,7 @@ namespace TestImage
 
                 // ✅ Dateisystem async
                 await Task.Run(() => File.Move(source, zielDateiFullName));
+                CLconverterStringZuKleinemImage.InvalidateCache(source);
                 moveErfolgreich = true;
             }
             catch (Exception ex)

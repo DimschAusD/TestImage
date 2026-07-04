@@ -329,6 +329,7 @@
             ScrollViewer.VerticalScrollBarVisibility="Auto"
             SelectedItem="{Binding SelectedBildchen, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
             VirtualizingPanel.IsVirtualizing="True"
+            VirtualizingPanel.VirtualizationMode="Recycling"
             VirtualizingPanel.ScrollUnit="Pixel"
             Visibility="{Binding IsObenMinimiert, Converter={StaticResource CLconverterVisiblityBoolian}}">
 
@@ -591,6 +592,10 @@
                     Source="{Binding DisplayImage}"
                     Stretch="{Binding ImageStretch}"
                     UseLayoutRounding="False">
+                    <Image.RenderTransform>
+                        <TranslateTransform x:Name="imgShakeTransform" />
+                    </Image.RenderTransform>
+
                     <Image.Effect>
                         <DropShadowEffect
                             BlurRadius="20"
@@ -677,6 +682,7 @@
                     ScrollViewer.VerticalScrollBarVisibility="Disabled"
                     SelectedItem="{Binding SelectedBildchen, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                     VirtualizingPanel.IsVirtualizing="True"
+                    VirtualizingPanel.VirtualizationMode="Recycling"
                     VirtualizingPanel.ScrollUnit="Pixel">
 
                     <ListBox.Style>

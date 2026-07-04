@@ -1,9 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
+using System;
+using System.Collections.Concurrent;
 using System.Globalization;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
@@ -13,59 +10,58 @@ namespace TestImage
 {
     internal class CLconverterStringZuKleinemImage : IValueConverter
     {
+        private static readonly ConcurrentDictionary<string, BitmapImage> _cache =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        public static void InvalidateCache(string pfad)
+        {
+            if (!string.IsNullOrEmpty(pfad))
+                _cache.TryRemove(pfad, out _);
+        }
+
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
+            if (value is not string pfad || string.IsNullOrEmpty(pfad))
+                return MachePlatzhalter();
+
+            if (_cache.TryGetValue(pfad, out var cached))
+                return cached;
 
             BitmapImage bmp = new BitmapImage();
             try
             {
                 bmp.BeginInit();
-                bmp.UriSource = new Uri((string)value, UriKind.Relative);
+                bmp.UriSource = new Uri(pfad, UriKind.Relative);
                 bmp.DecodePixelWidth = 120;
-                //RenderTransform = new ScaleTransform(1.5, 2.0), // X=150%, Y=200%
-                //RenderTransformOrigin = new Point(0.5, 0.5)
-                
-                // Datei komplett in den Speicher laden
                 bmp.CacheOption = BitmapCacheOption.OnLoad;
                 bmp.EndInit();
-                bmp.Freeze(); // Thread-sicher machen und Ressourcen freigeben
+                bmp.Freeze();
+
+                _cache[pfad] = bmp;
+                return bmp;
             }
-            catch (Exception)
+            catch
             {
-
-                // Erstelle ein leeres DrawingVisual
-                //var borderColor = System.Drawing.Color.FromArgb(255, 0, 0, 0); // Schwarz
-                //var borderColor = System.Windows.Media.Brushes.Black.Color; // Schwarz
-                int width = 200;
-                int height = 200;
-                var borderWidth = 2;
-                DrawingVisual drawingVisual = new DrawingVisual();
-                using (DrawingContext drawingContext = drawingVisual.RenderOpen())
-                {
-                    // Hintergrund (optional)
-                    drawingContext.DrawRectangle(System.Windows.Media.Brushes.Transparent, null, new Rect(0, 0, width, height));
-
-                    // Rahmen zeichnen
-                    System.Windows.Media.Pen borderPen = new System.Windows.Media.Pen() { Thickness = 3, Brush = System.Windows.Media.Brushes.Yellow };
-                    drawingContext.DrawRectangle(null, borderPen, new Rect(borderWidth / 2.0, borderWidth / 2.0, width - borderWidth, height - borderWidth));
-                }
-
-                // RenderTargetBitmap erstellen
-                RenderTargetBitmap renderBitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
-                renderBitmap.Render(drawingVisual);
-
-                // Bild für die ObservableCollection
-                ImageSource imageHiden = renderBitmap;
-                return imageHiden;
+                return MachePlatzhalter();
             }
-           
+        }
 
-           return bmp; // Image-Steuerelement setzen
+        private static ImageSource MachePlatzhalter()
+        {
+            int width = 200, height = 200;
+            var dv = new DrawingVisual();
+            using (var dc = dv.RenderOpen())
+            {
+                dc.DrawRectangle(System.Windows.Media.Brushes.Transparent, null, new Rect(0, 0, width, height));
+                var pen = new System.Windows.Media.Pen { Thickness = 3, Brush = System.Windows.Media.Brushes.Yellow };
+                dc.DrawRectangle(null, pen, new Rect(1.5, 1.5, width - 3, height - 3));
+            }
+            var rtb = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+            rtb.Render(dv);
+            return rtb;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
+            => throw new NotImplementedException();
     }
 }

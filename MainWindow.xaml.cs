@@ -138,6 +138,18 @@ namespace TestImage
             }
         }
 
+        private void ShakeImage(bool nachRechts)
+        {
+            double d = nachRechts ? 1 : -1;
+            var anim = new DoubleAnimationUsingKeyFrames();
+            anim.KeyFrames.Add(new EasingDoubleKeyFrame(d * 14,  KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(55))));
+            anim.KeyFrames.Add(new EasingDoubleKeyFrame(d * -10, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(120))));
+            anim.KeyFrames.Add(new EasingDoubleKeyFrame(d * 7,   KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(185))));
+            anim.KeyFrames.Add(new EasingDoubleKeyFrame(d * -4,  KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(245))));
+            anim.KeyFrames.Add(new EasingDoubleKeyFrame(0,        KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(300))));
+            imgShakeTransform.BeginAnimation(TranslateTransform.XProperty, anim);
+        }
+
         private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             var vm = DataContext as AufgabeViewModel;
@@ -147,12 +159,16 @@ namespace TestImage
             {
                 if (vm?.CommandExecuteBildLinksCommand.CanExecute(null) == true)
                     vm.CommandExecuteBildLinksCommand.Execute(null);
+                else if (vm?.IsImageMaximiert == true)
+                    ShakeImage(nachRechts: false);
                 e.Handled = true;
             }
             else if (e.Key == Key.Right && Keyboard.Modifiers == ModifierKeys.None)
             {
                 if (vm?.CommandExecuteBildNachRechtsCommand.CanExecute(null) == true)
                     vm.CommandExecuteBildNachRechtsCommand.Execute(null);
+                else if (vm?.IsImageMaximiert == true)
+                    ShakeImage(nachRechts: true);
                 e.Handled = true;
             }
             else if (e.Key == Key.Down && Keyboard.Modifiers == ModifierKeys.None)
