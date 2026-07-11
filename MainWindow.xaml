@@ -580,7 +580,12 @@
             <ScrollViewer
                 x:Name="scdd"
                 HorizontalScrollBarVisibility="{Binding MyHorizontalScrollBarVisibility}"
-                VerticalScrollBarVisibility="{Binding MyHorizontalScrollBarVisibility}">
+                VerticalScrollBarVisibility="{Binding MyHorizontalScrollBarVisibility}"
+                AllowDrop="True"
+                local:FileDragDropHelper.IsFileDragDropEnabled="True"
+                DragEnter="scdd_DragEnter"
+                DragLeave="scdd_DragLeave"
+                Drop="scdd_Drop">
 
                 <Image
                     x:Name="imgCurrent"
@@ -913,6 +918,41 @@
                     Height="150"
                     VerticalAlignment="Bottom"
                     Background="Transparent" />
+
+                <!--  Drop-Overlay: sichtbar wenn Datei über das Bild gezogen wird  -->
+                <Border
+                    x:Name="BRD_DropOverlay"
+                    Background="#CC111111"
+                    BorderBrush="#88FFFFFF"
+                    BorderThickness="2"
+                    CornerRadius="8"
+                    IsHitTestVisible="False"
+                    Panel.ZIndex="300"
+                    Visibility="Collapsed">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="48"
+                            Foreground="#CCFFFFFF"
+                            HorizontalAlignment="Center"
+                            Text="&#xE896;" />
+                        <TextBlock
+                            Margin="0,12,0,0"
+                            FontFamily="Segoe UI"
+                            FontSize="18"
+                            FontWeight="SemiBold"
+                            Foreground="#EEFFFFFF"
+                            HorizontalAlignment="Center"
+                            Text="Bild hier ablegen" />
+                        <TextBlock
+                            Margin="0,6,0,0"
+                            FontFamily="Segoe UI"
+                            FontSize="13"
+                            Foreground="#88FFFFFF"
+                            HorizontalAlignment="Center"
+                            Text="Alle Bilder im selben Ordner werden geladen" />
+                    </StackPanel>
+                </Border>
             </Grid>
         </Border>
         <!--<RibbonButton
@@ -1762,8 +1802,8 @@
                 Cursor="Hand">
                 <Button.Style>
                     <Style TargetType="Button">
-                        <Setter Property="Background" Value="#22000000" />
-                        <Setter Property="Foreground" Value="#FF444444" />
+                        <Setter Property="Background" Value="#FF5C6BC0" />
+                        <Setter Property="Foreground" Value="#FFFFFFFF" />
                         <Setter Property="BorderThickness" Value="0" />
                         <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
                         <Setter Property="FontSize" Value="13" />
@@ -1771,15 +1811,18 @@
                         <Setter Property="Template">
                             <Setter.Value>
                                 <ControlTemplate TargetType="Button">
-                                    <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="5">
-                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <Border Background="{TemplateBinding Background}" CornerRadius="5">
+                                        <Grid>
+                                            <Border x:Name="overlay" Background="Transparent" CornerRadius="5" />
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Grid>
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="bd" Property="Background" Value="#44000000" />
+                                            <Setter TargetName="overlay" Property="Background" Value="#33000000" />
                                         </Trigger>
                                         <Trigger Property="IsPressed" Value="True">
-                                            <Setter TargetName="bd" Property="Background" Value="#66000000" />
+                                            <Setter TargetName="overlay" Property="Background" Value="#55000000" />
                                         </Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
@@ -1787,6 +1830,7 @@
                         </Setter>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsObenMinimiert}" Value="True">
+                                <Setter Property="Background" Value="#FFEF6C00" />
                                 <Setter Property="Content" Value="&#xE70D;" />
                             </DataTrigger>
                         </Style.Triggers>
@@ -1803,8 +1847,8 @@
                 Cursor="Hand">
                 <Button.Style>
                     <Style TargetType="Button">
-                        <Setter Property="Background" Value="#22000000" />
-                        <Setter Property="Foreground" Value="#FF444444" />
+                        <Setter Property="Background" Value="#FF26A69A" />
+                        <Setter Property="Foreground" Value="#FFFFFFFF" />
                         <Setter Property="BorderThickness" Value="0" />
                         <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
                         <Setter Property="FontSize" Value="13" />
@@ -1812,15 +1856,18 @@
                         <Setter Property="Template">
                             <Setter.Value>
                                 <ControlTemplate TargetType="Button">
-                                    <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="5">
-                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <Border Background="{TemplateBinding Background}" CornerRadius="5">
+                                        <Grid>
+                                            <Border x:Name="overlay" Background="Transparent" CornerRadius="5" />
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Grid>
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="bd" Property="Background" Value="#44000000" />
+                                            <Setter TargetName="overlay" Property="Background" Value="#33000000" />
                                         </Trigger>
                                         <Trigger Property="IsPressed" Value="True">
-                                            <Setter TargetName="bd" Property="Background" Value="#66000000" />
+                                            <Setter TargetName="overlay" Property="Background" Value="#55000000" />
                                         </Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>

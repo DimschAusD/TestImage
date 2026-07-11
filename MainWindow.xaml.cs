@@ -203,6 +203,26 @@ namespace TestImage
                 e.Handled = true;
             }
         }
+
+        private void scdd_DragEnter(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                BRD_DropOverlay.Visibility = Visibility.Visible;
+                e.Effects = DragDropEffects.Copy;
+                e.Handled = true;
+            }
+        }
+
+        private void scdd_DragLeave(object sender, DragEventArgs e)
+        {
+            BRD_DropOverlay.Visibility = Visibility.Collapsed;
+        }
+
+        private void scdd_Drop(object sender, DragEventArgs e)
+        {
+            BRD_DropOverlay.Visibility = Visibility.Collapsed;
+        }
     }
 }
 
