@@ -75,6 +75,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\WebcamMikroMonitor\WebcamMikroMonitor.Common\WebcamMikroMonitor.Common.csproj" />
+    <ProjectReference Include="..\BildKonturBerechnen\ImageMatching.Core\ImageMatching.Core.csproj" />
+    <ProjectReference Include="..\BildKonturBerechnen\ImageMatching.Cnn\ImageMatching.Cnn.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -106,5 +108,20 @@
     <Resource Include="Images\VieleGleiche.svg" />
     <Resource Include="Images\VieleGleicheKlein.png" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ClipModel Include="..\BildKonturBerechnen\models\clip-vit-b32-vision.onnx" />
+    <ClipModel Include="..\BildKonturBerechnen\models\clip-text.onnx" />
+    <ClipModel Include="..\BildKonturBerechnen\models\clip-vocab.json" />
+    <ClipModel Include="..\BildKonturBerechnen\models\clip-merges.txt" />
+  </ItemGroup>
+
+  <Target Name="CopyClipModels" AfterTargets="Build">
+    <Copy SourceFiles="@(ClipModel)" DestinationFolder="$(OutputPath)models" SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopyClipModelsPublish" AfterTargets="Publish">
+    <Copy SourceFiles="@(ClipModel)" DestinationFolder="$(PublishDir)models" SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>

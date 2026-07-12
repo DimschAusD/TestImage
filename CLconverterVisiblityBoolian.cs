@@ -22,10 +22,10 @@ namespace TestImage
             {
                 if (wert) { return Visibility.Visible; }
                 else { return Visibility.Collapsed; }
-               
+
             }
 
-            return Visibility.Collapsed;
+            return Visibility.Visible;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

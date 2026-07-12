@@ -1,7 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Emgu.CV;
-using WebcamMikroMonitor.Common.Devices;
 using Emgu.CV.CvEnum;
 using System;
 using System.Collections.Concurrent;
@@ -16,6 +15,8 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using TestImage.Bildersuche;
+using WebcamMikroMonitor.Common.Devices;
 
 namespace TestImage
 {
@@ -151,8 +152,8 @@ namespace TestImage
 
         private void GeraeteTimerTick(object? sender, EventArgs e)
         {
-            IsWebcamAktiv      = DeviceMonitor.IstAktiv("webcam");
-            IsMikrofonAktiv    = DeviceMonitor.IstAktiv("microphone");
+            IsWebcamAktiv = DeviceMonitor.IstAktiv("webcam");
+            IsMikrofonAktiv = DeviceMonitor.IstAktiv("microphone");
             IsScreenShareAktiv = DeviceMonitor.IstAktiv("screenCapture");
         }
 
@@ -557,7 +558,10 @@ namespace TestImage
 
                 var fullDateiName = filepaths[0];
 
-                if (string.IsNullOrEmpty(fullDateiName)) return;
+                if (string.IsNullOrEmpty(fullDateiName))
+                {
+                    return;
+                }
 
                 // Nachschauen ob es eine pdf ist
                 if (!extensions.Contains(Path.GetExtension(fullDateiName).ToLower()))
@@ -758,6 +762,7 @@ namespace TestImage
                 CommandExecuteBildInsKeinFavVerzeichnisVerschiebenCommand?.NotifyCanExecuteChanged();
                 CommandExecuteBildStretchAnpassenCommand?.NotifyCanExecuteChanged();
                 CommandExecuteAlleBilderInsKeinFavVerschiebenCommand?.NotifyCanExecuteChanged();
+                CommandExecuteSuchleisteToggleCommand?.NotifyCanExecuteChanged();
                 //  CommandExecuteAlleBilderMiteinanderAufByteGleichheitPrüfenCommand?.NotifyCanExecuteChanged();
 
             }
@@ -3034,6 +3039,701 @@ namespace TestImage
                 IsObenMinimiert = true;
             }
         }
+        #endregion
+
+        #region Bildersuche (Index-Leiste & Filter-Popover)
+
+        /// <summary>Analysiert das gewählte Bild per CLIP (erkennt Begriffe).</summary>
+        private readonly BildAnalyseService _bildAnalyse = new();
+
+        /// <summary>True, wenn die schlanke Such-/Index-Leiste eingeblendet ist.</summary>
+        [ObservableProperty]
+        private bool _isSuchleisteOffen;
+
+        /// <summary>Kurzstatus der Bildanalyse (z. B. „Analysiere…", „6 Begriffe erkannt").</summary>
+        [ObservableProperty]
+        private string _analyseStatus = string.Empty;
+
+        /// <summary>True während die Analyse läuft (für einen Ladehinweis).</summary>
+        [ObservableProperty]
+        private bool _analyseLaeuft;
+
+        /// <summary>Vorschaubild das gerade analysiert wurde (für die Anzeige im Popup).</summary>
+        [ObservableProperty]
+        private ImageSource? _analyseBildVorschau;
+
+        /// <summary>Heatmap-Overlay (halbtransparent) über der Vorschau — zeigt wo der Begriff erkannt wurde.</summary>
+        [ObservableProperty]
+        private ImageSource? _heatmapOverlay;
+
+        /// <summary>True während die Heatmap berechnet wird.</summary>
+        [ObservableProperty]
+        private bool _heatmapLaeuft;
+
+        /// <summary>Die erkannten Begriffe des aktuellen Bildes (z. B. „Blume 34 %").</summary>
+        public ObservableCollection<string> ErkannteBegriffe { get; } = new();
+
+        /// <summary>Treffer der Freitextsuche (klickbare Miniaturen), nach Schwelle gefiltert.</summary>
+        public ObservableCollection<SuchErgebnis> SuchErgebnisse { get; } = new();
+
+        /// <summary>Alle Top-Treffer der letzten Suche (ungefiltert, mit Score) für das Live-Filtern.</summary>
+        private readonly System.Collections.Generic.List<(SuchErgebnis Erg, float Score)> _alleSuchTreffer = new();
+
+        /// <summary>Letzte Suchanfrage (für die Statuszeile beim Neu-Filtern).</summary>
+        private string _letzteFrage = string.Empty;
+
+        /// <summary>Kurzstatus der Freitextsuche.</summary>
+        [ObservableProperty]
+        private string _sucheStatus = string.Empty;
+
+        /// <summary>Der aktuell hervorgehobene Begriff (für visuelles Feedback im Chip).</summary>
+        [ObservableProperty]
+        private string? _aktuellerHeatmapBegriff;
+
+        /// <summary>True = Begriffe auf Deutsch anzeigen, False = englische Originale.</summary>
+        [ObservableProperty]
+        private bool _begriffeAufDeutsch = true;
+
+        /// <summary>Letzte Roh-Ergebnisse (englisch) für erneutes Rendern bei Sprachwechsel.</summary>
+        private System.Collections.Generic.IReadOnlyList<(string Word, float Score)> _letzteBegriffe =
+            System.Array.Empty<(string, float)>();
+
+        partial void OnBegriffeAufDeutschChanged(bool value) => RenderBegriffe();
+
+
+        /// <summary>
+        /// Schwelle für die Auto-Tags (0..1).
+        /// </summary>
+        [ObservableProperty]
+        public partial double TagSchwelle { get; set; } = 0.23;
+
+        partial void OnTagSchwelleChanged(double value) => RenderBegriffe();
+
+        /// <summary>
+        /// Füllt <see cref="ErkannteBegriffe"/> aus den Roh-Treffern, gefiltert nach Schwelle und Sprache.
+        /// </summary>
+        private void RenderBegriffe()
+        {
+            ErkannteBegriffe.Clear();
+            foreach (var (wort, score) in _letzteBegriffe)
+            {
+                if (score < TagSchwelle)
+                {
+                    continue;
+                }
+
+                string anzeige = BegriffeAufDeutsch ? BegriffUebersetzer.ZuDeutsch(wort) : wort;
+                ErkannteBegriffe.Add($"{anzeige}  {score * 100f:F0} %");
+            }
+            HeatmapOverlay = null;
+            AktuellerHeatmapBegriff = null;
+        }
+
+        [RelayCommand]
+        private async Task CommandExecuteBegriffHeatmap(string? chipText)
+        {
+            if (string.IsNullOrEmpty(chipText))
+            {
+                return;
+            }
+
+            string? pfad = SelectedBildchen?.BName;
+            if (string.IsNullOrEmpty(pfad))
+            {
+                return;
+            }
+
+            // Aus dem Chip-Text den englischen Begriff extrahieren (Format: "Begriff  42 %")
+            string anzeigeName = chipText.Contains("  ")
+                ? chipText.Substring(0, chipText.LastIndexOf("  "))
+                : chipText;
+            string englisch = BegriffeAufDeutsch
+                ? _letzteBegriffe.FirstOrDefault(b => BegriffUebersetzer.ZuDeutsch(b.Word) == anzeigeName).Word ?? anzeigeName
+                : anzeigeName;
+
+            if (AktuellerHeatmapBegriff == chipText)
+            {
+                HeatmapOverlay = null;
+                AktuellerHeatmapBegriff = null;
+                return;
+            }
+
+            AktuellerHeatmapBegriff = chipText;
+            HeatmapLaeuft = true;
+            try
+            {
+                var scores = await _bildAnalyse.HeatmapAsync(pfad, englisch, gridSize: 4);
+                if (scores == null)
+                { HeatmapOverlay = null; return; }
+
+                // Seitenverhältnis des Originals übernehmen, damit Overlay bei Uniform passt.
+                double aspW = 1, aspH = 1;
+                if (AnalyseBildVorschau is BitmapSource bmpSrc && bmpSrc.PixelWidth > 0 && bmpSrc.PixelHeight > 0)
+                { aspW = bmpSrc.PixelWidth; aspH = bmpSrc.PixelHeight; }
+                HeatmapOverlay = ErzeugeHeatmapBild(scores, aspW, aspH);
+            }
+            finally { HeatmapLaeuft = false; }
+        }
+
+        private static ImageSource ErzeugeHeatmapBild(float[,] scores, double bildBreite = 1, double bildHoehe = 1)
+        {
+            int rows = scores.GetLength(0);
+            int cols = scores.GetLength(1);
+
+            // Zellgröße so wählen, dass das Seitenverhältnis des Originals erhalten bleibt.
+            double aspect = bildBreite / bildHoehe;
+            int cellW, cellH;
+            if (aspect >= 1) { cellW = 64; cellH = (int)(64 / aspect); }
+            else             { cellH = 64; cellW = (int)(64 * aspect); }
+            if (cellW < 4) cellW = 4;
+            if (cellH < 4) cellH = 4;
+            int w = cols * cellW;
+            int h = rows * cellH;
+
+            // Min/Max normieren für besseren Kontrast
+            float min = float.MaxValue, max = float.MinValue;
+            for (int r = 0; r < rows; r++)
+            {
+                for (int c = 0; c < cols; c++)
+                {
+                    if (scores[r, c] < min)
+                    {
+                        min = scores[r, c];
+                    }
+
+                    if (scores[r, c] > max)
+                    {
+                        max = scores[r, c];
+                    }
+                }
+            }
+
+            float range = max - min;
+            if (range < 0.001f)
+            {
+                range = 1f;
+            }
+
+            var pixels = new byte[w * h * 4]; // BGRA
+            for (int r = 0; r < rows; r++)
+            {
+                float norm = (scores[r, 0] - min) / range; // will be set per col
+                for (int c = 0; c < cols; c++)
+                {
+                    norm = (scores[r, c] - min) / range;
+                    // Farbe: transparent(niedrig) → rot halbtransparent(hoch)
+                    byte alpha = (byte)(norm * 160);
+                    byte red = (byte)(200 + norm * 55);
+                    byte green = (byte)((1f - norm) * 80);
+                    byte blue = 0;
+
+                    for (int py = r * cellH; py < (r + 1) * cellH; py++)
+                    {
+                        for (int px = c * cellW; px < (c + 1) * cellW; px++)
+                        {
+                            int i = (py * w + px) * 4;
+                            pixels[i] = blue;
+                            pixels[i + 1] = green;
+                            pixels[i + 2] = red;
+                            pixels[i + 3] = alpha;
+                        }
+                    }
+                }
+            }
+
+            var bmp = BitmapSource.Create(w, h, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null, pixels, w * 4);
+            bmp.Freeze();
+            return bmp;
+        }
+
+        /// <summary>True, wenn das Filter-Popover aufgeklappt ist.</summary>
+        [ObservableProperty]
+        private bool _isIndexPopoverOffen;
+
+        // Schließt die Leiste (auch per Klick daneben) → Einstellungen mit einklappen.
+        partial void OnIsSuchleisteOffenChanged(bool value)
+        {
+            if (!value)
+                IsIndexPopoverOffen = false;
+        }
+
+        /// <summary>Freitext für die Bildersuche (z. B. „mädchen am strand").</summary>
+        [ObservableProperty]
+        private string _sucheText = string.Empty;
+
+        /// <summary>Grauer Ghost-Rest der Autovervollständigung (nach dem Getippten).</summary>
+        [ObservableProperty]
+        private string _sucheVorschlagRest = string.Empty;
+
+        /// <summary>True während das CLIP-Modell (einmalig) geladen wird.</summary>
+        [ObservableProperty]
+        private bool _clipLaedt;
+
+        // Vervollständigt beim Tippen das letzte Wort (grauer Vorschlag).
+        partial void OnSucheTextChanged(string value)
+        {
+            string rest = string.Empty;
+            if (!string.IsNullOrEmpty(value) && !value.EndsWith(" "))
+            {
+                int sp = value.LastIndexOf(' ');
+                string letztes = sp >= 0 ? value[(sp + 1)..] : value;
+                if (letztes.Length > 0)
+                {
+                    string? treffer = BegriffUebersetzer.Vervollstaendige(letztes);
+                    if (treffer != null)
+                        rest = treffer[letztes.Length..];
+                }
+            }
+            SucheVorschlagRest = rest;
+        }
+
+        [RelayCommand]
+        private void CommandExecuteVorschlagUebernehmen()
+        {
+            if (!string.IsNullOrEmpty(SucheVorschlagRest))
+            {
+                SucheText += SucheVorschlagRest;
+                SucheVorschlagRest = string.Empty;
+            }
+        }
+
+        /// <summary>Stellt sicher, dass CLIP geladen ist; zeigt dabei das Lade-Symbol.</summary>
+        private async Task StelleClipBereitAsync()
+        {
+            if (_bildAnalyse.Bereit)
+            {
+                return;
+            }
+
+            ClipLaedt = true;
+            try
+            { await _bildAnalyse.StelleSicherGeladenAsync(); }
+            finally { ClipLaedt = false; }
+        }
+
+        /// <summary>Anzahl der indexierten Bilder, z. B. „1140 Bilder im Index".</summary>
+        [ObservableProperty]
+        private string _indexAnzahlText = "0 Bilder im Index";
+
+        /// <summary>Ordner-Fortschritt, z. B. „indexiert 3/3 Ordner".</summary>
+        [ObservableProperty]
+        private string _indexOrdnerText = "indexiert 0/0 Ordner";
+
+
+
+        /// <summary>Mindest-Ähnlichkeit der Suchtreffer in Prozent (0..100).</summary>
+        [ObservableProperty]
+        private double _mindestAehnlichkeit = 23;
+
+        // Slider bewegt → gecachte Treffer neu filtern (ohne erneute Suche).
+        partial void OnMindestAehnlichkeitChanged(double value)
+        {
+            if (_alleSuchTreffer.Count > 0)
+                RenderSuchErgebnisse();
+        }
+
+        /// <summary>True während der Ordner indexiert wird.</summary>
+        [ObservableProperty]
+        private bool _indexLaeuft;
+
+        /// <summary>Fortschritt der Indexierung in Prozent (0..100).</summary>
+        [ObservableProperty]
+        private double _indexFortschritt;
+
+        /// <summary>Fortschritts-/Ergebnistext der Indexierung.</summary>
+        [ObservableProperty]
+        private string _indexFortschrittText = string.Empty;
+
+        /// <summary>Filter-Kategorien (z. B. „Erkannt", „Ort" …).</summary>
+        public ObservableCollection<string> FilterKategorien { get; } = new();
+
+        [ObservableProperty]
+        private string? _selectedFilterKategorie;
+
+        /// <summary>Mögliche Werte zur gewählten Kategorie (z. B. „flower").</summary>
+        public ObservableCollection<string> FilterWerte { get; } = new();
+
+        [ObservableProperty]
+        private string? _selectedFilterWert;
+
+        private System.Collections.Generic.Dictionary<string, System.Collections.Generic.IReadOnlyList<string>> _tagOptionen = new();
+
+        partial void OnSelectedFilterKategorieChanged(string? value)
+        {
+            FilterWerte.Clear();
+            if (value != null && _tagOptionen.TryGetValue(value, out var werte))
+            {
+                foreach (var w in werte) FilterWerte.Add(w);
+                if (FilterWerte.Count > 0) SelectedFilterWert = FilterWerte[0];
+            }
+        }
+
+        private void AktualisiereFilterOptionen()
+        {
+            string? pfad = SelectedBildchen?.BName;
+            string? ordner = string.IsNullOrEmpty(pfad) ? null : Path.GetDirectoryName(pfad);
+            if (string.IsNullOrEmpty(ordner)) return;
+
+            _tagOptionen = _bildAnalyse.LadeFilterOptionen(ordner);
+            FilterKategorien.Clear();
+            foreach (var k in _tagOptionen.Keys) FilterKategorien.Add(k);
+            if (FilterKategorien.Count > 0) SelectedFilterKategorie = FilterKategorien[0];
+        }
+
+        // Der unscheinbare Button ist nur klickbar, wenn ein Bild ausgewählt ist.
+        private bool CanExecuteSuchleisteToggle() => SelectedBildchen != null;
+
+        [RelayCommand(CanExecute = nameof(CanExecuteSuchleisteToggle))]
+        private async Task CommandExecuteSuchleisteToggle()
+        {
+            IsSuchleisteOffen = !IsSuchleisteOffen;
+            if (!IsSuchleisteOffen)
+            {
+                IsIndexPopoverOffen = false; // Popover mit der Leiste schließen
+                return;
+            }
+
+            AktualisiereFilterOptionen();
+            await AnalysiereAktuellesBildAsync();
+        }
+
+        /// <summary>Schickt das aktuell gewählte Bild durch CLIP und füllt <see cref="ErkannteBegriffe"/>.</summary>
+        private async Task AnalysiereAktuellesBildAsync()
+        {
+            string? pfad = SelectedBildchen?.BName;
+            if (string.IsNullOrEmpty(pfad) || !File.Exists(pfad))
+            {
+                AnalyseStatus = "Kein Bild ausgewählt.";
+                ErkannteBegriffe.Clear();
+                return;
+            }
+
+            AnalyseLaeuft = true;
+            _letzteBegriffe = System.Array.Empty<(string, float)>();
+            ErkannteBegriffe.Clear();
+
+            // Kleine Vorschau des analysierten Bildes laden.
+            try
+            {
+                var bmp = new BitmapImage();
+                bmp.BeginInit();
+                bmp.UriSource = new Uri(pfad);
+                bmp.DecodePixelWidth = 72;
+                bmp.CacheOption = BitmapCacheOption.OnLoad;
+                bmp.EndInit();
+                bmp.Freeze();
+                AnalyseBildVorschau = bmp;
+            }
+            catch { AnalyseBildVorschau = null; }
+
+            try
+            {
+                await StelleClipBereitAsync();
+                AnalyseStatus = "Analysiere…";
+                var treffer = await _bildAnalyse.ErkenneAsync(pfad, minRelevance: 0.10f, topN: 20);
+
+                if (!_bildAnalyse.Bereit)
+                {
+                    AnalyseStatus = "CLIP-Modelle nicht gefunden (models-Ordner).";
+                    return;
+                }
+
+                _letzteBegriffe = treffer;
+                RenderBegriffe();
+
+                AnalyseStatus = treffer.Count == 0
+                    ? "Nichts erkannt."
+                    : $"{treffer.Count} Begriffe erkannt.";
+            }
+            catch (Exception ex)
+            {
+                AnalyseStatus = "Fehler bei der Analyse: " + ex.Message;
+            }
+            finally
+            {
+                AnalyseLaeuft = false;
+            }
+        }
+
+        [RelayCommand]
+        private async Task CommandExecuteOrdnerIndexieren()
+        {
+            string? pfad = SelectedBildchen?.BName;
+            if (string.IsNullOrEmpty(pfad) || !File.Exists(pfad))
+            {
+                IndexFortschrittText = "Kein Bild ausgewählt.";
+                return;
+            }
+
+            string? ordner = Path.GetDirectoryName(pfad);
+            if (string.IsNullOrEmpty(ordner))
+            {
+                return;
+            }
+
+            IndexLaeuft = true;
+            IndexFortschritt = 0;
+            IndexFortschrittText = "Starte Indexierung…";
+
+            try
+            {
+                await StelleClipBereitAsync();
+
+                var progress = new Progress<(int done, int total, string file)>(p =>
+                {
+                    IndexFortschritt = p.total > 0 ? 100.0 * p.done / p.total : 0;
+                    IndexFortschrittText = $"Indexiere {p.done}/{p.total}: {Path.GetFileName(p.file)}";
+                });
+
+                int anzahl = await _bildAnalyse.IndexiereOrdnerAsync(ordner, progress);
+
+                if (!_bildAnalyse.Bereit)
+                {
+                    IndexFortschrittText = "CLIP-Modelle nicht gefunden (models-Ordner).";
+                    return;
+                }
+
+                IndexFortschritt = 100;
+                IndexAnzahlText = $"{anzahl} Bilder im Index";
+                IndexOrdnerText = "indexiert 1/1 Ordner";
+                IndexFortschrittText = $"Fertig: {anzahl} Bilder im Ordner '{Path.GetFileName(ordner)}' indexiert.";
+                AktualisiereFilterOptionen();
+            }
+            catch (Exception ex)
+            {
+                IndexFortschrittText = "Fehler beim Indexieren: " + ex.Message;
+            }
+            finally
+            {
+                IndexLaeuft = false;
+            }
+        }
+
+        [RelayCommand]
+        private void CommandExecuteFilterPopoverToggle()
+        {
+            IsIndexPopoverOffen = !IsIndexPopoverOffen;
+        }
+
+        [RelayCommand]
+        private async Task CommandExecuteFreitextSuche()
+        {
+            string frage = (SucheText ?? string.Empty).Trim();
+            if (frage.Length == 0)
+            {
+                return;
+            }
+
+            string? pfad = SelectedBildchen?.BName;
+            string? ordner = string.IsNullOrEmpty(pfad) ? null : Path.GetDirectoryName(pfad);
+            if (string.IsNullOrEmpty(ordner))
+            {
+                SucheStatus = "Kein Ordner – erst ein Bild wählen und indexieren.";
+                return;
+            }
+
+            SuchErgebnisse.Clear();
+            _alleSuchTreffer.Clear();
+            try
+            {
+                await StelleClipBereitAsync();
+                SucheStatus = $"Suche '{frage}'…";
+
+                // Alle Top-Treffer holen (Schwelle 0); gefiltert wird lokal per Slider.
+                var treffer = await _bildAnalyse.SucheAsync(ordner, frage, topN: 60, minSim: 0f);
+                if (treffer.Count == 0)
+                {
+                    SucheStatus = "Keine Treffer – ist der Ordner schon indexiert?";
+                    return;
+                }
+
+                _letzteFrage = frage;
+                foreach (var (p, score) in treffer)
+                {
+                    _alleSuchTreffer.Add((new SuchErgebnis
+                    {
+                        Path = p,
+                        DateiName = Path.GetFileName(p),
+                        ProzentText = $"{score * 100f:F0} %",
+                        Thumb = LadeThumb(p)
+                    }, score));
+                }
+
+                RenderSuchErgebnisse();
+            }
+            catch (Exception ex)
+            {
+                SucheStatus = "Fehler bei der Suche: " + ex.Message;
+            }
+        }
+
+        /// <summary>Gecachte Treffer nach der Mindest-Ähnlichkeit filtern und anzeigen.</summary>
+        private void RenderSuchErgebnisse()
+        {
+            SuchErgebnisse.Clear();
+            float min = (float)(MindestAehnlichkeit / 100.0);
+
+            int gezeigt = 0;
+            foreach (var (erg, score) in _alleSuchTreffer)
+            {
+                if (score < min)
+                {
+                    continue;
+                }
+
+                SuchErgebnisse.Add(erg);
+                gezeigt++;
+            }
+
+            SucheStatus = gezeigt == 0
+                ? $"Keine Treffer über {MindestAehnlichkeit:F0} % für '{_letzteFrage}'."
+                : $"{gezeigt} Treffer für '{_letzteFrage}' (ab {MindestAehnlichkeit:F0} %).";
+
+            CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
+        }
+
+        private bool CanExecuteTrefferUebernehmen() => SuchErgebnisse.Count > 0;
+
+        [RelayCommand(CanExecute = nameof(CanExecuteTrefferUebernehmen))]
+        private void CommandExecuteTrefferUebernehmen()
+        {
+            if (SuchErgebnisse.Count == 0)
+            {
+                return;
+            }
+
+            // Nur die Treffer-Bilder in der Liste behalten (Reihenfolge = Ähnlichkeit).
+            // Wiederherstellen über „Alle Bilder neu einlesen".
+            var nachPfad = ocAufgabens
+                .Where(b => b.BName != null)
+                .ToDictionary(b => b.BName, System.StringComparer.OrdinalIgnoreCase);
+
+            var behalten = SuchErgebnisse
+                .Select(e => nachPfad.TryGetValue(e.Path, out var b) ? b : null)
+                .Where(b => b != null)
+                .ToList();
+
+            ocAufgabens.Clear();
+            foreach (var b in behalten)
+            {
+                ocAufgabens.Add(b!);
+            }
+
+            IsSuchleisteOffen = false; // Popup schließen, damit man die Liste sieht
+        }
+
+        [RelayCommand]
+        private async Task CommandExecuteTrefferOeffnen(string? pfad)
+        {
+            if (string.IsNullOrEmpty(pfad))
+            {
+                return;
+            }
+
+            var item = OcAufgabens.FirstOrDefault(
+                b => string.Equals(b.BName, pfad, StringComparison.OrdinalIgnoreCase));
+            if (item != null)
+            {
+                SelectedBildchen = item;
+                await AnalysiereAktuellesBildAsync();
+            }
+        }
+
+        /// <summary>Lädt eine kleine, eingefrorene Vorschau für einen Treffer.</summary>
+        private static ImageSource? LadeThumb(string pfad)
+        {
+            try
+            {
+                var bmp = new BitmapImage();
+                bmp.BeginInit();
+                bmp.CacheOption = BitmapCacheOption.OnLoad;
+                bmp.UriSource = new Uri(pfad);
+                bmp.DecodePixelWidth = 120;
+                bmp.EndInit();
+                bmp.Freeze();
+                return bmp;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        [RelayCommand]
+        private void CommandExecuteUebersicht()
+        {
+            string? pfad = SelectedBildchen?.BName;
+            if (string.IsNullOrEmpty(pfad)) return;
+            string? ordner = Path.GetDirectoryName(pfad);
+            if (string.IsNullOrEmpty(ordner)) return;
+
+            string cache = Path.Combine(ordner, BildAnalyseService.CacheDateiName);
+            if (!File.Exists(cache))
+            {
+                SucheStatus = "Kein Index vorhanden – erst den Ordner indexieren.";
+                return;
+            }
+
+            var index = new ImageMatching.Core.ImageIndex(new ImageMatching.Cnn.CnnDescriptor());
+            index.Load(cache);
+            if (index.Count == 0)
+            {
+                SucheStatus = "Index ist leer.";
+                return;
+            }
+
+            // Concepts zählen + je Begriff ein Beispielbild merken.
+            var stats = new System.Collections.Generic.Dictionary<string, (int Count, string ExamplePath)>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in index.Entries)
+            {
+                foreach (string concept in entry.Concepts)
+                {
+                    if (!stats.ContainsKey(concept))
+                        stats[concept] = (1, entry.Path);
+                    else
+                        stats[concept] = (stats[concept].Count + 1, stats[concept].ExamplePath);
+                }
+            }
+
+            var sortiert = stats
+                .OrderByDescending(kv => kv.Value.Count)
+                .ToList();
+
+            _alleSuchTreffer.Clear();
+            SuchErgebnisse.Clear();
+
+            foreach (var kv in sortiert)
+            {
+                string begriff = kv.Key;
+                int count = kv.Value.Count;
+                string beispiel = kv.Value.ExamplePath;
+                string anzeige = BegriffeAufDeutsch ? BegriffUebersetzer.ZuDeutsch(begriff) : begriff;
+                var erg = new SuchErgebnis
+                {
+                    Path = beispiel,
+                    DateiName = anzeige,
+                    ProzentText = $"{count}×",
+                    Thumb = LadeThumb(beispiel)
+                };
+                SuchErgebnisse.Add(erg);
+            }
+
+            SucheStatus = $"Übersicht: {sortiert.Count} Begriffe in {index.Count} Bildern.";
+            _letzteFrage = "";
+            CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
+        }
+
+        [RelayCommand]
+        private void CommandExecuteDubletten()
+        {
+            // TODO: Dubletten-Gruppen anzeigen
+        }
+
+        [RelayCommand]
+        private void CommandExecuteQueryBild()
+        {
+            // TODO: Query-Bild wählen und ähnliche suchen
+        }
 
         #endregion
 
@@ -3064,6 +3764,7 @@ namespace TestImage
             try
             {
                 PrüfungLäuft = true;
+
                 // OnFileDrop(string[] filepaths) neu initialisieren, um die Bilder neu einzulesen
                 var dateien = new string[] { DropDateiName };
 
