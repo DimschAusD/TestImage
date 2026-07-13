@@ -153,6 +153,50 @@
                             </TextBlock>
                         </Grid>
 
+                        <!--  Vorschlagsliste (Google-Style Autocomplete)  -->
+                        <Popup
+                            AllowsTransparency="True"
+                            IsOpen="{Binding VorschlaegeOffen}"
+                            Placement="Bottom"
+                            PlacementTarget="{Binding ElementName=TXT_Suche}"
+                            StaysOpen="False">
+                            <Border
+                                MinWidth="200"
+                                Background="White"
+                                BorderBrush="#FFD0D0D0"
+                                BorderThickness="1"
+                                CornerRadius="0,0,8,8">
+                                <Border.Effect>
+                                    <DropShadowEffect
+                                        BlurRadius="8"
+                                        Opacity="0.15"
+                                        ShadowDepth="2" />
+                                </Border.Effect>
+                                <ListBox
+                                    MaxHeight="260"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    ItemsSource="{Binding SucheVorschlaege}"
+                                    ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem">
+                                            <Setter Property="Padding" Value="10,6" />
+                                            <Setter Property="Cursor" Value="Hand" />
+                                            <Setter Property="FontFamily" Value="Segoe UI" />
+                                            <Setter Property="FontSize" Value="13" />
+                                            <Setter Property="Foreground" Value="#FF333333" />
+                                            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="Vorschlag_Click" />
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="#FFEEF1FB" />
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
+                                </ListBox>
+                            </Border>
+                        </Popup>
+
                         <!--  Such-Button (Auslöser)  -->
                         <Button
                             x:Name="BTN_Suchen"
@@ -250,6 +294,15 @@
                     </StackPanel>
                 </Button>
 
+                <TextBlock
+                    Margin="8,0,0,0"
+                    VerticalAlignment="Center"
+                    Cursor="Help"
+                    FontSize="11"
+                    Foreground="#FFBB8800"
+                    Text="⚠ KI"
+                    ToolTip="Die KI-Bilderkennung ist zu ca. 70 % fertig. Suchergebnisse, Filter und erkannte Begriffe können noch fehlerhaft oder unvollständig sein." />
+
             </StackPanel>
 
             <!--  Einstellungen: aufklappbar über den Filter-Button  -->
@@ -319,6 +372,13 @@
                             ItemsSource="{Binding FilterWerte}"
                             SelectedItem="{Binding SelectedFilterWert, Mode=TwoWay}" />
                     </Grid>
+
+                    <ProgressBar
+                        x:Name="PGB_FilterFortschritt"
+                        Height="3"
+                        Margin="0,4,0,0"
+                        IsIndeterminate="True"
+                        Visibility="{Binding FilterLaeuft, Converter={StaticResource CLconverterVisiblityBoolian}}" />
 
                     <!--  Tag-Schwelle  -->
                     <Grid Margin="0,14,0,0">
@@ -597,6 +657,13 @@
                                     CornerRadius="10"
                                     Cursor="Hand"
                                     MouseLeftButtonDown="BegriffChip_MouseLeftButtonDown">
+                                    <Border.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem
+                                                Click="BegriffChip_AlleAnzeigen"
+                                                Header="Alle Bilder mit diesem Begriff" />
+                                        </ContextMenu>
+                                    </Border.ContextMenu>
                                     <TextBlock
                                         FontFamily="Segoe UI"
                                         FontSize="12"

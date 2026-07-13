@@ -3070,6 +3070,9 @@ namespace TestImage
         [ObservableProperty]
         private bool _heatmapLaeuft;
 
+        [ObservableProperty]
+        private bool _filterLaeuft;
+
         /// <summary>Die erkannten Begriffe des aktuellen Bildes (z. B. „Blume 34 %").</summary>
         public ObservableCollection<string> ErkannteBegriffe { get; } = new();
 
@@ -3175,6 +3178,52 @@ namespace TestImage
             finally { HeatmapLaeuft = false; }
         }
 
+        [RelayCommand]
+        private async Task CommandExecuteBegriffSuche(string? chipText)
+        {
+            if (string.IsNullOrEmpty(chipText)) return;
+
+            string anzeigeName = chipText.Contains("  ")
+                ? chipText.Substring(0, chipText.LastIndexOf("  "))
+                : chipText;
+            string englisch = BegriffeAufDeutsch
+                ? _letzteBegriffe.FirstOrDefault(b => BegriffUebersetzer.ZuDeutsch(b.Word) == anzeigeName).Word ?? anzeigeName
+                : anzeigeName;
+
+            string? ordner = Path.GetDirectoryName(SelectedBildchen?.BName);
+            if (string.IsNullOrEmpty(ordner)) return;
+
+            SuchErgebnisse.Clear();
+            _alleSuchTreffer.Clear();
+            SucheStatus = $"Suche alle Bilder mit '{anzeigeName}'…";
+
+            var pfade = await _bildAnalyse.SucheNachKonzeptAsync(ordner, englisch);
+            if (pfade.Count == 0)
+            {
+                SucheStatus = $"Kein Bild mit '{anzeigeName}' im Index gefunden.";
+                return;
+            }
+
+            _letzteFrage = anzeigeName;
+            var ergebnisse = await Task.Run(() =>
+                pfade.Select(p => new SuchErgebnis
+                {
+                    Path = p,
+                    DateiName = Path.GetFileName(p),
+                    ProzentText = "✓",
+                    Thumb = LadeThumb(p)
+                }).ToList());
+
+            foreach (var erg in ergebnisse)
+            {
+                _alleSuchTreffer.Add((erg, 1f));
+                SuchErgebnisse.Add(erg);
+            }
+
+            SucheStatus = $"{pfade.Count} Bilder mit '{anzeigeName}'.";
+            CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
+        }
+
         private static ImageSource ErzeugeHeatmapBild(float[,] scores, double bildBreite = 1, double bildHoehe = 1)
         {
             int rows = scores.GetLength(0);
@@ -3269,10 +3318,16 @@ namespace TestImage
         [ObservableProperty]
         private bool _clipLaedt;
 
-        // Vervollständigt beim Tippen das letzte Wort (grauer Vorschlag).
+        public ObservableCollection<string> SucheVorschlaege { get; } = new();
+
+        [ObservableProperty]
+        private bool _vorschlaegeOffen;
+
         partial void OnSucheTextChanged(string value)
         {
             string rest = string.Empty;
+            SucheVorschlaege.Clear();
+
             if (!string.IsNullOrEmpty(value) && !value.EndsWith(" "))
             {
                 int sp = value.LastIndexOf(' ');
@@ -3282,9 +3337,14 @@ namespace TestImage
                     string? treffer = BegriffUebersetzer.Vervollstaendige(letztes);
                     if (treffer != null)
                         rest = treffer[letztes.Length..];
+
+                    foreach (string v in BegriffUebersetzer.AlleVorschlaege(letztes))
+                        SucheVorschlaege.Add(v);
                 }
             }
+
             SucheVorschlagRest = rest;
+            VorschlaegeOffen = SucheVorschlaege.Count > 0;
         }
 
         [RelayCommand]
@@ -3295,6 +3355,18 @@ namespace TestImage
                 SucheText += SucheVorschlagRest;
                 SucheVorschlagRest = string.Empty;
             }
+        }
+
+        [RelayCommand]
+        private void CommandExecuteVorschlagGewaehlt(string wort)
+        {
+            if (string.IsNullOrEmpty(wort)) return;
+            int sp = SucheText.LastIndexOf(' ');
+            string prefix = sp >= 0 ? SucheText[..(sp + 1)] : "";
+            SucheText = prefix + wort + " ";
+            SucheVorschlaege.Clear();
+            VorschlaegeOffen = false;
+            SucheVorschlagRest = string.Empty;
         }
 
         /// <summary>Stellt sicher, dass CLIP geladen ist; zeigt dabei das Lade-Symbol.</summary>
@@ -3361,11 +3433,60 @@ namespace TestImage
         partial void OnSelectedFilterKategorieChanged(string? value)
         {
             FilterWerte.Clear();
+            SelectedFilterWert = null;
             if (value != null && _tagOptionen.TryGetValue(value, out var werte))
             {
                 foreach (var w in werte) FilterWerte.Add(w);
-                if (FilterWerte.Count > 0) SelectedFilterWert = FilterWerte[0];
             }
+        }
+
+        partial void OnSelectedFilterWertChanged(string? value)
+        {
+            if (string.IsNullOrEmpty(value) || string.IsNullOrEmpty(SelectedFilterKategorie)) return;
+            _ = FilterSucheAusfuehrenAsync(SelectedFilterKategorie, value);
+        }
+
+        private async Task FilterSucheAusfuehrenAsync(string kategorie, string wert)
+        {
+            string? pfad = SelectedBildchen?.BName;
+            string? ordner = string.IsNullOrEmpty(pfad) ? null : Path.GetDirectoryName(pfad);
+            if (string.IsNullOrEmpty(ordner)) return;
+
+            SuchErgebnisse.Clear();
+            _alleSuchTreffer.Clear();
+            string anzeige = $"{kategorie}: {wert}";
+            SucheStatus = $"Filtere '{anzeige}'…";
+            FilterLaeuft = true;
+            try
+            {
+                var treffer = await _bildAnalyse.SucheNachFilterAsync(ordner, kategorie, wert);
+                if (treffer.Count == 0)
+                {
+                    SucheStatus = $"Keine Bilder mit '{anzeige}' im Index.";
+                    return;
+                }
+
+                _letzteFrage = anzeige;
+
+                var ergebnisse = await Task.Run(() =>
+                    treffer.Select(p => new SuchErgebnis
+                    {
+                        Path = p,
+                        DateiName = Path.GetFileName(p),
+                        ProzentText = "✓",
+                        Thumb = LadeThumb(p)
+                    }).ToList());
+
+                foreach (var erg in ergebnisse)
+                {
+                    _alleSuchTreffer.Add((erg, 1f));
+                    SuchErgebnisse.Add(erg);
+                }
+
+                SucheStatus = $"{treffer.Count} Bilder mit '{anzeige}'.";
+                CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
+            }
+            finally { FilterLaeuft = false; }
         }
 
         private void AktualisiereFilterOptionen()
@@ -3548,16 +3669,17 @@ namespace TestImage
                 }
 
                 _letzteFrage = frage;
-                foreach (var (p, score) in treffer)
-                {
-                    _alleSuchTreffer.Add((new SuchErgebnis
+                var ergebnisse = await Task.Run(() =>
+                    treffer.Select(t => (Erg: new SuchErgebnis
                     {
-                        Path = p,
-                        DateiName = Path.GetFileName(p),
-                        ProzentText = $"{score * 100f:F0} %",
-                        Thumb = LadeThumb(p)
-                    }, score));
-                }
+                        Path = t.Path,
+                        DateiName = Path.GetFileName(t.Path),
+                        ProzentText = $"{t.Score * 100f:F0} %",
+                        Thumb = LadeThumb(t.Path)
+                    }, t.Score)).ToList());
+
+                foreach (var (erg, score) in ergebnisse)
+                    _alleSuchTreffer.Add((erg, score));
 
                 RenderSuchErgebnisse();
             }

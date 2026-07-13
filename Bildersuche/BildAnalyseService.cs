@@ -160,6 +160,42 @@ namespace TestImage.Bildersuche
             }).ConfigureAwait(false);
         }
 
+        public async Task<IReadOnlyList<string>> SucheNachFilterAsync(string ordner, string kategorie, string wert)
+        {
+            if (string.IsNullOrEmpty(ordner) || !Directory.Exists(ordner) || _cnn is null)
+                return Array.Empty<string>();
+
+            return await Task.Run(() =>
+            {
+                var index = new ImageIndex(_cnn!);
+                index.Load(Path.Combine(ordner, CacheDateiName));
+                if (index.Count == 0) return Array.Empty<string>();
+
+                var treffer = string.Equals(kategorie, "Erkannt", StringComparison.OrdinalIgnoreCase)
+                    ? index.FilterByConcept(wert)
+                    : index.FilterByTag(kategorie, wert);
+
+                return treffer.Select(e => e.Path).ToArray();
+            }).ConfigureAwait(false);
+        }
+
+        public async Task<IReadOnlyList<string>> SucheNachKonzeptAsync(string ordner, string konzeptEnglisch)
+        {
+            if (string.IsNullOrEmpty(ordner) || !Directory.Exists(ordner) || _cnn is null)
+                return Array.Empty<string>();
+
+            return await Task.Run(() =>
+            {
+                var index = new ImageIndex(_cnn!);
+                index.Load(Path.Combine(ordner, CacheDateiName));
+                if (index.Count == 0) return Array.Empty<string>();
+
+                return index.FilterByConcept(konzeptEnglisch)
+                    .Select(e => e.Path)
+                    .ToArray();
+            }).ConfigureAwait(false);
+        }
+
         /// <summary>
         /// Indexiert nur die Bilder direkt im angegebenen Ordner (nicht rekursiv),
         /// berechnet die CLIP-Embeddings und speichert die JSON-Cache-Datei im

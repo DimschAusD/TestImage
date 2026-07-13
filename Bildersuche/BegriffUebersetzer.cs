@@ -37,6 +37,22 @@ namespace TestImage.Bildersuche
             return null;
         }
 
+        public static IReadOnlyList<string> AlleVorschlaege(string praefix, int max = 12)
+        {
+            if (string.IsNullOrWhiteSpace(praefix)) return Array.Empty<string>();
+            var ergebnis = new List<string>();
+            foreach (string w in DeutschSortiert.Value)
+            {
+                if (w.StartsWith(praefix, StringComparison.CurrentCultureIgnoreCase) &&
+                    !w.Equals(praefix, StringComparison.CurrentCultureIgnoreCase))
+                {
+                    ergebnis.Add(w);
+                    if (ergebnis.Count >= max) break;
+                }
+            }
+            return ergebnis;
+        }
+
         private static readonly Dictionary<string, string> Map = new(System.StringComparer.OrdinalIgnoreCase)
         {
             // Natur / Szenen
