@@ -5,8 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="clr-namespace:TestImage"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    d:DesignWidth="500"
-    mc:Ignorable="d">
+    mc:Ignorable="d" Width="699">
     <UserControl.Resources>
         <local:CLconverterVisiblityBoolian x:Key="CLconverterVisiblityBoolian" />
         <Style x:Key="OutlineButtonStyle" TargetType="Button">
@@ -295,6 +294,7 @@
                 </Button>
 
                 <TextBlock
+                    x:Name="TXT_KiHinweis"
                     Margin="8,0,0,0"
                     VerticalAlignment="Center"
                     Cursor="Help"
@@ -303,7 +303,89 @@
                     Text="⚠ KI"
                     ToolTip="Die KI-Bilderkennung ist zu ca. 70 % fertig. Suchergebnisse, Filter und erkannte Begriffe können noch fehlerhaft oder unvollständig sein." />
 
+                <Button
+                    x:Name="BTN_SerieSuche"
+                    Margin="8,0,0,0"
+                    Command="{Binding CommandExecuteSerieSucheCommand}"
+                    Style="{StaticResource OutlineButtonStyle}"
+                    ToolTip="Visuell ähnliche Bilder zum ausgewählten Bild finden (Serie)">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock
+                            Margin="0,1,7,0"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="13"
+                            Text="&#xE8C8;" />
+                        <TextBlock Text="Serie" />
+                    </StackPanel>
+                </Button>
+                <Button
+                    x:Name="BTN_ErweiterteSerie"
+                    Margin="4,0,0,0"
+                    Command="{Binding CommandExecuteErweiterteSerieSucheCommand}"
+                    Style="{StaticResource OutlineButtonStyle}"
+                    ToolTip="Kettensuche: folgt transitiv ähnlichen Bildern (A→B→C auch wenn A≠C)">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock
+                            Margin="0,1,7,0"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="13"
+                            Text="&#xE71B;" />
+                        <TextBlock Text="Erw. Serie" />
+                    </StackPanel>
+                </Button>
+
             </StackPanel>
+
+            <ProgressBar
+                x:Name="PGB_FilterFortschritt"
+                Height="3"
+                Margin="0,4,0,0"
+                IsIndeterminate="True"
+                Visibility="{Binding FilterLaeuft, Converter={StaticResource CLconverterVisiblityBoolian}}" />
+
+            <!--  Serien-Fortschritt mit echtem Balken + Abbrechen  -->
+            <Grid
+                x:Name="GRD_SerieFortschritt"
+                Margin="0,6,0,0"
+                Visibility="{Binding SerieSucheLaeuft, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <ProgressBar
+                    x:Name="PGB_SerieFortschritt"
+                    Grid.Column="0"
+                    Height="6"
+                    VerticalAlignment="Center"
+                    IsIndeterminate="{Binding SerieIndeterminate}"
+                    Maximum="100"
+                    Minimum="0"
+                    Value="{Binding SerieFortschritt}" />
+                <StackPanel Grid.Column="1" Margin="8,0,0,0" Orientation="Horizontal">
+                    <Button
+                        x:Name="BTN_SerieSucheAbbrechen"
+                        Padding="6,2"
+                        VerticalAlignment="Center"
+                        Command="{Binding CommandExecuteSerieSucheCancelCommand}"
+                        Cursor="Hand"
+                        FontFamily="Segoe MDL2 Assets"
+                        FontSize="10"
+                        Style="{StaticResource OutlineButtonStyle}"
+                        Content="&#xE711;"
+                        ToolTip="Seriensuche abbrechen" />
+                    <Button
+                        x:Name="BTN_ErweiterteSerieSucheAbbrechen"
+                        Padding="6,2"
+                        VerticalAlignment="Center"
+                        Command="{Binding CommandExecuteErweiterteSerieSucheCancelCommand}"
+                        Cursor="Hand"
+                        FontFamily="Segoe MDL2 Assets"
+                        FontSize="10"
+                        Style="{StaticResource OutlineButtonStyle}"
+                        Content="&#xE711;"
+                        ToolTip="Erweiterte Seriensuche abbrechen" />
+                </StackPanel>
+            </Grid>
 
             <!--  Einstellungen: aufklappbar über den Filter-Button  -->
             <Border
@@ -372,13 +454,6 @@
                             ItemsSource="{Binding FilterWerte}"
                             SelectedItem="{Binding SelectedFilterWert, Mode=TwoWay}" />
                     </Grid>
-
-                    <ProgressBar
-                        x:Name="PGB_FilterFortschritt"
-                        Height="3"
-                        Margin="0,4,0,0"
-                        IsIndeterminate="True"
-                        Visibility="{Binding FilterLaeuft, Converter={StaticResource CLconverterVisiblityBoolian}}" />
 
                     <!--  Tag-Schwelle  -->
                     <Grid Margin="0,14,0,0">
@@ -722,25 +797,8 @@
 
             <!--  Suchergebnisse: klickbare Miniaturen  -->
             <StackPanel Margin="2,4,2,2">
-                <TextBlock
-                    FontFamily="Segoe UI"
-                    FontSize="12"
-                    Foreground="#FF888888"
-                    Text="{Binding SucheStatus}">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Visibility" Value="Visible" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SucheStatus}" Value="">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-
                 <!--  Treffer in die Bilderliste übernehmen  -->
-                <StackPanel Margin="0,8,0,0" Orientation="Horizontal">
+                <StackPanel Orientation="Horizontal">
                     <StackPanel.Style>
                         <Style TargetType="StackPanel">
                             <Setter Property="Visibility" Value="Visible" />
@@ -769,13 +827,40 @@
                     </Button>
                 </StackPanel>
 
+                <TextBlock
+                    Margin="0,8,0,0"
+                    FontFamily="Segoe UI"
+                    FontSize="12"
+                    Foreground="#FF888888"
+                    Text="{Binding SucheStatus}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SucheStatus}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
                 <ScrollViewer
                     x:Name="SCV_SuchErgebnisse"
                     MaxHeight="260"
                     Margin="0,8,0,0"
                     HorizontalScrollBarVisibility="Disabled"
                     VerticalScrollBarVisibility="Auto">
-                    <ItemsControl x:Name="IC_SuchErgebnisse" ItemsSource="{Binding SuchErgebnisse}">
+                    <ItemsControl x:Name="IC_SuchErgebnisse" ItemsSource="{Binding SuchErgebnisse}"
+                                  d:DataContext="{d:DesignInstance}">
+                        <d:ItemsControl.Items>
+                            <Border Width="104" Height="78" Margin="0,0,6,6" Background="#FFE0E0E0" BorderBrush="#FFDADADA" BorderThickness="1" CornerRadius="6" />
+                            <Border Width="104" Height="78" Margin="0,0,6,6" Background="#FFE8E8E8" BorderBrush="#FFDADADA" BorderThickness="1" CornerRadius="6" />
+                            <Border Width="104" Height="78" Margin="0,0,6,6" Background="#FFE0E0E0" BorderBrush="#FFDADADA" BorderThickness="1" CornerRadius="6" />
+                            <Border Width="104" Height="78" Margin="0,0,6,6" Background="#FFE8E8E8" BorderBrush="#FFDADADA" BorderThickness="1" CornerRadius="6" />
+                            <Border Width="104" Height="78" Margin="0,0,6,6" Background="#FFE0E0E0" BorderBrush="#FFDADADA" BorderThickness="1" CornerRadius="6" />
+                            <Border Width="104" Height="78" Margin="0,0,6,6" Background="#FFE8E8E8" BorderBrush="#FFDADADA" BorderThickness="1" CornerRadius="6" />
+                        </d:ItemsControl.Items>
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <WrapPanel />

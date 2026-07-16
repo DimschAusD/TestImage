@@ -27,8 +27,10 @@ namespace TestImage
         // v2x.0.300.842 Beta 2026-02-08 (.NETCore v9.0)
         // v2x.0.195.838 Beta 2026-04-23 (.NETCore v10.0)
         // v2x.0.175.654 Beta 2026-04-24 (.NETCore v10.0)
+        // v2x.0.172.205 Beta 2026-06-27 (.NETCore net10.0)
         [ObservableProperty]
         public partial string Version { get; set; } = "v2x.0.172.205 Beta 2026-06-27 (.NETCore net10.0)";
+
 
         [ObservableProperty]
         private int _CountInnerZählerTest;
@@ -81,7 +83,7 @@ namespace TestImage
         /// <br>  Converter dazu:  CLconverterBrushesBoolianG1</br>
         /// </summary>
         [ObservableProperty]
-        private bool? _IsBildDateiBeschädigt = false;
+        public partial bool? IsBildDateiBeschädigt { get; set; } = false;
 
 
         /// <summary>
@@ -89,7 +91,7 @@ namespace TestImage
         /// <br>  Converter dazu:  CLconverterBrushesBoolianG2</br>
         /// </summary>
         [ObservableProperty]
-        private bool? _IsHeaderPassendZurErweiterung = false;
+        public partial bool? IsHeaderPassendZurErweiterung { get; set; } = false;
 
 
         /// <summary>
@@ -97,7 +99,7 @@ namespace TestImage
         /// <br>  Converter dazu:  CLconverterBrushesBoolianG2</br>
         /// </summary>
         [ObservableProperty]
-        private bool? _IsFrameImBildDrin = false;
+        public partial bool? IsFrameImBildDrin { get; set; } = false;
 
 
         /// <summary>
@@ -105,7 +107,7 @@ namespace TestImage
         /// <br>    Converter dazu:  CLconverterBrushesBoolianG1</br>
         /// </summary>
         [ObservableProperty]
-        private bool? _IsBildDownloadCorrupted = false;
+        public partial bool? IsBildDownloadCorrupted { get; set; } = false;
 
         /// <summary>
         /// Gets or sets a value indicating whether the image file is null or missing.
@@ -1357,7 +1359,6 @@ namespace TestImage
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
                     DisplayImage = kl;
-
                 });
 
                 // Lade Balcke
@@ -3073,6 +3074,19 @@ namespace TestImage
         [ObservableProperty]
         private bool _filterLaeuft;
 
+        [ObservableProperty]
+        private int _serieFortschritt;
+
+        /// <summary>True während Suche/BFS (Marquee), False während Thumbnails laden (echter %-Balken).</summary>
+        [ObservableProperty]
+        private bool _serieIndeterminate;
+
+
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteSerieSucheCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteErweiterteSerieSucheCommand))]
+        private bool _serieSucheLaeuft;
+
         /// <summary>Die erkannten Begriffe des aktuellen Bildes (z. B. „Blume 34 %").</summary>
         public ObservableCollection<string> ErkannteBegriffe { get; } = new();
 
@@ -3181,7 +3195,10 @@ namespace TestImage
         [RelayCommand]
         private async Task CommandExecuteBegriffSuche(string? chipText)
         {
-            if (string.IsNullOrEmpty(chipText)) return;
+            if (string.IsNullOrEmpty(chipText))
+            {
+                return;
+            }
 
             string anzeigeName = chipText.Contains("  ")
                 ? chipText.Substring(0, chipText.LastIndexOf("  "))
@@ -3191,7 +3208,10 @@ namespace TestImage
                 : anzeigeName;
 
             string? ordner = Path.GetDirectoryName(SelectedBildchen?.BName);
-            if (string.IsNullOrEmpty(ordner)) return;
+            if (string.IsNullOrEmpty(ordner))
+            {
+                return;
+            }
 
             SuchErgebnisse.Clear();
             _alleSuchTreffer.Clear();
@@ -3214,11 +3234,7 @@ namespace TestImage
                     Thumb = LadeThumb(p)
                 }).ToList());
 
-            foreach (var erg in ergebnisse)
-            {
-                _alleSuchTreffer.Add((erg, 1f));
-                SuchErgebnisse.Add(erg);
-            }
+            await FuegeErgebnisseEinAsync(ergebnisse.Select(e => (e, 1f)).ToList());
 
             SucheStatus = $"{pfade.Count} Bilder mit '{anzeigeName}'.";
             CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
@@ -3232,10 +3248,20 @@ namespace TestImage
             // Zellgröße so wählen, dass das Seitenverhältnis des Originals erhalten bleibt.
             double aspect = bildBreite / bildHoehe;
             int cellW, cellH;
-            if (aspect >= 1) { cellW = 64; cellH = (int)(64 / aspect); }
-            else             { cellH = 64; cellW = (int)(64 * aspect); }
-            if (cellW < 4) cellW = 4;
-            if (cellH < 4) cellH = 4;
+            if (aspect >= 1)
+            { cellW = 64; cellH = (int)(64 / aspect); }
+            else
+            { cellH = 64; cellW = (int)(64 * aspect); }
+            if (cellW < 4)
+            {
+                cellW = 4;
+            }
+
+            if (cellH < 4)
+            {
+                cellH = 4;
+            }
+
             int w = cols * cellW;
             int h = rows * cellH;
 
@@ -3360,7 +3386,11 @@ namespace TestImage
         [RelayCommand]
         private void CommandExecuteVorschlagGewaehlt(string wort)
         {
-            if (string.IsNullOrEmpty(wort)) return;
+            if (string.IsNullOrEmpty(wort))
+            {
+                return;
+            }
+
             int sp = SucheText.LastIndexOf(' ');
             string prefix = sp >= 0 ? SucheText[..(sp + 1)] : "";
             SucheText = prefix + wort + " ";
@@ -3436,13 +3466,15 @@ namespace TestImage
             SelectedFilterWert = null;
             if (value != null && _tagOptionen.TryGetValue(value, out var werte))
             {
-                foreach (var w in werte) FilterWerte.Add(w);
+                foreach (var w in werte)
+                    FilterWerte.Add(w);
             }
         }
 
         partial void OnSelectedFilterWertChanged(string? value)
         {
-            if (string.IsNullOrEmpty(value) || string.IsNullOrEmpty(SelectedFilterKategorie)) return;
+            if (string.IsNullOrEmpty(value) || string.IsNullOrEmpty(SelectedFilterKategorie))
+                return;
             _ = FilterSucheAusfuehrenAsync(SelectedFilterKategorie, value);
         }
 
@@ -3450,7 +3482,10 @@ namespace TestImage
         {
             string? pfad = SelectedBildchen?.BName;
             string? ordner = string.IsNullOrEmpty(pfad) ? null : Path.GetDirectoryName(pfad);
-            if (string.IsNullOrEmpty(ordner)) return;
+            if (string.IsNullOrEmpty(ordner))
+            {
+                return;
+            }
 
             SuchErgebnisse.Clear();
             _alleSuchTreffer.Clear();
@@ -3477,11 +3512,7 @@ namespace TestImage
                         Thumb = LadeThumb(p)
                     }).ToList());
 
-                foreach (var erg in ergebnisse)
-                {
-                    _alleSuchTreffer.Add((erg, 1f));
-                    SuchErgebnisse.Add(erg);
-                }
+                await FuegeErgebnisseEinAsync(ergebnisse.Select(e => (e, 1f)).ToList());
 
                 SucheStatus = $"{treffer.Count} Bilder mit '{anzeige}'.";
                 CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
@@ -3493,12 +3524,22 @@ namespace TestImage
         {
             string? pfad = SelectedBildchen?.BName;
             string? ordner = string.IsNullOrEmpty(pfad) ? null : Path.GetDirectoryName(pfad);
-            if (string.IsNullOrEmpty(ordner)) return;
+            if (string.IsNullOrEmpty(ordner))
+            {
+                return;
+            }
 
             _tagOptionen = _bildAnalyse.LadeFilterOptionen(ordner);
             FilterKategorien.Clear();
-            foreach (var k in _tagOptionen.Keys) FilterKategorien.Add(k);
-            if (FilterKategorien.Count > 0) SelectedFilterKategorie = FilterKategorien[0];
+            foreach (var k in _tagOptionen.Keys)
+            {
+                FilterKategorien.Add(k);
+            }
+
+            if (FilterKategorien.Count > 0)
+            {
+                SelectedFilterKategorie = FilterKategorien[0];
+            }
         }
 
         // Der unscheinbare Button ist nur klickbar, wenn ein Bild ausgewählt ist.
@@ -3619,6 +3660,18 @@ namespace TestImage
                 IndexOrdnerText = "indexiert 1/1 Ordner";
                 IndexFortschrittText = $"Fertig: {anzahl} Bilder im Ordner '{Path.GetFileName(ordner)}' indexiert.";
                 AktualisiereFilterOptionen();
+
+                if (!string.IsNullOrWhiteSpace(SucheText) && _alleSuchTreffer.Count > 0)
+                {
+                    SucheStatus = "Index aktualisiert – Suche wird wiederholt…";
+                    await CommandExecuteFreitextSuche();
+                }
+                else if (_alleSuchTreffer.Count > 0)
+                {
+                    SuchErgebnisse.Clear();
+                    _alleSuchTreffer.Clear();
+                    SucheStatus = "Index aktualisiert – bitte erneut suchen/filtern.";
+                }
             }
             catch (Exception ex)
             {
@@ -3655,6 +3708,7 @@ namespace TestImage
 
             SuchErgebnisse.Clear();
             _alleSuchTreffer.Clear();
+            CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
             try
             {
                 await StelleClipBereitAsync();
@@ -3678,8 +3732,7 @@ namespace TestImage
                         Thumb = LadeThumb(t.Path)
                     }, t.Score)).ToList());
 
-                foreach (var (erg, score) in ergebnisse)
-                    _alleSuchTreffer.Add((erg, score));
+                await FuegeErgebnisseEinAsync(ergebnisse);
 
                 RenderSuchErgebnisse();
             }
@@ -3696,8 +3749,14 @@ namespace TestImage
             float min = (float)(MindestAehnlichkeit / 100.0);
 
             int gezeigt = 0;
+            float bestScore = 0f;
             foreach (var (erg, score) in _alleSuchTreffer)
             {
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                }
+
                 if (score < min)
                 {
                     continue;
@@ -3707,9 +3766,18 @@ namespace TestImage
                 gezeigt++;
             }
 
-            SucheStatus = gezeigt == 0
-                ? $"Keine Treffer über {MindestAehnlichkeit:F0} % für '{_letzteFrage}'."
-                : $"{gezeigt} Treffer für '{_letzteFrage}' (ab {MindestAehnlichkeit:F0} %).";
+            string scoreHinweis = bestScore < 0.24f ? " · ⚠ Treffer unsicher, CLIP erkennt Fotos besser als Screenshots"
+                                 : bestScore < 0.30f ? " · Treffer mäßig sicher"
+                                 : " · gute Übereinstimmung";
+
+            if (gezeigt == 0)
+            {
+                SucheStatus = $"Keine Treffer über {MindestAehnlichkeit:F0} % für '{_letzteFrage}'.";
+            }
+            else
+            {
+                SucheStatus = $"{gezeigt} Treffer für '{_letzteFrage}' (bester: {bestScore * 100f:F0} %){scoreHinweis}";
+            }
 
             CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
         }
@@ -3741,6 +3809,11 @@ namespace TestImage
                 ocAufgabens.Add(b!);
             }
 
+            if (ocAufgabens.Count > 0)
+            {
+                AufgabenView.MoveCurrentToFirst();
+            }
+
             IsSuchleisteOffen = false; // Popup schließen, damit man die Liste sieht
         }
 
@@ -3758,6 +3831,20 @@ namespace TestImage
             {
                 SelectedBildchen = item;
                 await AnalysiereAktuellesBildAsync();
+            }
+        }
+
+        private async Task FuegeErgebnisseEinAsync(System.Collections.Generic.List<(SuchErgebnis Erg, float Score)> liste)
+        {
+            const int batch = 8;
+            for (int i = 0; i < liste.Count; i++)
+            {
+                _alleSuchTreffer.Add(liste[i]);
+                SuchErgebnisse.Add(liste[i].Erg);
+                if ((i + 1) % batch == 0)
+                {
+                    await Task.Delay(1);
+                }
             }
         }
 
@@ -3785,9 +3872,16 @@ namespace TestImage
         private void CommandExecuteUebersicht()
         {
             string? pfad = SelectedBildchen?.BName;
-            if (string.IsNullOrEmpty(pfad)) return;
+            if (string.IsNullOrEmpty(pfad))
+            {
+                return;
+            }
+
             string? ordner = Path.GetDirectoryName(pfad);
-            if (string.IsNullOrEmpty(ordner)) return;
+            if (string.IsNullOrEmpty(ordner))
+            {
+                return;
+            }
 
             string cache = Path.Combine(ordner, BildAnalyseService.CacheDateiName);
             if (!File.Exists(cache))
@@ -3811,9 +3905,13 @@ namespace TestImage
                 foreach (string concept in entry.Concepts)
                 {
                     if (!stats.ContainsKey(concept))
+                    {
                         stats[concept] = (1, entry.Path);
+                    }
                     else
+                    {
                         stats[concept] = (stats[concept].Count + 1, stats[concept].ExamplePath);
+                    }
                 }
             }
 
@@ -3855,6 +3953,176 @@ namespace TestImage
         private void CommandExecuteQueryBild()
         {
             // TODO: Query-Bild wählen und ähnliche suchen
+        }
+
+        private bool CanExecuteSerieSuche()
+        {
+            return SelectedBildchen != null
+                && !string.IsNullOrEmpty(SelectedBildchen.BName)
+                && !SerieSucheLaeuft;
+        }
+
+        [RelayCommand(CanExecute = nameof(CanExecuteSerieSuche), IncludeCancelCommand = true)]
+        private async Task CommandExecuteSerieSuche(CancellationToken token)
+        {
+            string? bildPfad = SelectedBildchen?.BName;
+            if (string.IsNullOrEmpty(bildPfad))
+                return;
+
+            string? ordner = Path.GetDirectoryName(bildPfad);
+            if (string.IsNullOrEmpty(ordner))
+                return;
+
+            SuchErgebnisse.Clear();
+            _alleSuchTreffer.Clear();
+            CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
+            SucheStatus = $"Suche Serie für '{Path.GetFileName(bildPfad)}'…";
+            SerieFortschritt = 0;
+            SerieIndeterminate = true;   // Marquee: Suche läuft, Dauer unbekannt
+            SerieSucheLaeuft = true;
+
+            try
+            {
+                await StelleClipBereitAsync();
+
+                var treffer = await _bildAnalyse.SucheNachSerieAsync(
+                    ordner, bildPfad, topN: 80, minSim: 0.85f, token);
+                if (treffer.Count <= 1)
+                {
+                    SucheStatus = "Keine Serie gefunden – Bild hat keine visuell ähnlichen Nachbarn.";
+                    return;
+                }
+
+                _letzteFrage = "Serie: " + Path.GetFileName(bildPfad);
+                await ZeigeSerieTrefferAsync(treffer, token);
+
+                SucheStatus = $"{treffer.Count} Bilder in Serie (≥ 85 % Ähnlichkeit).";
+                CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
+            }
+            catch (OperationCanceledException)
+            {
+                SucheStatus = "Seriensuche abgebrochen.";
+            }
+            catch (Exception ex)
+            {
+                SucheStatus = "Fehler bei Seriensuche: " + ex.Message;
+            }
+            finally { SerieSucheLaeuft = false; }
+        }
+
+        private bool CanExecuteErweiterteSerieSuche()
+        {
+            return SelectedBildchen != null
+                && !string.IsNullOrEmpty(SelectedBildchen.BName)
+                && !SerieSucheLaeuft;
+        }
+
+        [RelayCommand(CanExecute = nameof(CanExecuteErweiterteSerieSuche), IncludeCancelCommand = true)]
+        private async Task CommandExecuteErweiterteSerieSuche(CancellationToken token)
+        {
+            string? bildPfad = SelectedBildchen?.BName;
+            if (string.IsNullOrEmpty(bildPfad))
+                return;
+
+            string? ordner = Path.GetDirectoryName(bildPfad);
+            if (string.IsNullOrEmpty(ordner))
+                return;
+
+            SuchErgebnisse.Clear();
+            _alleSuchTreffer.Clear();
+            CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
+            SucheStatus = $"Erweiterte Seriensuche für '{Path.GetFileName(bildPfad)}'…";
+            SerieFortschritt = 0;
+            SerieIndeterminate = false;   // echter %-Balken mit Restzeit
+            SerieSucheLaeuft = true;
+
+            // Meldet Prozent + geschätzte Restzeit aus der BFS-Schleife live in die
+            // Statuszeile – dort schaut man beim Suchen hin. Der Report kommt aus dem
+            // Hintergrund-Thread; per Dispatcher sicher auf den UI-Thread umgeleitet
+            // (sonst wirft das Setzen von SucheStatus eine stille Cross-Thread-Exception).
+            string basisName = Path.GetFileName(bildPfad);
+            var dispatcher = System.Windows.Application.Current.Dispatcher;
+            var fortschritt = new Progress<(int Prozent, int RestSekunden)>(p =>
+            {
+                dispatcher.Invoke(() =>
+                {
+                    SerieFortschritt = p.Prozent;
+                    SucheStatus = p.RestSekunden > 0
+                        ? $"Erweiterte Seriensuche für '{basisName}'… {p.Prozent} % – noch ~{p.RestSekunden} s"
+                        : $"Erweiterte Seriensuche für '{basisName}'… {p.Prozent} %";
+                });
+            });
+
+            try
+            {
+                await StelleClipBereitAsync();
+
+                var treffer = await _bildAnalyse.SucheNachErweiterterSerieAsync(
+                    ordner, bildPfad, minSim: 0.85f, fortschritt, token);
+                if (treffer.Count <= 1)
+                {
+                    SucheStatus = "Keine erweiterte Serie gefunden – keine Kette visuell ähnlicher Bilder.";
+                    return;
+                }
+
+                _letzteFrage = "Erweiterte Serie: " + Path.GetFileName(bildPfad);
+                await ZeigeSerieTrefferAsync(treffer, token);
+
+                SucheStatus = $"{treffer.Count} Bilder in erweiterter Serie (Kettensuche ≥ 85 %).";
+                CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
+            }
+            catch (OperationCanceledException)
+            {
+                SucheStatus = "Erweiterte Seriensuche abgebrochen.";
+            }
+            catch (Exception ex)
+            {
+                SucheStatus = "Fehler bei erweiterter Seriensuche: " + ex.Message;
+            }
+            finally { SerieSucheLaeuft = false; }
+        }
+
+        /// <summary>
+        /// Lädt die Thumbnails der Treffer nacheinander und fügt sie einzeln ein.
+        /// Dabei zählt SerieFortschritt hoch und die Statuszeile zeigt „i/N … noch ~Xs".
+        /// Diese Ladephase ist beim ersten Durchlauf der eigentlich lange, sichtbare
+        /// Teil (jedes Bild muss dekodiert werden), daher liegt die Restzeit hier.
+        /// </summary>
+        private async Task ZeigeSerieTrefferAsync(
+            System.Collections.Generic.IReadOnlyList<(string Path, float Score)> treffer, CancellationToken token)
+        {
+            SerieIndeterminate = false;   // ab jetzt echter Prozent-Fortschritt
+            SerieFortschritt = 0;
+
+            int gesamt = treffer.Count;
+            var uhr = System.Diagnostics.Stopwatch.StartNew();
+
+            for (int i = 0; i < gesamt; i++)
+            {
+                token.ThrowIfCancellationRequested();
+                var t = treffer[i];
+                var thumb = await Task.Run(() => LadeThumb(t.Path), token);
+
+                var erg = new SuchErgebnis
+                {
+                    Path = t.Path,
+                    DateiName = Path.GetFileName(t.Path),
+                    ProzentText = $"{t.Score * 100f:F0} %",
+                    Thumb = thumb
+                };
+                _alleSuchTreffer.Add((erg, t.Score));
+                SuchErgebnisse.Add(erg);
+
+                int fertig = i + 1;
+                SerieFortschritt = (int)(fertig * 100.0 / gesamt);
+
+                // Restzeit aus bisheriger Ladegeschwindigkeit hochrechnen.
+                double proSek = fertig / Math.Max(uhr.Elapsed.TotalSeconds, 0.001);
+                int restSek = (int)Math.Ceiling((gesamt - fertig) / Math.Max(proSek, 0.001));
+                SucheStatus = restSek > 0
+                    ? $"Lade Vorschaubilder… {fertig}/{gesamt} – noch ~{restSek} s"
+                    : $"Lade Vorschaubilder… {fertig}/{gesamt}";
+            }
         }
 
         #endregion

@@ -74,11 +74,12 @@ namespace TestImage.Bildersuche
             if (!await StelleSicherGeladenAsync().ConfigureAwait(false)) return Array.Empty<(string, float)>();
             if (string.IsNullOrEmpty(bildPfad) || !File.Exists(bildPfad)) return Array.Empty<(string, float)>();
 
+            float threshold = minRelevance;
             return await Task.Run(() =>
             {
                 var rgb = WpfImaging.LoadRgb(bildPfad);
                 float[] emb = _cnn!.Describe(rgb);
-                _tagger!.MinRelevance = minRelevance;
+                _tagger!.MinRelevance = threshold;
                 return _tagger.DescribeScored(emb, topN);
             }).ConfigureAwait(false);
         }
@@ -91,13 +92,14 @@ namespace TestImage.Bildersuche
         /// </summary>
         public async Task<float[,]?> HeatmapAsync(string bildPfad, string begriffEnglisch, int gridSize = 4)
         {
-            if (!Bereit || _text is null) return null;
+            if (!await StelleSicherGeladenAsync().ConfigureAwait(false)) return null;
+            if (_text is null) return null;
             if (string.IsNullOrEmpty(bildPfad) || !File.Exists(bildPfad)) return null;
 
             return await Task.Run(() =>
             {
                 var rgb = WpfImaging.LoadRgb(bildPfad);
-                float[] textVec = _text.Embed($"a photo of {begriffEnglisch}");
+                float[] textVec = _text.Embed($"a photo of a {begriffEnglisch}");
                 var scores = new float[gridSize, gridSize];
 
                 int cropW = rgb.Width / gridSize;
@@ -147,7 +149,9 @@ namespace TestImage.Bildersuche
             {
                 string englisch = _uebersetzer.Translate(frageDeutsch);
                 int wordCount = englisch.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
-                string clipQuery = wordCount <= 3 ? $"a photo of {englisch}" : englisch;
+                string clipQuery = wordCount == 1 ? $"a photo of a {englisch}"
+                                 : wordCount <= 3 ? $"a photo of {englisch}"
+                                 : englisch;
                 float[] vec = _text.Embed(clipQuery);
 
                 var index = new ImageIndex(_cnn!);
@@ -162,7 +166,8 @@ namespace TestImage.Bildersuche
 
         public async Task<IReadOnlyList<string>> SucheNachFilterAsync(string ordner, string kategorie, string wert)
         {
-            if (string.IsNullOrEmpty(ordner) || !Directory.Exists(ordner) || _cnn is null)
+            if (!await StelleSicherGeladenAsync().ConfigureAwait(false)) return Array.Empty<string>();
+            if (string.IsNullOrEmpty(ordner) || !Directory.Exists(ordner))
                 return Array.Empty<string>();
 
             return await Task.Run(() =>
@@ -181,7 +186,8 @@ namespace TestImage.Bildersuche
 
         public async Task<IReadOnlyList<string>> SucheNachKonzeptAsync(string ordner, string konzeptEnglisch)
         {
-            if (string.IsNullOrEmpty(ordner) || !Directory.Exists(ordner) || _cnn is null)
+            if (!await StelleSicherGeladenAsync().ConfigureAwait(false)) return Array.Empty<string>();
+            if (string.IsNullOrEmpty(ordner) || !Directory.Exists(ordner))
                 return Array.Empty<string>();
 
             return await Task.Run(() =>
@@ -194,6 +200,132 @@ namespace TestImage.Bildersuche
                     .Select(e => e.Path)
                     .ToArray();
             }).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Erweiterte Seriensuche (Kettensuche): startet beim ausgewählten Bild
+        /// und folgt transitiv allen Nachbarn mit ≥ minSim. Bild A→B→C→D bilden
+        /// eine Kette, auch wenn A und D nichts gemeinsam haben.
+        /// </summary>
+        public async Task<IReadOnlyList<(string Path, float Score)>> SucheNachErweiterterSerieAsync(
+            string ordner, string bildPfad, float minSim = 0.85f,
+            IProgress<(int Prozent, int RestSekunden)>? fortschritt = null,
+            CancellationToken abbruch = default)
+        {
+            if (!await StelleSicherGeladenAsync().ConfigureAwait(false))
+                return Array.Empty<(string, float)>();
+            if (string.IsNullOrEmpty(ordner) || !Directory.Exists(ordner))
+                return Array.Empty<(string, float)>();
+
+            return await Task.Run<IReadOnlyList<(string Path, float Score)>>(() =>
+            {
+                var index = new ImageIndex(_cnn!);
+                index.Load(Path.Combine(ordner, CacheDateiName));
+                if (index.Count == 0) return Array.Empty<(string, float)>();
+
+                abbruch.ThrowIfCancellationRequested();
+
+                var lookup = new Dictionary<string, IndexEntry>(StringComparer.OrdinalIgnoreCase);
+                foreach (var e in index.Entries)
+                    lookup[e.Path] = e;
+
+                if (!lookup.TryGetValue(bildPfad, out var start) || start.Descriptor.Length == 0)
+                    return Array.Empty<(string, float)>();
+
+                var besucht = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { bildPfad };
+                var queue = new Queue<IndexEntry>();
+                queue.Enqueue(start);
+                var ergebnis = new List<(string Path, float Score)> { (bildPfad, 1f) };
+
+                int gesamt = lookup.Count;
+                long vergleiche = 0;          // gemachte Ähnlichkeits-Vergleiche
+                long letzteMeldung = 0;
+                var uhr = System.Diagnostics.Stopwatch.StartNew();
+
+                while (queue.Count > 0)
+                {
+                    abbruch.ThrowIfCancellationRequested();
+                    var aktuell = queue.Dequeue();
+                    foreach (var kandidat in lookup.Values)
+                    {
+                        if (besucht.Contains(kandidat.Path))
+                            continue;
+                        float sim = _cnn!.Similarity(aktuell.Descriptor, kandidat.Descriptor);
+                        vergleiche++;
+                        if (sim >= minSim)
+                        {
+                            besucht.Add(kandidat.Path);
+                            ergebnis.Add((kandidat.Path, sim));
+                            queue.Enqueue(kandidat);
+                        }
+
+                        // ~alle 2000 Vergleiche Fortschritt + Restzeit hochrechnen.
+                        // Schätzung: jedes gefundene Bild wird noch gegen alle geprüft,
+                        // also geschätzte Gesamt-Vergleiche = gefundene × alle Bilder.
+                        if (fortschritt != null && vergleiche - letzteMeldung >= 2000)
+                        {
+                            letzteMeldung = vergleiche;
+                            long geschaetzt = (long)besucht.Count * gesamt;
+                            if (geschaetzt < vergleiche) geschaetzt = vergleiche;
+
+                            int prozent = (int)(100.0 * vergleiche / geschaetzt);
+                            if (prozent > 99) prozent = 99;   // 100 erst wenn fertig
+
+                            double proSek = vergleiche / Math.Max(uhr.Elapsed.TotalSeconds, 0.001);
+                            int restSek = (int)Math.Ceiling((geschaetzt - vergleiche) / Math.Max(proSek, 1));
+
+                            fortschritt.Report((prozent, restSek));
+                        }
+                    }
+                }
+
+                fortschritt?.Report((100, 0));
+                return ergebnis;
+            }, abbruch).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Seriensuche: holt das gespeicherte CLIP-Embedding des Bildes aus dem
+        /// Index und sucht alle visuell ähnlichen Bilder im selben Ordner.
+        /// </summary>
+        public async Task<IReadOnlyList<(string Path, float Score)>> SucheNachSerieAsync(
+            string ordner, string bildPfad, int topN = 80, float minSim = 0.85f,
+            CancellationToken abbruch = default)
+        {
+            if (!await StelleSicherGeladenAsync().ConfigureAwait(false))
+                return Array.Empty<(string, float)>();
+            if (string.IsNullOrEmpty(ordner) || !Directory.Exists(ordner))
+                return Array.Empty<(string, float)>();
+
+            return await Task.Run<IReadOnlyList<(string Path, float Score)>>(() =>
+            {
+                var index = new ImageIndex(_cnn!);
+                index.Load(Path.Combine(ordner, CacheDateiName));
+                if (index.Count == 0) return Array.Empty<(string, float)>();
+
+                abbruch.ThrowIfCancellationRequested();
+
+                var entry = index.Entries
+                    .FirstOrDefault(e => string.Equals(e.Path, bildPfad, StringComparison.OrdinalIgnoreCase));
+                if (entry is null || entry.Descriptor.Length == 0)
+                    return Array.Empty<(string, float)>();
+
+                var treffer = new List<(string Path, float Score)>();
+                foreach (var k in index.Entries)
+                {
+                    abbruch.ThrowIfCancellationRequested();
+                    if (k.Descriptor.Length == 0) continue;
+                    float sim = _cnn!.Similarity(entry.Descriptor, k.Descriptor);
+                    if (sim >= minSim)
+                        treffer.Add((k.Path, sim));
+                }
+
+                treffer.Sort((a, b) => b.Score.CompareTo(a.Score));
+                if (treffer.Count > topN)
+                    treffer.RemoveRange(topN, treffer.Count - topN);
+
+                return treffer;
+            }, abbruch).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -247,7 +379,7 @@ namespace TestImage.Bildersuche
                 { ["schwarz"] = "a person with black hair", ["blond"] = "a person with blonde hair",
                   ["braun"] = "a person with brown hair", ["rot"] = "a person with red hair" } },
             new TagCategory { Name = "Personen", Labels = new()
-                { ["eine"] = "a photo of a single person", ["mehrere"] = "a photo of a group of people" } },
+                { ["keine"] = "a photo with no people", ["eine"] = "a photo of a single person", ["mehrere"] = "a photo of a group of people" } },
             new TagCategory { Name = "Ausschnitt", Labels = new()
                 { ["Nahaufnahme"] = "a close-up portrait of a face", ["Ganzkörper"] = "a full body shot of a person" } },
         };
