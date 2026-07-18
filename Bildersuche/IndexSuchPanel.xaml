@@ -407,6 +407,17 @@
                         Style="{StaticResource OutlineButtonStyle}"
                         Content="&#xE711;"
                         ToolTip="Erweiterte Seriensuche abbrechen" />
+                    <Button
+                        x:Name="BTN_DublettenAbbrechen"
+                        Padding="6,2"
+                        VerticalAlignment="Center"
+                        Command="{Binding CommandExecuteDublettenCancelCommand}"
+                        Cursor="Hand"
+                        FontFamily="Segoe MDL2 Assets"
+                        FontSize="10"
+                        Style="{StaticResource OutlineButtonStyle}"
+                        Content="&#xE711;"
+                        ToolTip="Dublettensuche abbrechen" />
                 </StackPanel>
             </Grid>
 
@@ -606,9 +617,8 @@
                             x:Name="BTN_Dubletten"
                             Margin="0,0,10,0"
                             Command="{Binding CommandExecuteDublettenCommand}"
-                            IsEnabled="False"
                             Style="{StaticResource OutlineButtonStyle}"
-                            ToolTip="Dubletten finden">
+                            ToolTip="Dubletten finden (fast identische Bilder im Ordner)">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock
                                     Margin="0,1,7,0"

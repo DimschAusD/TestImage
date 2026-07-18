@@ -343,6 +343,107 @@ namespace TestImage.Bildersuche
         }
 
         /// <summary>
+        /// Schwelle, ab der zwei Bilder als Dublette (praktisch identisch) gelten.
+        /// Echte Duplikate/Neuspeicherungen liegen bei ≈ 0,98–1,00; bloße Varianten
+        /// deutlich darunter (≈ 0,85–0,90) und fallen so bewusst nicht mit hinein.
+        /// </summary>
+        private const float DublettenSchwelle = 0.98f;
+
+        /// <summary>
+        /// Findet Dubletten-Gruppen im Ordner: Bilder, deren CLIP-Embeddings sich
+        /// mit ≥ <see cref="DublettenSchwelle"/> ähneln, werden per Union-Find zu
+        /// Gruppen zusammengefasst (A≈B, B≈C ⇒ eine Gruppe). Nur Gruppen ab zwei
+        /// Bildern kommen zurück, größte zuerst; je Bild die Ähnlichkeit zum ersten
+        /// Bild der Gruppe (Repräsentant), dieses selbst mit 1,0.
+        /// Meldet Fortschritt + geschätzte Restzeit und ist abbrechbar.
+        /// </summary>
+        public async Task<IReadOnlyList<IReadOnlyList<(string Path, float Score)>>> FindeDublettenAsync(
+            string ordner,
+            IProgress<(int Prozent, int RestSekunden)>? fortschritt = null,
+            CancellationToken abbruch = default)
+        {
+            if (!await StelleSicherGeladenAsync().ConfigureAwait(false))
+                return Array.Empty<IReadOnlyList<(string, float)>>();
+            if (string.IsNullOrEmpty(ordner) || !Directory.Exists(ordner))
+                return Array.Empty<IReadOnlyList<(string, float)>>();
+
+            return await Task.Run<IReadOnlyList<IReadOnlyList<(string Path, float Score)>>>(() =>
+            {
+                var index = new ImageIndex(_cnn!);
+                index.Load(Path.Combine(ordner, CacheDateiName));
+                if (index.Count == 0) return Array.Empty<IReadOnlyList<(string, float)>>();
+
+                abbruch.ThrowIfCancellationRequested();
+
+                // Nur Einträge mit gültigem Descriptor.
+                var eintraege = index.Entries.Where(e => e.Descriptor.Length > 0).ToList();
+                int n = eintraege.Count;
+                if (n < 2) return Array.Empty<IReadOnlyList<(string, float)>>();
+
+                // Union-Find über den „quasi-identisch"-Graphen.
+                var parent = new int[n];
+                for (int i = 0; i < n; i++) parent[i] = i;
+                int Find(int x) { while (parent[x] != x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; }
+                void Union(int a, int b) { int ra = Find(a), rb = Find(b); if (ra != rb) parent[ra] = rb; }
+
+                long gesamtVergleiche = (long)n * (n - 1) / 2;
+                long vergleiche = 0, letzteMeldung = 0;
+                var uhr = System.Diagnostics.Stopwatch.StartNew();
+
+                for (int i = 0; i < n; i++)
+                {
+                    abbruch.ThrowIfCancellationRequested();
+                    for (int j = i + 1; j < n; j++)
+                    {
+                        float sim = _cnn!.Similarity(eintraege[i].Descriptor, eintraege[j].Descriptor);
+                        vergleiche++;
+                        if (sim >= DublettenSchwelle) Union(i, j);
+
+                        // ~alle 5000 Vergleiche Fortschritt + Restzeit hochrechnen.
+                        if (fortschritt != null && vergleiche - letzteMeldung >= 5000)
+                        {
+                            letzteMeldung = vergleiche;
+                            int prozent = (int)(100.0 * vergleiche / gesamtVergleiche);
+                            if (prozent > 99) prozent = 99;   // 100 erst wenn fertig
+                            double proSek = vergleiche / Math.Max(uhr.Elapsed.TotalSeconds, 0.001);
+                            int restSek = (int)Math.Ceiling((gesamtVergleiche - vergleiche) / Math.Max(proSek, 1));
+                            fortschritt.Report((prozent, restSek));
+                        }
+                    }
+                }
+
+                // Gruppen einsammeln (Wurzel → Mitglieder-Indizes).
+                var gruppenMap = new Dictionary<int, List<int>>();
+                for (int i = 0; i < n; i++)
+                {
+                    int r = Find(i);
+                    if (!gruppenMap.TryGetValue(r, out var mitglieder)) { mitglieder = new(); gruppenMap[r] = mitglieder; }
+                    mitglieder.Add(i);
+                }
+
+                var gruppen = new List<IReadOnlyList<(string Path, float Score)>>();
+                foreach (var mitglieder in gruppenMap.Values)
+                {
+                    if (mitglieder.Count < 2) continue;   // Singletons sind keine Dubletten
+                    var repr = eintraege[mitglieder[0]];
+                    var eintraegeGruppe = mitglieder
+                        .Select(idx => (Path: eintraege[idx].Path,
+                                        Score: idx == mitglieder[0]
+                                            ? 1f
+                                            : _cnn!.Similarity(repr.Descriptor, eintraege[idx].Descriptor)))
+                        .OrderByDescending(t => t.Score)
+                        .ToList();
+                    gruppen.Add(eintraegeGruppe);
+                }
+
+                // Größte Gruppen zuerst.
+                gruppen.Sort((a, b) => b.Count.CompareTo(a.Count));
+                fortschritt?.Report((100, 0));
+                return gruppen;
+            }, abbruch).ConfigureAwait(false);
+        }
+
+        /// <summary>
         /// Indexiert nur die Bilder direkt im angegebenen Ordner (nicht rekursiv),
         /// berechnet die CLIP-Embeddings und speichert die JSON-Cache-Datei im
         /// selben Ordner. Meldet den Fortschritt (fertig/gesamt/Datei).

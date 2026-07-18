@@ -141,15 +141,13 @@ namespace TestImage
 
             if (e.PropertyName == nameof(AufgabeViewModel.DisplayImage))
             {
-                Überblenden(imgCurrent.Source);
+                EinblendenBild();
             }
         }
 
-        private bool _crossfadeLäuft;
-
-        private void Überblenden(ImageSource? vorherigesBild)
+        /// <summary>Blendet das aktuelle Bild bei jedem Bildwechsel sanft ein.</summary>
+        private void EinblendenBild()
         {
-            imgAltesBild.Source = vorherigesBild;
             imgCurrent.BeginAnimation(OpacityProperty, null);
             imgCurrent.Opacity = 0;
 
@@ -157,7 +155,6 @@ namespace TestImage
             {
                 EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
             };
-            einblenden.Completed += (s, _) => imgAltesBild.Source = null;
             imgCurrent.BeginAnimation(OpacityProperty, einblenden);
         }
 

@@ -3125,6 +3125,7 @@ namespace TestImage
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteSerieSucheCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteErweiterteSerieSucheCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteDublettenCommand))]
         private bool _serieSucheLaeuft;
 
         /// <summary>Die erkannten Begriffe des aktuellen Bildes (z. B. „Blume 34 %").</summary>
@@ -4103,10 +4104,128 @@ namespace TestImage
             CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
         }
 
-        [RelayCommand]
-        private void CommandExecuteDubletten()
+        private bool CanExecuteDubletten()
         {
-            // TODO: Dubletten-Gruppen anzeigen
+            return SelectedBildchen != null
+                && !string.IsNullOrEmpty(SelectedBildchen.BName)
+                && !SerieSucheLaeuft;
+        }
+
+        [RelayCommand(CanExecute = nameof(CanExecuteDubletten), IncludeCancelCommand = true)]
+        private async Task CommandExecuteDubletten(CancellationToken token)
+        {
+            string? bildPfad = SelectedBildchen?.BName;
+            if (string.IsNullOrEmpty(bildPfad))
+            {
+                return;
+            }
+
+            string? ordner = Path.GetDirectoryName(bildPfad);
+            if (string.IsNullOrEmpty(ordner))
+            {
+                return;
+            }
+
+            string cache = Path.Combine(ordner, BildAnalyseService.CacheDateiName);
+            if (!File.Exists(cache))
+            {
+                SucheStatus = "Kein Index vorhanden – erst den Ordner indexieren.";
+                return;
+            }
+
+            SuchErgebnisse.Clear();
+            _alleSuchTreffer.Clear();
+            CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
+            SucheStatus = "Suche Dubletten im Ordner…";
+            SerieFortschritt = 0;
+            SerieIndeterminate = false;   // echter %-Balken mit Restzeit
+            SerieSucheLaeuft = true;
+
+            // Fortschritt + Restzeit aus dem Hintergrund-Thread per Dispatcher sicher
+            // in die Statuszeile umleiten (wie bei der erweiterten Seriensuche).
+            var dispatcher = System.Windows.Application.Current.Dispatcher;
+            var fortschritt = new Progress<(int Prozent, int RestSekunden)>(p =>
+            {
+                dispatcher.Invoke(() =>
+                {
+                    SerieFortschritt = p.Prozent;
+                    SucheStatus = p.RestSekunden > 0
+                        ? $"Suche Dubletten… {p.Prozent} % – noch ~{p.RestSekunden} s"
+                        : $"Suche Dubletten… {p.Prozent} %";
+                });
+            });
+
+            try
+            {
+                await StelleClipBereitAsync();
+
+                var gruppen = await _bildAnalyse.FindeDublettenAsync(ordner, fortschritt, token);
+                if (gruppen.Count == 0)
+                {
+                    SucheStatus = "Keine Dubletten gefunden – alle Bilder im Ordner sind verschieden.";
+                    return;
+                }
+
+                _letzteFrage = "Dubletten";
+                int anzahlBilder = await ZeigeDublettenAsync(gruppen, token);
+
+                SucheStatus = $"{anzahlBilder} Dubletten in {gruppen.Count} Gruppen (≥ 98 % Ähnlichkeit).";
+                CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
+            }
+            catch (OperationCanceledException)
+            {
+                SucheStatus = "Dublettensuche abgebrochen.";
+            }
+            catch (Exception ex)
+            {
+                SucheStatus = "Fehler bei Dublettensuche: " + ex.Message;
+            }
+            finally { SerieSucheLaeuft = false; }
+        }
+
+        /// <summary>
+        /// Zeigt die Dubletten-Gruppen als flache Trefferliste: Gruppen nacheinander,
+        /// je Bild „Gr. N · xx %". Thumbnails werden einzeln geladen (Fortschritt +
+        /// Restzeit in der Statuszeile). Rückgabe: Anzahl angezeigter Bilder.
+        /// </summary>
+        private async Task<int> ZeigeDublettenAsync(
+            System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<(string Path, float Score)>> gruppen,
+            CancellationToken token)
+        {
+            SerieIndeterminate = false;   // ab jetzt echter Prozent-Fortschritt
+            SerieFortschritt = 0;
+
+            int gesamt = gruppen.Sum(g => g.Count);
+            int fertig = 0;
+            var uhr = System.Diagnostics.Stopwatch.StartNew();
+
+            for (int g = 0; g < gruppen.Count; g++)
+            {
+                foreach (var t in gruppen[g])
+                {
+                    token.ThrowIfCancellationRequested();
+                    var thumb = await Task.Run(() => LadeThumb(t.Path), token);
+
+                    var erg = new SuchErgebnis
+                    {
+                        Path = t.Path,
+                        DateiName = Path.GetFileName(t.Path),
+                        ProzentText = $"Gr. {g + 1} · {t.Score * 100f:F0} %",
+                        Thumb = thumb
+                    };
+                    _alleSuchTreffer.Add((erg, t.Score));
+                    SuchErgebnisse.Add(erg);
+
+                    fertig++;
+                    SerieFortschritt = (int)(fertig * 100.0 / gesamt);
+                    double proSek = fertig / Math.Max(uhr.Elapsed.TotalSeconds, 0.001);
+                    int restSek = (int)Math.Ceiling((gesamt - fertig) / Math.Max(proSek, 0.001));
+                    SucheStatus = restSek > 0
+                        ? $"Lade Vorschaubilder… {fertig}/{gesamt} – noch ~{restSek} s"
+                        : $"Lade Vorschaubilder… {fertig}/{gesamt}";
+                }
+            }
+            return gesamt;
         }
 
         [RelayCommand]

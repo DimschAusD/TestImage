@@ -635,47 +635,32 @@
                     PreviewMouseWheel="Scdd_PreviewMouseWheel"
                     VerticalScrollBarVisibility="{Binding MyHorizontalScrollBarVisibility}">
 
-                    <Grid>
-                        <!--  Hinteres Bild: zeigt das ALTE Bild während das neue überblendet  -->
-                        <Image
-                            x:Name="imgAltesBild"
-                            Margin="4,4,4,4"
-                            RenderOptions.BitmapScalingMode="HighQuality"
-                            Stretch="{Binding ImageStretch}"
-                            UseLayoutRounding="False">
-                            <Image.Effect>
-                                <DropShadowEffect
-                                    BlurRadius="20"
-                                    Opacity="0.8"
-                                    ShadowDepth="0"
-                                    Color="Black" />
-                            </Image.Effect>
-                        </Image>
+                    <!--
+                        Einzelbild direkt im ScrollViewer: meldet bei Stretch=None seine
+                        Pixelgröße -> beide Bildlaufleisten funktionieren korrekt.
+                    -->
+                    <Image
+                        x:Name="imgCurrent"
+                        Margin="4,4,4,4"
+                        IsManipulationEnabled="True"
+                        RenderOptions.BitmapScalingMode="HighQuality"
+                        RenderOptions.EdgeMode="Aliased"
+                        SizeChanged="imgCurrent_SizeChanged"
+                        Source="{Binding DisplayImage}"
+                        Stretch="{Binding ImageStretch}"
+                        UseLayoutRounding="False">
+                        <Image.RenderTransform>
+                            <TranslateTransform x:Name="imgShakeTransform" />
+                        </Image.RenderTransform>
 
-                        <!--  Vorderes Bild: das aktuelle, blendet sanft ein  -->
-                        <Image
-                            x:Name="imgCurrent"
-                            Margin="4,4,4,4"
-                            IsManipulationEnabled="True"
-                            RenderOptions.BitmapScalingMode="HighQuality"
-                            RenderOptions.EdgeMode="Aliased"
-                            SizeChanged="imgCurrent_SizeChanged"
-                            Source="{Binding DisplayImage}"
-                            Stretch="{Binding ImageStretch}"
-                            UseLayoutRounding="False">
-                            <Image.RenderTransform>
-                                <TranslateTransform x:Name="imgShakeTransform" />
-                            </Image.RenderTransform>
-
-                            <Image.Effect>
-                                <DropShadowEffect
-                                    BlurRadius="20"
-                                    Opacity="0.8"
-                                    ShadowDepth="0"
-                                    Color="Black" />
-                            </Image.Effect>
-                        </Image>
-                    </Grid>
+                        <Image.Effect>
+                            <DropShadowEffect
+                                BlurRadius="20"
+                                Opacity="0.8"
+                                ShadowDepth="0"
+                                Color="Black" />
+                        </Image.Effect>
+                    </Image>
 
                 </ScrollViewer>
 
@@ -1498,7 +1483,7 @@
                 </Border>
             </StackPanel>
             <RibbonButton
-                x:Name="RDBTN_BildNachOben2"
+                x:Name="RDBTN_BildOriginalgrösse"
                 Width="36"
                 Height="28"
                 Margin="0,2,0,0"
