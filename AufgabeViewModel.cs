@@ -114,8 +114,7 @@ namespace TestImage
         /// <br>  Converter dazu:  CLconverterBrushesBoolianG2</br>
         /// </summary>
         [ObservableProperty]
-        private bool? _IsBildNullDatei = false;
-
+        public partial bool? IsBildNullDatei { get; set; } = false;
 
         [ObservableProperty]
         private string _LabelDropContent = "⓵ mvvmDrop";
@@ -125,7 +124,7 @@ namespace TestImage
         private ImageSource _Bildchen = null;
 
         [ObservableProperty]
-        private bool _SollBildGeprüftWerden = false;
+        public partial bool SollBildGeprüftWerden { get; set; } = false;
 
         [ObservableProperty]
         private double _PercentageValueVerschieben;
@@ -133,6 +132,8 @@ namespace TestImage
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteAlleBilderMiteinanderAufByteGleichheitPrüfenCommand))]
         private bool _MultiByteParallelGleichheit = true;
+
+
 
 
         [ObservableProperty]
@@ -195,6 +196,9 @@ namespace TestImage
             GeraeteTimerTick(null, EventArgs.Empty);
 
             ocAufgabens = new ObservableCollection<MeinBildchen>();
+
+            // Ändert sich die Bilderliste, ist der Schnell-Listen-Cache veraltet.
+            ocAufgabens.CollectionChanged += (_, _) => _bildListeVeraltet = true;
 
             ocAufgabensKlein = new ObservableCollection<MeinBildchen>();
             ocAufgabensKlein.Add(new MeinBildchen() { BName = @".\.\HeavyO.jpg", BildFürLinks = false });
@@ -3051,6 +3055,42 @@ namespace TestImage
         [ObservableProperty]
         private bool _isSuchleisteOffen;
 
+        /// <summary>True, wenn die Schnell-Liste (alle Miniaturen im Popup) eingeblendet ist.</summary>
+        [ObservableProperty]
+        private bool _isBildListeOffen;
+
+        /// <summary>Die Zeilen der Schnell-Liste (je <see cref="BildListeSpalten"/> Kacheln) – ermöglicht zeilenweise Virtualisierung.</summary>
+        [ObservableProperty]
+        private ObservableCollection<System.Collections.Generic.IReadOnlyList<Bildersuche.BildListeItem>> _bildListeZeilen = new();
+
+        /// <summary>Die Zeile, die das aktuell gewählte Bild enthält (zum Sichtbar-Scrollen).</summary>
+        [ObservableProperty]
+        private System.Collections.Generic.IReadOnlyList<Bildersuche.BildListeItem>? _aktuelleZeile;
+
+        /// <summary>Feste Spaltenzahl pro Zeile (die Popup-Breite ist fix).</summary>
+        private const int BildListeSpalten = 5;
+
+        /// <summary>True, während die Vorschaubilder der Schnell-Liste im Hintergrund laden.</summary>
+        [ObservableProperty]
+        private bool _bildListeLaedt;
+
+        private CancellationTokenSource? _bildListeCts;
+
+        /// <summary>True, sobald die Schnell-Liste einmal vollständig geladen wurde.</summary>
+        private bool _bildListeGeladen;
+
+        /// <summary>True, wenn sich die Bilderliste seither geändert hat (Cache verwerfen).</summary>
+        private bool _bildListeVeraltet;
+
+        // Beim Schließen (Button, Klick außerhalb, Kachelklick) das Befüllen abbrechen.
+        partial void OnIsBildListeOffenChanged(bool value)
+        {
+            if (!value)
+            {
+                _bildListeCts?.Cancel();
+            }
+        }
+
         /// <summary>Kurzstatus der Bildanalyse (z. B. „Analysiere…", „6 Begriffe erkannt").</summary>
         [ObservableProperty]
         private string _analyseStatus = string.Empty;
@@ -3559,6 +3599,116 @@ namespace TestImage
             await AnalysiereAktuellesBildAsync();
         }
 
+        /// <summary>Blendet die Schnell-Liste (alle Miniaturen im Popup) ein/aus.</summary>
+        [RelayCommand]
+        private async Task CommandExecuteBildListeToggle()
+        {
+            IsBildListeOffen = !IsBildListeOffen;
+            if (!IsBildListeOffen)
+            {
+                _bildListeCts?.Cancel(); // laufendes Befüllen abbrechen
+                return;
+            }
+
+            await FuelleBildListeAsync();
+        }
+
+        /// <summary>
+        /// Befüllt die Schnell-Liste: erst werden alle Kacheln leer angelegt (ein
+        /// Layout-Durchgang, kein Reflow, sofort navigierbar), dann die Miniaturen im
+        /// Hintergrund nachgeladen. Das Ergebnis wird gecacht – Wiederöffnen ist sofort
+        /// da, solange sich die Bilderliste nicht geändert hat.
+        /// </summary>
+        private async Task FuelleBildListeAsync()
+        {
+            // Cache: unveränderte Liste nicht neu laden – nur zum aktuellen Bild markieren.
+            // Wiederöffnen ist so sofort da, und die Ladephase passiert nur einmal.
+            if (_bildListeGeladen && !_bildListeVeraltet)
+            {
+                MarkiereAktuellesBild();
+                return;
+            }
+
+            _bildListeCts?.Cancel();
+            _bildListeCts = new CancellationTokenSource();
+            var token = _bildListeCts.Token;
+
+            // Momentaufnahme in Ansichts-Reihenfolge (spiegelt verschobene/neue Bilder).
+            var bilder = AufgabenView.Cast<MeinBildchen>().ToList();
+
+            // 1) Kacheln anlegen und in Zeilen (feste Spaltenzahl) gruppieren.
+            //    Die Liste virtualisiert zeilenweise -> nur sichtbare Zeilen werden erzeugt.
+            var eintraege = bilder.Select(b => new Bildersuche.BildListeItem { Bild = b }).ToList();
+            var zeilen = new ObservableCollection<System.Collections.Generic.IReadOnlyList<Bildersuche.BildListeItem>>();
+            for (int i = 0; i < eintraege.Count; i += BildListeSpalten)
+            {
+                zeilen.Add(eintraege.GetRange(i, Math.Min(BildListeSpalten, eintraege.Count - i)));
+            }
+            BildListeZeilen = zeilen;
+
+            // 2) Aktuelles Bild markieren und Zielzeile setzen.
+            MarkiereAktuellesBild();
+
+            // 3) Miniaturen im Hintergrund nachladen und in die bestehenden Kacheln setzen.
+            BildListeLaedt = true;
+            try
+            {
+                const int batch = 24;
+                for (int i = 0; i < eintraege.Count; i++)
+                {
+                    token.ThrowIfCancellationRequested();
+                    var eintrag = eintraege[i];
+                    eintrag.Thumb = await Task.Run(() => LadeThumb(eintrag.Bild.BName), token);
+
+                    if ((i + 1) % batch == 0)
+                    {
+                        await Task.Delay(1, token);
+                    }
+                }
+
+                _bildListeGeladen = true;
+                _bildListeVeraltet = false;
+            }
+            catch (OperationCanceledException)
+            {
+                // Popup geschlossen oder neu geöffnet – Cache bleibt „nicht geladen".
+            }
+            finally
+            {
+                BildListeLaedt = false;
+            }
+        }
+
+        /// <summary>Markiert die Kachel des aktuellen Bildes und merkt sich deren Zeile zum Scrollen.</summary>
+        private void MarkiereAktuellesBild()
+        {
+            AktuelleZeile = null;
+            foreach (var zeile in BildListeZeilen)
+            {
+                foreach (var kachel in zeile)
+                {
+                    kachel.IsAktuell = kachel.Bild == SelectedBildchen;
+                    if (kachel.IsAktuell)
+                    {
+                        AktuelleZeile = zeile;
+                    }
+                }
+            }
+        }
+
+        /// <summary>Springt zum geklickten Bild und schließt die Schnell-Liste.</summary>
+        [RelayCommand]
+        private void CommandExecuteZuBildSpringen(MeinBildchen? bild)
+        {
+            if (bild == null)
+            {
+                return;
+            }
+
+            SelectedBildchen = bild;
+            IsBildListeOffen = false;
+        }
+
         /// <summary>Schickt das aktuell gewählte Bild durch CLIP und füllt <see cref="ErkannteBegriffe"/>.</summary>
         private async Task AnalysiereAktuellesBildAsync()
         {
@@ -3967,11 +4117,15 @@ namespace TestImage
         {
             string? bildPfad = SelectedBildchen?.BName;
             if (string.IsNullOrEmpty(bildPfad))
+            {
                 return;
+            }
 
             string? ordner = Path.GetDirectoryName(bildPfad);
             if (string.IsNullOrEmpty(ordner))
+            {
                 return;
+            }
 
             SuchErgebnisse.Clear();
             _alleSuchTreffer.Clear();
@@ -4022,11 +4176,15 @@ namespace TestImage
         {
             string? bildPfad = SelectedBildchen?.BName;
             if (string.IsNullOrEmpty(bildPfad))
+            {
                 return;
+            }
 
             string? ordner = Path.GetDirectoryName(bildPfad);
             if (string.IsNullOrEmpty(ordner))
+            {
                 return;
+            }
 
             SuchErgebnisse.Clear();
             _alleSuchTreffer.Clear();

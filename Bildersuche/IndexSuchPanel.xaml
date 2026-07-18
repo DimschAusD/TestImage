@@ -5,6 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="clr-namespace:TestImage"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:sys="clr-namespace:System;assembly=mscorlib"
     mc:Ignorable="d" Width="699">
     <UserControl.Resources>
         <local:CLconverterVisiblityBoolian x:Key="CLconverterVisiblityBoolian" />
@@ -59,6 +60,28 @@
                 Color="Black" />
         </Border.Effect>
         <StackPanel Margin="6" Orientation="Vertical">
+
+            <!--  Griffleiste: Panel mit der Maus verschieben  -->
+            <Border
+                x:Name="BRD_Griffleiste"
+                Height="18"
+                Margin="0,0,0,4"
+                Background="#FFF3F3F3"
+                CornerRadius="6"
+                Cursor="SizeAll"
+                MouseLeftButtonDown="Griffleiste_MouseLeftButtonDown"
+                MouseLeftButtonUp="Griffleiste_MouseLeftButtonUp"
+                MouseMove="Griffleiste_MouseMove"
+                ToolTip="Zum Verschieben ziehen">
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    FontFamily="Segoe MDL2 Assets"
+                    FontSize="10"
+                    Foreground="#FFAAAAAA"
+                    Text="&#xE76F;" />
+            </Border>
+
             <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
 
                 <!--  Index-Button (umrandet)  -->
@@ -387,6 +410,25 @@
                 </StackPanel>
             </Grid>
 
+            <!--  Such-Status (z. B. „Keine Treffer…") – nah an der Serien-Suche  -->
+            <TextBlock
+                Margin="2,8,2,0"
+                FontFamily="Segoe UI"
+                FontSize="12"
+                Foreground="#FF888888"
+                Text="{Binding SucheStatus}">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding SucheStatus}" Value="">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
             <!--  Einstellungen: aufklappbar über den Filter-Button  -->
             <Border
                 Margin="0,10,0,0"
@@ -674,32 +716,19 @@
 
             <!--  Ergebnis: erkannte Begriffe des gewählten Bildes  -->
             <StackPanel Margin="2,10,2,2">
-                <TextBlock
-                    FontFamily="Segoe UI"
-                    FontSize="12"
-                    Foreground="#FF888888"
-                    Text="{Binding AnalyseStatus}">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Visibility" Value="Visible" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding AnalyseStatus}" Value="">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-
-                <DockPanel Margin="0,8,0,0">
+                <DockPanel x:Name="DKP_BegriffeBereich" Margin="0,0,0,0">
                     <!--  Kleine Vorschau + Heatmap-Overlay  -->
                     <Grid
+                        x:Name="GRD_Vorschau"
                         Width="64"
                         Height="64"
                         Margin="0,0,10,0"
                         DockPanel.Dock="Left"
-                        Visibility="{Binding AnalyseBildVorschau, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                        Visibility="{Binding AnalyseBildVorschau, Converter={StaticResource CLconverterVisiblityBoolian}}"
+                        d:Visibility="Visible">
                         <Border
+                            x:Name="BRD_VorschauBild"
+                            d:Background="#FFE0E6F5"
                             BorderBrush="#FFD3DAF5"
                             BorderThickness="1"
                             CornerRadius="6">
@@ -707,15 +736,32 @@
                                 <ImageBrush ImageSource="{Binding AnalyseBildVorschau}" Stretch="Uniform" />
                             </Border.Background>
                         </Border>
-                        <Border ClipToBounds="True" CornerRadius="6">
+                        <Border
+                            x:Name="BRD_HeatmapOverlay"
+                            ClipToBounds="True"
+                            CornerRadius="6">
                             <Image
+                                x:Name="IMG_Heatmap"
                                 Opacity="0.7"
                                 Source="{Binding HeatmapOverlay}"
                                 Stretch="Uniform" />
                         </Border>
                     </Grid>
 
-                    <ItemsControl x:Name="IC_ErkannteBegriffe" ItemsSource="{Binding ErkannteBegriffe}">
+                    <ItemsControl
+                        x:Name="IC_ErkannteBegriffe"
+                        d:DataContext="{d:DesignInstance}"
+                        ItemsSource="{Binding ErkannteBegriffe}">
+                        <d:ItemsControl.Items>
+                            <sys:String>Vogel 27 %</sys:String>
+                            <sys:String>Sonnenblume 26 %</sys:String>
+                            <sys:String>Gelb 26 %</sys:String>
+                            <sys:String>Papagei 25 %</sys:String>
+                            <sys:String>Baum 25 %</sys:String>
+                            <sys:String>Nahaufnahme 25 %</sys:String>
+                            <sys:String>Zitrone 25 %</sys:String>
+                            <sys:String>Obst 25 %</sys:String>
+                        </d:ItemsControl.Items>
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <WrapPanel />
@@ -749,6 +795,25 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </DockPanel>
+
+                <!--  Anzahl erkannter Begriffe – unter den Chips  -->
+                <TextBlock
+                    Margin="0,8,0,0"
+                    FontFamily="Segoe UI"
+                    FontSize="12"
+                    Foreground="#FF888888"
+                    Text="{Binding AnalyseStatus}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding AnalyseStatus}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
 
                 <!--  Heatmap-Lade-Hinweis  -->
                 <StackPanel
@@ -826,24 +891,6 @@
                         </StackPanel>
                     </Button>
                 </StackPanel>
-
-                <TextBlock
-                    Margin="0,8,0,0"
-                    FontFamily="Segoe UI"
-                    FontSize="12"
-                    Foreground="#FF888888"
-                    Text="{Binding SucheStatus}">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Visibility" Value="Visible" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SucheStatus}" Value="">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
 
                 <ScrollViewer
                     x:Name="SCV_SuchErgebnisse"

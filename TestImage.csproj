@@ -21,7 +21,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Remove="DXD.jpg" />
     <None Remove="HeavyO.jpg" />
     <None Remove="Images\Abbrechen.png" />
     <None Remove="Images\Abbrechenn.png" />
@@ -89,7 +88,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Resource Include="DXD.jpg" />
     <Resource Include="HeavyO.jpg" />
     <Resource Include="Images\Abbrechen.png" />
     <Resource Include="Images\PfeilNachLinks.png" />

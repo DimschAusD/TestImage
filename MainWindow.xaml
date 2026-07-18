@@ -2036,6 +2036,42 @@
             Command="{Binding CommandExecuteOrdnerDerAnwendungÖffnenCommand, Mode=OneWay}"
             Content="OÖ"
             Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}" />
+
+        <!--  „Liste": öffnet das Schnell-Listen-Popup (alle Miniaturen zum Finden)  -->
+        <Button
+            x:Name="BTN_BildListe"
+            Grid.Row="2"
+            Height="24"
+            Margin="29,95,0,0"
+            Padding="8,0"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Command="{Binding CommandExecuteBildListeToggleCommand}"
+            Cursor="Hand"
+            ToolTip="Alle Bilder als Liste – schnell zu einem Bild springen"
+            Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock
+                    Margin="0,0,5,0"
+                    VerticalAlignment="Center"
+                    FontFamily="Segoe MDL2 Assets"
+                    FontSize="12"
+                    Text="&#xE8FD;" />
+                <TextBlock VerticalAlignment="Center" Text="Liste" />
+            </StackPanel>
+        </Button>
+
+        <!--  Schnell-Liste als Popup, rechtsbündig über der Miniaturleiste  -->
+        <Popup
+            x:Name="POP_BildListe"
+            AllowsTransparency="True"
+            IsOpen="{Binding IsBildListeOffen, Mode=TwoWay}"
+            Placement="Custom"
+            PlacementTarget="{Binding ElementName=Listbox_MiniaturBilder}"
+            PopupAnimation="Fade"
+            StaysOpen="False">
+            <bildersuche:BildListePanel Margin="12" />
+        </Popup>
         <Border
             Grid.Row="2"
             Width="34"

@@ -1,8 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using System.Text;
 using System.Windows.Data;
 
 namespace TestImage.Converters
@@ -14,12 +12,12 @@ namespace TestImage.Converters
             //throw new NotImplementedException();
 
             if (value is not string fullPath || string.IsNullOrWhiteSpace(fullPath))
+            {
                 return value;
+            }
 
             // Entfernt evtl. abschließende \ oder /
-            fullPath = fullPath.TrimEnd(
-                Path.DirectorySeparatorChar,
-                Path.AltDirectorySeparatorChar);
+            fullPath = fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
             return Path.GetFileName(fullPath);
 

@@ -39,9 +39,30 @@ namespace TestImage
             DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref value, sizeof(int));
         }
 
+        /// <summary>
+        /// Platziert das Schnell-Listen-Popup oberhalb der Miniaturleiste und
+        /// bündig mit deren rechter Kante (rechte Popup-Kante = rechte Leisten-Kante).
+        /// </summary>
+        private System.Windows.Controls.Primitives.CustomPopupPlacement[] BildListePopup_Platzierung(
+            Size popupSize, Size zielSize, Point offset)
+        {
+            double x = zielSize.Width - popupSize.Width; // rechtsbündig
+            double y = -popupSize.Height;                // oberhalb der Leiste
+            return new[]
+            {
+                new System.Windows.Controls.Primitives.CustomPopupPlacement(
+                    new Point(x, y),
+                    System.Windows.Controls.Primitives.PopupPrimaryAxis.Horizontal)
+            };
+        }
+
         public MainWindow()
         {
             InitializeComponent();
+
+            // Schnell-Listen-Popup rechtsbündig über der Miniaturleiste platzieren.
+            POP_BildListe.CustomPopupPlacementCallback = BildListePopup_Platzierung;
+
             Loaded += (_, _) =>
             {
                 if (DataContext is AufgabeViewModel vm)

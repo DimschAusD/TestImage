@@ -203,9 +203,17 @@ namespace TestImage.Bildersuche
         }
 
         /// <summary>
+        /// Anker-Schwelle der erweiterten Seriensuche: ein Kettenglied muss zusätzlich
+        /// zum direkten Vorgänger (≥ minSim) auch dem Startbild noch ≥ dieser Schwelle
+        /// ähneln. Verhindert, dass die Kette wegdriftet und Fremdbilder einsammelt.
+        /// </summary>
+        private const float AnkerSchwelle = 0.70f;
+
+        /// <summary>
         /// Erweiterte Seriensuche (Kettensuche): startet beim ausgewählten Bild
         /// und folgt transitiv allen Nachbarn mit ≥ minSim. Bild A→B→C→D bilden
-        /// eine Kette, auch wenn A und D nichts gemeinsam haben.
+        /// eine Kette, auch wenn A und D nichts gemeinsam haben – solange jedes Glied
+        /// dem Startbild noch mindestens <see cref="AnkerSchwelle"/> ähnelt.
         /// </summary>
         public async Task<IReadOnlyList<(string Path, float Score)>> SucheNachErweiterterSerieAsync(
             string ordner, string bildPfad, float minSim = 0.85f,
@@ -254,9 +262,15 @@ namespace TestImage.Bildersuche
                         vergleiche++;
                         if (sim >= minSim)
                         {
-                            besucht.Add(kandidat.Path);
-                            ergebnis.Add((kandidat.Path, sim));
-                            queue.Enqueue(kandidat);
+                            // Anker: muss auch dem Startbild noch ähneln, sonst driftet
+                            // die Kette weg und sammelt Fremdbilder ein.
+                            float simZumStart = _cnn.Similarity(start.Descriptor, kandidat.Descriptor);
+                            if (simZumStart >= AnkerSchwelle)
+                            {
+                                besucht.Add(kandidat.Path);
+                                ergebnis.Add((kandidat.Path, sim));
+                                queue.Enqueue(kandidat);
+                            }
                         }
 
                         // ~alle 2000 Vergleiche Fortschritt + Restzeit hochrechnen.
