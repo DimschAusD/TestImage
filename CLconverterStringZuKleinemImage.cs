@@ -16,16 +16,39 @@ namespace TestImage
         public static void InvalidateCache(string pfad)
         {
             if (!string.IsNullOrEmpty(pfad))
+            {
                 _cache.TryRemove(pfad, out _);
+            }
+        }
+
+        /// <summary>
+        /// Gemeinsamer 120px-Thumbnail-Cache – auch von der Schnell-Liste genutzt.
+        /// </summary>
+        internal static bool TryHoleAusCache(string pfad, out BitmapImage bmp)
+            => _cache.TryGetValue(pfad, out bmp!);
+
+        /// <summary>
+        /// Legt ein extern (z. B. von der Schnell-Liste) dekodiertes Thumbnail in den Cache.
+        /// </summary>
+        internal static void LegeInCache(string pfad, BitmapImage bmp)
+        {
+            if (!string.IsNullOrEmpty(pfad) && bmp != null)
+            {
+                _cache[pfad] = bmp;
+            }
         }
 
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             if (value is not string pfad || string.IsNullOrEmpty(pfad))
+            {
                 return MachePlatzhalter();
+            }
 
             if (_cache.TryGetValue(pfad, out var cached))
+            {
                 return cached;
+            }
 
             BitmapImage bmp = new BitmapImage();
             try
@@ -46,7 +69,12 @@ namespace TestImage
             }
         }
 
-        private static ImageSource MachePlatzhalter()
+        /// <summary>
+        /// Erzeugt ein Platzhalter-Bild für den Fall, dass kein Pfad vorliegt oder das
+        /// Bild nicht geladen werden kann: ein 200×200 transparentes Feld mit gelbem
+        /// Rahmen. Wird nicht in den Cache gelegt (nur echte Thumbnails werden gecacht).
+        /// </summary>
+        private static RenderTargetBitmap MachePlatzhalter()
         {
             int width = 200, height = 200;
             var dv = new DrawingVisual();

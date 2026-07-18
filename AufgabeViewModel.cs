@@ -4001,6 +4001,14 @@ namespace TestImage
         /// <summary>Lädt eine kleine, eingefrorene Vorschau für einen Treffer.</summary>
         private static ImageSource? LadeThumb(string pfad)
         {
+            if (string.IsNullOrEmpty(pfad))
+                return null;
+
+            // Gemeinsamer Cache mit der Miniaturleiste (beide 120px): schon geladene
+            // Thumbnails werden wiederverwendet, neue landen dort für die Leiste.
+            if (CLconverterStringZuKleinemImage.TryHoleAusCache(pfad, out var vorhanden))
+                return vorhanden;
+
             try
             {
                 var bmp = new BitmapImage();
@@ -4010,6 +4018,8 @@ namespace TestImage
                 bmp.DecodePixelWidth = 120;
                 bmp.EndInit();
                 bmp.Freeze();
+
+                CLconverterStringZuKleinemImage.LegeInCache(pfad, bmp);
                 return bmp;
             }
             catch
