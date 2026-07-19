@@ -643,6 +643,9 @@ namespace TestImage
 
                 AufgabenView.Refresh();
                 AlleBilderVerschoben = false;
+
+                // Index-Status des (neuen) Ordners bestimmen → steuert „Schema-ähnlich".
+                PruefeAktuellerOrdnerIndiziert();
             }
 
 
@@ -759,6 +762,9 @@ namespace TestImage
                 OnPropertyChanged(nameof(SelectedBildchen.BildFürLinks));
 
                 OnPropertyChanged();
+
+                // Neuer Ordner? → prüfen, ob er indiziert ist (steuert „Schema-ähnlich").
+                PruefeAktuellerOrdnerIndiziert();
 
 
                 // Commands schauen
@@ -3160,13 +3166,20 @@ namespace TestImage
         partial void OnBegriffeAufDeutschChanged(bool value) => RenderBegriffe();
 
 
+        /// <summary>Standardwert der Tag-Schwelle (Reset-Button).</summary>
+        public const double TagSchwelleStandard = 0.23;
+
         /// <summary>
         /// Schwelle für die Auto-Tags (0..1).
         /// </summary>
         [ObservableProperty]
-        public partial double TagSchwelle { get; set; } = 0.23;
+        public partial double TagSchwelle { get; set; } = TagSchwelleStandard;
 
         partial void OnTagSchwelleChanged(double value) => RenderBegriffe();
+
+        /// <summary>Setzt die Tag-Schwelle auf den Standardwert zurück.</summary>
+        [RelayCommand]
+        private void CommandExecuteTagSchwelleZuruecksetzen() => TagSchwelle = TagSchwelleStandard;
 
         /// <summary>
         /// Füllt <see cref="ErkannteBegriffe"/> aus den Roh-Treffern, gefiltert nach Schwelle und Sprache.
@@ -3770,8 +3783,8 @@ namespace TestImage
             }
         }
 
-        [RelayCommand]
-        private async Task CommandExecuteOrdnerIndexieren()
+        [RelayCommand(IncludeCancelCommand = true)]
+        private async Task CommandExecuteOrdnerIndexieren(CancellationToken token)
         {
             string? pfad = SelectedBildchen?.BName;
             if (string.IsNullOrEmpty(pfad) || !File.Exists(pfad))
@@ -3790,6 +3803,9 @@ namespace TestImage
             IndexFortschritt = 0;
             IndexFortschrittText = "Starte Indexierung…";
 
+            // Restzeit aus der bisherigen Geschwindigkeit (fertige/gesamt) hochrechnen.
+            var uhr = System.Diagnostics.Stopwatch.StartNew();
+
             try
             {
                 await StelleClipBereitAsync();
@@ -3797,10 +3813,19 @@ namespace TestImage
                 var progress = new Progress<(int done, int total, string file)>(p =>
                 {
                     IndexFortschritt = p.total > 0 ? 100.0 * p.done / p.total : 0;
-                    IndexFortschrittText = $"Indexiere {p.done}/{p.total}: {Path.GetFileName(p.file)}";
+
+                    int restSek = 0;
+                    if (p.done > 0 && p.total > 0)
+                    {
+                        double proSek = p.done / Math.Max(uhr.Elapsed.TotalSeconds, 0.001);
+                        restSek = (int)Math.Ceiling((p.total - p.done) / Math.Max(proSek, 0.001));
+                    }
+                    IndexFortschrittText = restSek > 0
+                        ? $"Indexiere {p.done}/{p.total} – noch ~{restSek} s"
+                        : $"Indexiere {p.done}/{p.total}…";
                 });
 
-                int anzahl = await _bildAnalyse.IndexiereOrdnerAsync(ordner, progress);
+                int anzahl = await _bildAnalyse.IndexiereOrdnerAsync(ordner, progress, token);
 
                 if (!_bildAnalyse.Bereit)
                 {
@@ -3813,6 +3838,7 @@ namespace TestImage
                 IndexOrdnerText = "indexiert 1/1 Ordner";
                 IndexFortschrittText = $"Fertig: {anzahl} Bilder im Ordner '{Path.GetFileName(ordner)}' indexiert.";
                 AktualisiereFilterOptionen();
+                PruefeAktuellerOrdnerIndiziert();   // Index existiert jetzt → „Schema-ähnlich" freischalten
 
                 if (!string.IsNullOrWhiteSpace(SucheText) && _alleSuchTreffer.Count > 0)
                 {
@@ -3825,6 +3851,10 @@ namespace TestImage
                     _alleSuchTreffer.Clear();
                     SucheStatus = "Index aktualisiert – bitte erneut suchen/filtern.";
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                IndexFortschrittText = "Indexierung abgebrochen.";
             }
             catch (Exception ex)
             {
@@ -3862,6 +3892,7 @@ namespace TestImage
             SuchErgebnisse.Clear();
             _alleSuchTreffer.Clear();
             CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
+            ErgebnisseSindSchemaAehnlich = false;   // andere Suche → Schema-Slider ausblenden
             try
             {
                 await StelleClipBereitAsync();
@@ -4173,6 +4204,7 @@ namespace TestImage
             SuchErgebnisse.Clear();
             _alleSuchTreffer.Clear();
             CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
+            ErgebnisseSindSchemaAehnlich = false;   // andere Suche → Schema-Slider ausblenden
             SucheStatus = "Suche Dubletten im Ordner…";
             SerieFortschritt = 0;
             SerieIndeterminate = false;   // echter %-Balken mit Restzeit
@@ -4280,7 +4312,14 @@ namespace TestImage
         /// damit das bei „75 %" gerundete Grenzbild sicher drin bleibt).
         /// </summary>
         [ObservableProperty]
-        private double _schemaAehnlichkeitProzent = 74;
+        private double _schemaAehnlichkeitProzent = SchemaAehnlichkeitStandard;
+
+        /// <summary>Standardwert der Schema-Ähnlichkeit in Prozent (Reset-Button).</summary>
+        public const double SchemaAehnlichkeitStandard = 74;
+
+        /// <summary>Setzt die Schema-Ähnlichkeit auf den Standardwert zurück.</summary>
+        [RelayCommand]
+        private void CommandExecuteSchemaSchwelleZuruecksetzen() => SchemaAehnlichkeitProzent = SchemaAehnlichkeitStandard;
 
         /// <summary>
         /// Untergrenze des geladenen Kandidatensatzes (= Slider-Minimum). Es werden
@@ -4292,10 +4331,28 @@ namespace TestImage
         /// <summary>
         /// True, solange die angezeigten Treffer aus der „Schema-ähnlich"-Suche
         /// stammen – dann filtert der Schema-Slider live, sonst der Mindest-Ähnl.-Slider.
-        /// Steuert zugleich, ob der Schema-Slider bedienbar ist (erst nach der Suche).
+        /// Steuert zugleich, ob der Schema-Slider überhaupt eingeblendet wird (erst nach der Suche).
         /// </summary>
         [ObservableProperty]
         private bool _ergebnisseSindSchemaAehnlich;
+
+        /// <summary>
+        /// True, wenn der Ordner des aktuell gewählten Bildes einen CLIP-Index besitzt.
+        /// Voraussetzung für „Schema-ähnlich": ohne Index kann nicht gesucht werden, der
+        /// Button ist dann deaktiviert. Wird bei Bildwechsel und nach dem Indexieren neu bestimmt.
+        /// </summary>
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteSchemaAehnlichCommand))]
+        private bool _aktuellerOrdnerIndiziert;
+
+        /// <summary>Bestimmt neu, ob der Ordner des aktuellen Bildes indiziert ist.</summary>
+        private void PruefeAktuellerOrdnerIndiziert()
+        {
+            string? pfad = SelectedBildchen?.BName;
+            string? ordner = string.IsNullOrEmpty(pfad) ? null : Path.GetDirectoryName(pfad);
+            AktuellerOrdnerIndiziert = !string.IsNullOrEmpty(ordner)
+                && File.Exists(Path.Combine(ordner, BildAnalyseService.CacheDateiName));
+        }
 
         // Schema-Slider bewegt → Kandidaten neu filtern (nur bei aktiven Schema-Treffern).
         partial void OnSchemaAehnlichkeitProzentChanged(double value)
@@ -4308,8 +4365,10 @@ namespace TestImage
         {
             return SelectedBildchen != null
                 && !string.IsNullOrEmpty(SelectedBildchen.BName)
+                && AktuellerOrdnerIndiziert
                 && !SerieSucheLaeuft;
         }
+
 
         /// <summary>
         /// „Schema-ähnlich": nimmt das gewählte Bild als Anfrage und findet über die
@@ -4478,6 +4537,7 @@ namespace TestImage
             SuchErgebnisse.Clear();
             _alleSuchTreffer.Clear();
             CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
+            ErgebnisseSindSchemaAehnlich = false;   // andere Suche → Schema-Slider ausblenden
             SucheStatus = $"Suche Serie für '{Path.GetFileName(bildPfad)}'…";
             SerieFortschritt = 0;
             SerieIndeterminate = true;   // Marquee: Suche läuft, Dauer unbekannt
@@ -4537,6 +4597,7 @@ namespace TestImage
             SuchErgebnisse.Clear();
             _alleSuchTreffer.Clear();
             CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
+            ErgebnisseSindSchemaAehnlich = false;   // andere Suche → Schema-Slider ausblenden
             SucheStatus = $"Erweiterte Seriensuche für '{Path.GetFileName(bildPfad)}'…";
             SerieFortschritt = 0;
             SerieIndeterminate = false;   // echter %-Balken mit Restzeit

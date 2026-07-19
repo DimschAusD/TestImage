@@ -61,7 +61,10 @@
                 ShadowDepth="2"
                 Color="Black" />
         </Border.Effect>
-        <StackPanel x:Name="STP_Inhalt" Margin="6" Orientation="Vertical">
+        <StackPanel
+            x:Name="STP_Inhalt"
+            Margin="6"
+            Orientation="Vertical">
 
             <!--  Griffleiste: Panel mit der Maus verschieben  -->
             <Border
@@ -85,7 +88,10 @@
                     Text="&#xE76F;" />
             </Border>
 
-            <StackPanel x:Name="STP_Werkzeugleiste" VerticalAlignment="Center" Orientation="Horizontal">
+            <StackPanel
+                x:Name="STP_Werkzeugleiste"
+                VerticalAlignment="Center"
+                Orientation="Horizontal">
 
                 <!--  Index-Button (umrandet)  -->
                 <Button
@@ -110,7 +116,10 @@
                             FontSize="8"
                             FontWeight="Bold"
                             Text="&#xE710;" />
-                        <TextBlock x:Name="TXT_IndexLabel" VerticalAlignment="Center" Text="Index" />
+                        <TextBlock
+                            x:Name="TXT_IndexLabel"
+                            VerticalAlignment="Center"
+                            Text="Index" />
                     </StackPanel>
                 </Button>
 
@@ -132,7 +141,10 @@
                         </Grid.ColumnDefinitions>
 
                         <!--  Eingabe + grauer Beispiel-/Autovervollständigungs-Vorschlag  -->
-                        <Grid x:Name="GRD_Eingabe" Grid.Column="0" Margin="10,0,4,0">
+                        <Grid
+                            x:Name="GRD_Eingabe"
+                            Grid.Column="0"
+                            Margin="10,0,4,0">
 
                             <!--  Ghost: getippter Teil transparent, Rest grau (Tab übernimmt)  -->
                             <TextBlock
@@ -428,10 +440,12 @@
                         Command="{Binding CommandExecuteSerieSucheCancelCommand}"
                         Content="&#xE711;"
                         Cursor="Hand"
+                        d:Visibility="Visible"
                         FontFamily="Segoe MDL2 Assets"
                         FontSize="10"
                         Style="{StaticResource OutlineButtonStyle}"
-                        ToolTip="Seriensuche abbrechen" />
+                        ToolTip="Seriensuche abbrechen"
+                        Visibility="{Binding CommandExecuteSerieSucheCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}}" />
                     <Button
                         x:Name="BTN_ErweiterteSerieSucheAbbrechen"
                         Padding="6,2"
@@ -439,10 +453,12 @@
                         Command="{Binding CommandExecuteErweiterteSerieSucheCancelCommand}"
                         Content="&#xE711;"
                         Cursor="Hand"
+                        d:Visibility="Visible"
                         FontFamily="Segoe MDL2 Assets"
                         FontSize="10"
                         Style="{StaticResource OutlineButtonStyle}"
-                        ToolTip="Erweiterte Seriensuche abbrechen" />
+                        ToolTip="Erweiterte Seriensuche abbrechen"
+                        Visibility="{Binding CommandExecuteErweiterteSerieSucheCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}}" />
                     <Button
                         x:Name="BTN_DublettenAbbrechen"
                         Padding="6,2"
@@ -450,10 +466,12 @@
                         Command="{Binding CommandExecuteDublettenCancelCommand}"
                         Content="&#xE711;"
                         Cursor="Hand"
+                        d:Visibility="Visible"
                         FontFamily="Segoe MDL2 Assets"
                         FontSize="10"
                         Style="{StaticResource OutlineButtonStyle}"
-                        ToolTip="Dublettensuche abbrechen" />
+                        ToolTip="Dublettensuche abbrechen"
+                        Visibility="{Binding CommandExecuteDublettenCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}}" />
                     <Button
                         x:Name="BTN_SchemaAehnlichAbbrechen"
                         Padding="6,2"
@@ -461,10 +479,12 @@
                         Command="{Binding CommandExecuteSchemaAehnlichCancelCommand}"
                         Content="&#xE711;"
                         Cursor="Hand"
+                        d:Visibility="Visible"
                         FontFamily="Segoe MDL2 Assets"
                         FontSize="10"
                         Style="{StaticResource OutlineButtonStyle}"
-                        ToolTip="Schema-Ähnlichkeitssuche abbrechen" />
+                        ToolTip="Schema-Ähnlichkeitssuche abbrechen"
+                        Visibility="{Binding CommandExecuteSchemaAehnlichCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}}" />
                 </StackPanel>
             </Grid>
 
@@ -497,6 +517,14 @@
                 BorderBrush="#FFECECEC"
                 BorderThickness="1"
                 CornerRadius="10">
+                <!--  Dezenter weicher Schatten, damit sich die Karte leicht heraushebt  -->
+                <Border.Effect>
+                    <DropShadowEffect
+                        BlurRadius="12"
+                        Opacity="0.16"
+                        ShadowDepth="1.5"
+                        Color="Black" />
+                </Border.Effect>
                 <StackPanel x:Name="STP_BegriffeKarte">
 
                     <!--  Kopf mit Tag-Symbol: bildet das Paar zum „Tag-Schwelle"-Regler oben  -->
@@ -666,6 +694,81 @@
                             Text="  Heatmap wird berechnet…" />
                     </StackPanel>
 
+                    <!--  Tag-Schwelle: filtert genau die erkannten Begriffe oben (per Slider)  -->
+                    <Grid x:Name="GRD_TagSchwelle" Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel
+                            x:Name="STP_TagSchwelleLabel"
+                            Grid.Column="0"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal"
+                            ToolTip="Schwelle für die erkannten Begriffe – nur Begriffe ab diesem Score anzeigen.">
+                            <TextBlock
+                                x:Name="TXT_TagSchwelleIcon"
+                                Margin="0,1,6,0"
+                                VerticalAlignment="Center"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="14"
+                                Foreground="#FF3B4A9C"
+                                Text="&#xE8EC;" />
+                            <TextBlock
+                                x:Name="TXT_TagSchwelleLabel"
+                                FontFamily="Segoe UI"
+                                FontSize="13"
+                                Foreground="#FF555555"
+                                Text="Tag-Schwelle" />
+                        </StackPanel>
+                        <Slider
+                            x:Name="SLD_TagSchwelle"
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            d:Value="0.23"
+                            LargeChange="0.05"
+                            Maximum="1"
+                            Minimum="0"
+                            SmallChange="0.01"
+                            Value="{Binding TagSchwelle, Mode=TwoWay}" />
+                        <Border
+                            x:Name="BRD_TagSchwelleWert"
+                            Grid.Column="2"
+                            Margin="10,0,0,0"
+                            Padding="8,2"
+                            VerticalAlignment="Center"
+                            Background="#FFEEF1FB"
+                            BorderBrush="#FFD3DAF5"
+                            BorderThickness="1"
+                            CornerRadius="9">
+                            <TextBlock
+                                x:Name="TXT_TagSchwelleWert"
+                                MinWidth="30"
+                                d:Text="23 %"
+                                FontFamily="Segoe UI"
+                                FontSize="12"
+                                FontWeight="SemiBold"
+                                Foreground="#FF3B4A9C"
+                                Text="{Binding TagSchwelle, StringFormat=P0}"
+                                TextAlignment="Center" />
+                        </Border>
+                        <Button
+                            x:Name="BTN_TagSchwelleStandard"
+                            Grid.Column="3"
+                            Margin="6,0,0,0"
+                            Padding="6,2"
+                            VerticalAlignment="Center"
+                            Command="{Binding CommandExecuteTagSchwelleZuruecksetzenCommand}"
+                            Content="&#xE845;"
+                            Cursor="Hand"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="11"
+                            Style="{StaticResource OutlineButtonStyle}"
+                            ToolTip="Tag-Schwelle auf Standard (0,23) zurücksetzen" />
+                    </Grid>
+
                 </StackPanel>
             </Border>
 
@@ -683,7 +786,10 @@
 
                     <!--  Kopfzeile: Anzahl + Ordner-Fortschritt  -->
                     <Grid x:Name="GRD_EinstellungenKopf">
-                        <StackPanel x:Name="STP_IndexAnzahl" VerticalAlignment="Center" Orientation="Horizontal">
+                        <StackPanel
+                            x:Name="STP_IndexAnzahl"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal">
                             <TextBlock
                                 x:Name="TXT_IndexAnzahlIcon"
                                 Margin="0,1,8,0"
@@ -742,56 +848,6 @@
                             SelectedItem="{Binding SelectedFilterWert, Mode=TwoWay}" />
                     </Grid>
 
-                    <!--  Tag-Schwelle  -->
-                    <Grid x:Name="GRD_TagSchwelle" Margin="0,14,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="100" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel
-                            x:Name="STP_TagSchwelleLabel"
-                            Grid.Column="0"
-                            VerticalAlignment="Center"
-                            Orientation="Horizontal"
-                            ToolTip="Schwelle für die erkannten Begriffe unten – nur Begriffe ab diesem Score anzeigen.">
-                            <TextBlock
-                                x:Name="TXT_TagSchwelleIcon"
-                                Margin="0,1,6,0"
-                                VerticalAlignment="Center"
-                                FontFamily="Segoe MDL2 Assets"
-                                FontSize="14"
-                                Foreground="#FF3B4A9C"
-                                Text="&#xE8EC;" />
-                            <TextBlock
-                                x:Name="TXT_TagSchwelleLabel"
-                                FontFamily="Segoe UI"
-                                FontSize="13"
-                                Foreground="#FF555555"
-                                Text="Tag-Schwelle" />
-                        </StackPanel>
-                        <Slider
-                            x:Name="SLD_TagSchwelle"
-                            Grid.Column="1"
-                            VerticalAlignment="Center"
-                            LargeChange="0.05"
-                            Maximum="1"
-                            Minimum="0"
-                            SmallChange="0.01"
-                            Value="{Binding TagSchwelle, Mode=TwoWay}" />
-                        <TextBlock
-                            x:Name="TXT_TagSchwelleWert"
-                            Grid.Column="2"
-                            Width="40"
-                            Margin="10,0,0,0"
-                            VerticalAlignment="Center"
-                            FontFamily="Segoe UI"
-                            FontSize="13"
-                            Foreground="#FF2B2B2B"
-                            Text="{Binding TagSchwelle, StringFormat=F2}"
-                            TextAlignment="Right" />
-                    </Grid>
-
                     <!--  Mindest-Ähnlichkeit der Suchtreffer  -->
                     <Grid x:Name="GRD_MindestAehnlichkeit" Margin="0,14,0,0">
                         <Grid.ColumnDefinitions>
@@ -827,58 +883,6 @@
                             FontSize="13"
                             Foreground="#FF2B2B2B"
                             Text="{Binding MindestAehnlichkeit, StringFormat={}{0:F0} %}"
-                            TextAlignment="Right" />
-                    </Grid>
-
-                    <!--  Schwelle der „Schema-ähnlich"-Suche (Bild→Bild, höherer Bereich).
-                          Erst bedienbar, nachdem „Schema-ähnlich" Treffer geliefert hat.  -->
-                    <Grid x:Name="GRD_SchemaAehnlichkeit" Margin="0,14,0,0" IsEnabled="{Binding ErgebnisseSindSchemaAehnlich}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="100" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel
-                            x:Name="STP_SchemaSchwelleLabel"
-                            Grid.Column="0"
-                            VerticalAlignment="Center"
-                            Orientation="Horizontal"
-                            ToolTip="Schwelle der Schema-ähnlich-Suche (Bild als Anfrage). Höher = strenger, weniger Treffer.">
-                            <TextBlock
-                                x:Name="TXT_SchemaSchwelleIcon"
-                                Margin="0,1,6,0"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                FontFamily="Segoe MDL2 Assets"
-                                FontSize="14"
-                                Foreground="#FF555555"
-                                Text="&#xE8B3;" />
-                            <TextBlock
-                                x:Name="TXT_SchemaSchwelleLabel"
-                                FontFamily="Segoe UI"
-                                FontSize="13"
-                                Foreground="#FF555555"
-                                Text="Schema-Ähnl." />
-                        </StackPanel>
-                        <Slider
-                            x:Name="SLD_SchemaAehnlichkeit"
-                            Grid.Column="1"
-                            VerticalAlignment="Center"
-                            LargeChange="5"
-                            Maximum="100"
-                            Minimum="50"
-                            SmallChange="1"
-                            Value="{Binding SchemaAehnlichkeitProzent, Mode=TwoWay}" />
-                        <TextBlock
-                            x:Name="TXT_SchemaSchwelleWert"
-                            Grid.Column="2"
-                            Width="40"
-                            Margin="10,0,0,0"
-                            VerticalAlignment="Center"
-                            FontFamily="Segoe UI"
-                            FontSize="13"
-                            Foreground="#FF2B2B2B"
-                            Text="{Binding SchemaAehnlichkeitProzent, StringFormat={}{0:F0} %}"
                             TextAlignment="Right" />
                     </Grid>
 
@@ -1025,15 +1029,126 @@
                         </Style>
                     </TextBlock.Style>
                 </TextBlock>
-                <ProgressBar
-                    x:Name="PGB_IndexFortschritt"
-                    Height="5"
+                <Grid
+                    x:Name="GRD_IndexFortschritt"
                     Margin="0,6,0,0"
-                    Maximum="100"
-                    Minimum="0"
-                    Visibility="{Binding IndexLaeuft, Converter={StaticResource CLconverterVisiblityBoolian}}"
-                    Value="{Binding IndexFortschritt}" />
+                    Visibility="{Binding IndexLaeuft, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ProgressBar
+                        x:Name="PGB_IndexFortschritt"
+                        Grid.Column="0"
+                        Height="5"
+                        VerticalAlignment="Center"
+                        Maximum="100"
+                        Minimum="0"
+                        Value="{Binding IndexFortschritt}" />
+                    <Button
+                        x:Name="BTN_IndexAbbrechen"
+                        Grid.Column="1"
+                        Margin="8,0,0,0"
+                        Padding="6,2"
+                        VerticalAlignment="Center"
+                        Command="{Binding CommandExecuteOrdnerIndexierenCancelCommand}"
+                        Content="&#xE711;"
+                        Cursor="Hand"
+                        FontFamily="Segoe MDL2 Assets"
+                        FontSize="10"
+                        Style="{StaticResource OutlineButtonStyle}"
+                        ToolTip="Indexierung abbrechen" />
+                </Grid>
             </StackPanel>
+
+            <!--
+                Schwelle der „Schema-ähnlich"-Suche (Bild→Bild) – eigener Rahmen, außerhalb
+                der Einstellungen. Erscheint, sobald „Schema-ähnlich" Treffer geliefert hat.
+            -->
+            <Border
+                x:Name="BRD_SchemaSchwelle"
+                Margin="2,10,2,0"
+                Padding="10"
+                Background="#FFFCFCFC"
+                BorderBrush="#FFE3E3E3"
+                BorderThickness="1"
+                CornerRadius="8"
+                d:Visibility="Visible"
+                Visibility="{Binding ErgebnisseSindSchemaAehnlich, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                <Grid x:Name="GRD_SchemaAehnlichkeit">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="100" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel
+                        x:Name="STP_SchemaSchwelleLabel"
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal"
+                        ToolTip="Schwelle der Schema-ähnlich-Suche (Bild als Anfrage). Höher = strenger, weniger Treffer.">
+                        <TextBlock
+                            x:Name="TXT_SchemaSchwelleIcon"
+                            Margin="0,1,6,0"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="14"
+                            Foreground="#FF555555"
+                            Text="&#xE8B3;" />
+                        <TextBlock
+                            x:Name="TXT_SchemaSchwelleLabel"
+                            FontFamily="Segoe UI"
+                            FontSize="13"
+                            Foreground="#FF555555"
+                            Text="Schema-Ähnl." />
+                    </StackPanel>
+                    <Slider
+                        x:Name="SLD_SchemaAehnlichkeit"
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        LargeChange="5"
+                        Maximum="100"
+                        Minimum="50"
+                        SmallChange="1"
+                        Value="{Binding SchemaAehnlichkeitProzent, Mode=TwoWay}" />
+                    <Border
+                        x:Name="BRD_SchemaSchwelleWert"
+                        Grid.Column="2"
+                        Margin="10,0,0,0"
+                        Padding="8,2"
+                        VerticalAlignment="Center"
+                        Background="#FFF0F0F0"
+                        BorderBrush="#FFDADADA"
+                        BorderThickness="1"
+                        CornerRadius="9">
+                        <TextBlock
+                            x:Name="TXT_SchemaSchwelleWert"
+                            MinWidth="34"
+                            d:Text="74 %"
+                            FontFamily="Segoe UI"
+                            FontSize="12"
+                            FontWeight="SemiBold"
+                            Foreground="#FF555555"
+                            Text="{Binding SchemaAehnlichkeitProzent, StringFormat={}{0:F0} %}"
+                            TextAlignment="Center" />
+                    </Border>
+                    <Button
+                        x:Name="BTN_SchemaSchwelleStandard"
+                        Grid.Column="3"
+                        Margin="6,0,0,0"
+                        Padding="6,2"
+                        VerticalAlignment="Center"
+                        Command="{Binding CommandExecuteSchemaSchwelleZuruecksetzenCommand}"
+                        Content="&#xE845;"
+                        Cursor="Hand"
+                        FontFamily="Segoe MDL2 Assets"
+                        FontSize="11"
+                        Style="{StaticResource OutlineButtonStyle}"
+                        ToolTip="Schema-Ähnlichkeit auf Standard (74 %) zurücksetzen" />
+                </Grid>
+            </Border>
 
             <!--  Suchergebnisse: klickbare Miniaturen  -->
             <StackPanel x:Name="STP_SuchErgebnisse" Margin="2,4,2,2">
