@@ -29,7 +29,7 @@ namespace TestImage
         // v2x.0.175.654 Beta 2026-04-24 (.NETCore v10.0)
         // v2x.0.172.205 Beta 2026-06-27 (.NETCore net10.0)
         [ObservableProperty]
-        public partial string Version { get; set; } = "v2x.0.172.205 Beta 2026-06-27 (.NETCore net10.0)";
+        public partial string Version { get; set; } = "v2x.0.129.332 Beta 2026-07-18 (.NETCore net10.0)";
 
 
         [ObservableProperty]
@@ -3126,6 +3126,7 @@ namespace TestImage
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteSerieSucheCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteErweiterteSerieSucheCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteDublettenCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteSchemaAehnlichCommand))]
         private bool _serieSucheLaeuft;
 
         /// <summary>Die erkannten Begriffe des aktuellen Bildes (z. B. „Blume 34 %").</summary>
@@ -3469,9 +3470,10 @@ namespace TestImage
         private double _mindestAehnlichkeit = 23;
 
         // Slider bewegt → gecachte Treffer neu filtern (ohne erneute Suche).
+        // Nicht wenn gerade Schema-ähnlich-Treffer aktiv sind – die filtert ihr eigener Slider.
         partial void OnMindestAehnlichkeitChanged(double value)
         {
-            if (_alleSuchTreffer.Count > 0)
+            if (!_ergebnisseSindSchemaAehnlich && _alleSuchTreffer.Count > 0)
                 RenderSuchErgebnisse();
         }
 
@@ -3896,6 +3898,7 @@ namespace TestImage
         /// <summary>Gecachte Treffer nach der Mindest-Ähnlichkeit filtern und anzeigen.</summary>
         private void RenderSuchErgebnisse()
         {
+            ErgebnisseSindSchemaAehnlich = false;   // Freitext-/Standardtreffer: Mindest-Slider filtert
             SuchErgebnisse.Clear();
             float min = (float)(MindestAehnlichkeit / 100.0);
 
@@ -3976,12 +3979,41 @@ namespace TestImage
                 return;
             }
 
+            // 1) Bild ist in der geladenen Liste → direkt auswählen.
             var item = OcAufgabens.FirstOrDefault(
                 b => string.Equals(b.BName, pfad, StringComparison.OrdinalIgnoreCase));
             if (item != null)
             {
                 SelectedBildchen = item;
                 await AnalysiereAktuellesBildAsync();
+                return;
+            }
+
+            // 2) Nicht in der Liste (z. B. nach „In Liste übernehmen" eingedampft oder der
+            //    ganze Ordner steckt nur im Index): Datei existiert noch → Ordner neu laden
+            //    und das Bild auswählen, damit jeder Treffer anklickbar bleibt.
+            if (File.Exists(pfad))
+            {
+                await OnFileDrop(new[] { pfad });
+                var wieder = OcAufgabens.FirstOrDefault(
+                    b => string.Equals(b.BName, pfad, StringComparison.OrdinalIgnoreCase));
+                if (wieder != null)
+                {
+                    SelectedBildchen = wieder;
+                    await AnalysiereAktuellesBildAsync();
+                }
+                return;
+            }
+
+            // 3) Datei ist nicht mehr am Ort (verschoben/gelöscht) → Hinweis + toten Treffer entfernen.
+            SucheStatus = $"Bild nicht mehr am Ort: {Path.GetFileName(pfad)} (verschoben/gelöscht).";
+            var veraltet = SuchErgebnisse.FirstOrDefault(
+                e => string.Equals(e.Path, pfad, StringComparison.OrdinalIgnoreCase));
+            if (veraltet != null)
+            {
+                SuchErgebnisse.Remove(veraltet);
+                _alleSuchTreffer.RemoveAll(t => string.Equals(t.Erg.Path, pfad, StringComparison.OrdinalIgnoreCase));
+                CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
             }
         }
 
@@ -4003,12 +4035,16 @@ namespace TestImage
         private static ImageSource? LadeThumb(string pfad)
         {
             if (string.IsNullOrEmpty(pfad))
+            {
                 return null;
+            }
 
             // Gemeinsamer Cache mit der Miniaturleiste (beide 120px): schon geladene
             // Thumbnails werden wiederverwendet, neue landen dort für die Leiste.
             if (CLconverterStringZuKleinemImage.TryHoleAusCache(pfad, out var vorhanden))
+            {
                 return vorhanden;
+            }
 
             try
             {
@@ -4080,6 +4116,7 @@ namespace TestImage
                 .OrderByDescending(kv => kv.Value.Count)
                 .ToList();
 
+            ErgebnisseSindSchemaAehnlich = false;   // Übersicht: nicht der Schema-Slider
             _alleSuchTreffer.Clear();
             SuchErgebnisse.Clear();
 
@@ -4192,6 +4229,7 @@ namespace TestImage
             System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<(string Path, float Score)>> gruppen,
             CancellationToken token)
         {
+            ErgebnisseSindSchemaAehnlich = false;   // Dublettentreffer: nicht der Schema-Slider
             SerieIndeterminate = false;   // ab jetzt echter Prozent-Fortschritt
             SerieFortschritt = 0;
 
@@ -4232,6 +4270,187 @@ namespace TestImage
         private void CommandExecuteQueryBild()
         {
             // TODO: Query-Bild wählen und ähnliche suchen
+        }
+
+        /// <summary>
+        /// Schwelle der „Schema-ähnlich"-Suche (Bild-als-Anfrage) in Prozent, per
+        /// Slider unter „Einstellungen" einstellbar. Bild→Bild-CLIP-Ähnlichkeit liegt
+        /// hoch: Varianten desselben Motivs ~60–95 %, Fremdbilder darunter. Am Test
+        /// eingemessen: echte Varianten bis ~75 %, darum Standard 74 % (knapp darunter,
+        /// damit das bei „75 %" gerundete Grenzbild sicher drin bleibt).
+        /// </summary>
+        [ObservableProperty]
+        private double _schemaAehnlichkeitProzent = 74;
+
+        /// <summary>
+        /// Untergrenze des geladenen Kandidatensatzes (= Slider-Minimum). Es werden
+        /// alle Bilder ab dieser Ähnlichkeit geladen, damit der Schema-Slider die
+        /// Anzeige live nach unten wie oben filtern kann, ohne neu zu suchen.
+        /// </summary>
+        private const float SchemaKandidatenFloor = 0.5f;
+
+        /// <summary>
+        /// True, solange die angezeigten Treffer aus der „Schema-ähnlich"-Suche
+        /// stammen – dann filtert der Schema-Slider live, sonst der Mindest-Ähnl.-Slider.
+        /// Steuert zugleich, ob der Schema-Slider bedienbar ist (erst nach der Suche).
+        /// </summary>
+        [ObservableProperty]
+        private bool _ergebnisseSindSchemaAehnlich;
+
+        // Schema-Slider bewegt → Kandidaten neu filtern (nur bei aktiven Schema-Treffern).
+        partial void OnSchemaAehnlichkeitProzentChanged(double value)
+        {
+            if (_ergebnisseSindSchemaAehnlich && _alleSuchTreffer.Count > 0)
+                RenderSchemaAehnlich();
+        }
+
+        private bool CanExecuteSchemaAehnlich()
+        {
+            return SelectedBildchen != null
+                && !string.IsNullOrEmpty(SelectedBildchen.BName)
+                && !SerieSucheLaeuft;
+        }
+
+        /// <summary>
+        /// „Schema-ähnlich": nimmt das gewählte Bild als Anfrage und findet über die
+        /// gespeicherten CLIP-Embeddings die visuell ähnlichsten Bilder im selben
+        /// Ordner (ähnlicher Bildaufbau / dasselbe Motiv). Löst die alte, grobe
+        /// Perceptual-Hash-Suche („ungefähr gleiches Bild") sauberer ab. Die Treffer
+        /// landen im Ergebnispanel; per „In Liste übernehmen" wird die Navigations-
+        /// liste auf genau diese Bilder eingedampft.
+        /// </summary>
+        [RelayCommand(CanExecute = nameof(CanExecuteSchemaAehnlich), IncludeCancelCommand = true)]
+        private async Task CommandExecuteSchemaAehnlich(CancellationToken token)
+        {
+            string? bildPfad = SelectedBildchen?.BName;
+            if (string.IsNullOrEmpty(bildPfad))
+            {
+                return;
+            }
+
+            string? ordner = Path.GetDirectoryName(bildPfad);
+            if (string.IsNullOrEmpty(ordner))
+            {
+                return;
+            }
+
+            string cache = Path.Combine(ordner, BildAnalyseService.CacheDateiName);
+            if (!File.Exists(cache))
+            {
+                SucheStatus = "Kein Index vorhanden – erst den Ordner indexieren.";
+                return;
+            }
+
+            SuchErgebnisse.Clear();
+            _alleSuchTreffer.Clear();
+            CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
+            SucheStatus = $"Suche Schema-ähnliche Bilder zu '{Path.GetFileName(bildPfad)}'…";
+            SerieFortschritt = 0;
+            SerieIndeterminate = true;   // Marquee: Ähnlichkeitsberechnung läuft
+            SerieSucheLaeuft = true;
+
+            try
+            {
+                await StelleClipBereitAsync();
+
+                // Bild als Anfrage: alle Bilder im Ordner nach Ähnlichkeit sortiert,
+                // ab dem Slider-Minimum (breiter Kandidatensatz). Das Bild selbst ist
+                // mit 100 % dabei. Angezeigt wird dann per Slider gefiltert.
+                var treffer = await _bildAnalyse.SucheNachSerieAsync(
+                    ordner, bildPfad, topN: 200, minSim: SchemaKandidatenFloor, token);
+                if (treffer.Count <= 1)
+                {
+                    ErgebnisseSindSchemaAehnlich = true;
+                    SucheStatus = "Keine schema-ähnlichen Bilder gefunden.";
+                    return;
+                }
+
+                _letzteFrage = "Schema-ähnlich: " + Path.GetFileName(bildPfad);
+                await LadeSchemaKandidatenAsync(treffer, token);
+
+                ErgebnisseSindSchemaAehnlich = true;
+                RenderSchemaAehnlich();   // nach aktuellem Slider-Wert anzeigen
+                CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
+            }
+            catch (OperationCanceledException)
+            {
+                SucheStatus = "Schema-Ähnlichkeitssuche abgebrochen.";
+            }
+            catch (Exception ex)
+            {
+                SucheStatus = "Fehler bei Schema-Ähnlichkeitssuche: " + ex.Message;
+            }
+            finally { SerieSucheLaeuft = false; }
+        }
+
+        /// <summary>
+        /// Lädt die Thumbnails des Kandidatensatzes einzeln in <see cref="_alleSuchTreffer"/>
+        /// (Fortschritt + Restzeit in der Statuszeile). Die Anzeige selbst übernimmt
+        /// danach <see cref="RenderSchemaAehnlich"/> nach dem Slider-Wert.
+        /// </summary>
+        private async Task LadeSchemaKandidatenAsync(
+            System.Collections.Generic.IReadOnlyList<(string Path, float Score)> treffer, CancellationToken token)
+        {
+            SerieIndeterminate = false;   // ab jetzt echter Prozent-Fortschritt
+            SerieFortschritt = 0;
+
+            int gesamt = treffer.Count;
+            var uhr = System.Diagnostics.Stopwatch.StartNew();
+
+            for (int i = 0; i < gesamt; i++)
+            {
+                token.ThrowIfCancellationRequested();
+                var t = treffer[i];
+                var thumb = await Task.Run(() => LadeThumb(t.Path), token);
+
+                var erg = new SuchErgebnis
+                {
+                    Path = t.Path,
+                    DateiName = Path.GetFileName(t.Path),
+                    ProzentText = $"{t.Score * 100f:F0} %",
+                    Thumb = thumb
+                };
+                _alleSuchTreffer.Add((erg, t.Score));
+
+                int fertig = i + 1;
+                SerieFortschritt = (int)(fertig * 100.0 / gesamt);
+                double proSek = fertig / Math.Max(uhr.Elapsed.TotalSeconds, 0.001);
+                int restSek = (int)Math.Ceiling((gesamt - fertig) / Math.Max(proSek, 0.001));
+                SucheStatus = restSek > 0
+                    ? $"Lade Vorschaubilder… {fertig}/{gesamt} – noch ~{restSek} s"
+                    : $"Lade Vorschaubilder… {fertig}/{gesamt}";
+            }
+        }
+
+        /// <summary>
+        /// Zeigt aus dem geladenen Kandidatensatz (<see cref="_alleSuchTreffer"/>, absteigend
+        /// sortiert) nur die Bilder ab der Schema-Slider-Schwelle. Wird beim Suchen und bei
+        /// jeder Slider-Bewegung aufgerufen – ohne erneute Suche.
+        /// </summary>
+        private void RenderSchemaAehnlich()
+        {
+            SuchErgebnisse.Clear();
+            float min = (float)(SchemaAehnlichkeitProzent / 100.0);
+
+            int gezeigt = 0;
+            float niedrigster = 0f;
+            foreach (var (erg, score) in _alleSuchTreffer)
+            {
+                if (score < min)
+                {
+                    continue;
+                }
+
+                SuchErgebnisse.Add(erg);
+                niedrigster = score;   // Liste ist absteigend → letzter Treffer = niedrigster
+                gezeigt++;
+            }
+
+            SucheStatus = gezeigt <= 1
+                ? $"Keine schema-ähnlichen Bilder ≥ {SchemaAehnlichkeitProzent:F0} %."
+                : $"{gezeigt} schema-ähnliche Bilder (≥ {SchemaAehnlichkeitProzent:F0} %, niedrigster {niedrigster * 100f:F0} %).";
+
+            CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
         }
 
         private bool CanExecuteSerieSuche()
@@ -4378,6 +4597,7 @@ namespace TestImage
         private async Task ZeigeSerieTrefferAsync(
             System.Collections.Generic.IReadOnlyList<(string Path, float Score)> treffer, CancellationToken token)
         {
+            ErgebnisseSindSchemaAehnlich = false;   // Serientreffer: nicht der Schema-Slider
             SerieIndeterminate = false;   // ab jetzt echter Prozent-Fortschritt
             SerieFortschritt = 0;
 
@@ -4437,6 +4657,8 @@ namespace TestImage
         [RelayCommand(CanExecute = nameof(CanExecuteCommandAlleBilderNeuEinlesen))]
         private async Task CommandExecuteAlleBilderNeuEinlesen()
         {
+            // Pfad des zuletzt gewählten Bildes merken – nach dem Neu-Einlesen wieder auswählen.
+            string? zuvorGewaehlt = SelectedBildchen?.BName;
 
             try
             {
@@ -4452,6 +4674,18 @@ namespace TestImage
                 PrüfungLäuft = false;
             }
 
+            // Zuletzt gewähltes Bild wieder auswählen. OnFileDrop legt neue MeinBildchen-
+            // Instanzen an, daher über den Pfad (BName) suchen statt über die Referenz.
+            // Das Setzen von SelectedBildchen aktualisiert Anzeige und zentriert die Miniatur.
+            if (!string.IsNullOrEmpty(zuvorGewaehlt))
+            {
+                var wieder = OcAufgabens.FirstOrDefault(
+                    b => string.Equals(b.BName, zuvorGewaehlt, StringComparison.OrdinalIgnoreCase));
+                if (wieder != null)
+                {
+                    SelectedBildchen = wieder;
+                }
+            }
         }
 
         [ObservableProperty]

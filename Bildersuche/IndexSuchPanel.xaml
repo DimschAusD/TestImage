@@ -6,7 +6,8 @@
     xmlns:local="clr-namespace:TestImage"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:sys="clr-namespace:System;assembly=mscorlib"
-    mc:Ignorable="d" Width="699">
+    Width="855"
+    mc:Ignorable="d">
     <UserControl.Resources>
         <local:CLconverterVisiblityBoolian x:Key="CLconverterVisiblityBoolian" />
         <Style x:Key="OutlineButtonStyle" TargetType="Button">
@@ -48,6 +49,7 @@
     </UserControl.Resources>
 
     <Border
+        x:Name="BRD_PanelRahmen"
         Background="#FFFFFFFF"
         BorderBrush="#FFE3E3E3"
         BorderThickness="1"
@@ -59,7 +61,7 @@
                 ShadowDepth="2"
                 Color="Black" />
         </Border.Effect>
-        <StackPanel Margin="6" Orientation="Vertical">
+        <StackPanel x:Name="STP_Inhalt" Margin="6" Orientation="Vertical">
 
             <!--  Griffleiste: Panel mit der Maus verschieben  -->
             <Border
@@ -74,6 +76,7 @@
                 MouseMove="Griffleiste_MouseMove"
                 ToolTip="Zum Verschieben ziehen">
                 <TextBlock
+                    x:Name="TXT_GriffIcon"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     FontFamily="Segoe MDL2 Assets"
@@ -82,7 +85,7 @@
                     Text="&#xE76F;" />
             </Border>
 
-            <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+            <StackPanel x:Name="STP_Werkzeugleiste" VerticalAlignment="Center" Orientation="Horizontal">
 
                 <!--  Index-Button (umrandet)  -->
                 <Button
@@ -90,14 +93,16 @@
                     Command="{Binding CommandExecuteOrdnerIndexierenCommand}"
                     Style="{StaticResource OutlineButtonStyle}"
                     ToolTip="Ordner des gewählten Bildes indexieren (CLIP-Embeddings für Suche erstellen)">
-                    <StackPanel Orientation="Horizontal">
+                    <StackPanel x:Name="STP_IndexInhalt" Orientation="Horizontal">
                         <TextBlock
+                            x:Name="TXT_IndexIcon"
                             Margin="0,1,1,0"
                             VerticalAlignment="Center"
                             FontFamily="Segoe MDL2 Assets"
                             FontSize="13"
                             Text="&#xE8B7;" />
                         <TextBlock
+                            x:Name="TXT_IndexPlusIcon"
                             Margin="0,0,7,0"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center"
@@ -105,12 +110,13 @@
                             FontSize="8"
                             FontWeight="Bold"
                             Text="&#xE710;" />
-                        <TextBlock VerticalAlignment="Center" Text="Index" />
+                        <TextBlock x:Name="TXT_IndexLabel" VerticalAlignment="Center" Text="Index" />
                     </StackPanel>
                 </Button>
 
                 <!--  Suchfeld: Eingabe + grauer Vorschlag links, Such-Button rechts  -->
                 <Border
+                    x:Name="BRD_Suchfeld"
                     Width="300"
                     Height="34"
                     Margin="10,0,10,0"
@@ -119,17 +125,18 @@
                     BorderBrush="#FFDADADA"
                     BorderThickness="1"
                     CornerRadius="8">
-                    <Grid>
+                    <Grid x:Name="GRD_Suchfeld">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
                         <!--  Eingabe + grauer Beispiel-/Autovervollständigungs-Vorschlag  -->
-                        <Grid Grid.Column="0" Margin="10,0,4,0">
+                        <Grid x:Name="GRD_Eingabe" Grid.Column="0" Margin="10,0,4,0">
 
                             <!--  Ghost: getippter Teil transparent, Rest grau (Tab übernimmt)  -->
                             <TextBlock
+                                x:Name="TXT_SucheGhost"
                                 Margin="2,0,0,0"
                                 VerticalAlignment="Center"
                                 FontFamily="Segoe UI"
@@ -155,6 +162,7 @@
                             </TextBox>
 
                             <TextBlock
+                                x:Name="TXT_SuchePlatzhalter"
                                 Margin="2,0,0,0"
                                 VerticalAlignment="Center"
                                 FontFamily="Segoe UI"
@@ -177,12 +185,14 @@
 
                         <!--  Vorschlagsliste (Google-Style Autocomplete)  -->
                         <Popup
+                            x:Name="POP_Vorschlaege"
                             AllowsTransparency="True"
                             IsOpen="{Binding VorschlaegeOffen}"
                             Placement="Bottom"
                             PlacementTarget="{Binding ElementName=TXT_Suche}"
                             StaysOpen="False">
                             <Border
+                                x:Name="BRD_Vorschlaege"
                                 MinWidth="200"
                                 Background="White"
                                 BorderBrush="#FFD0D0D0"
@@ -195,6 +205,7 @@
                                         ShadowDepth="2" />
                                 </Border.Effect>
                                 <ListBox
+                                    x:Name="LBX_Vorschlaege"
                                     MaxHeight="260"
                                     Background="Transparent"
                                     BorderThickness="0"
@@ -268,13 +279,15 @@
                     Command="{Binding CommandExecuteFilterPopoverToggleCommand}"
                     Style="{StaticResource OutlineButtonStyle}"
                     ToolTip="Filter, Tags und Werkzeuge einblenden">
-                    <StackPanel Orientation="Horizontal">
+                    <StackPanel x:Name="STP_FilterToggleInhalt" Orientation="Horizontal">
                         <TextBlock
+                            x:Name="TXT_FilterIcon"
                             Margin="0,1,6,0"
                             FontFamily="Segoe MDL2 Assets"
                             FontSize="14"
                             Text="&#xE9E9;" />
                         <TextBlock
+                            x:Name="TXT_FilterChevron"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center"
                             FontFamily="Segoe MDL2 Assets"
@@ -332,13 +345,14 @@
                     Command="{Binding CommandExecuteSerieSucheCommand}"
                     Style="{StaticResource OutlineButtonStyle}"
                     ToolTip="Visuell ähnliche Bilder zum ausgewählten Bild finden (Serie)">
-                    <StackPanel Orientation="Horizontal">
+                    <StackPanel x:Name="STP_SerieInhalt" Orientation="Horizontal">
                         <TextBlock
+                            x:Name="TXT_SerieIcon"
                             Margin="0,1,7,0"
                             FontFamily="Segoe MDL2 Assets"
                             FontSize="13"
                             Text="&#xE8C8;" />
-                        <TextBlock Text="Serie" />
+                        <TextBlock x:Name="TXT_SerieLabel" Text="Serie" />
                     </StackPanel>
                 </Button>
                 <Button
@@ -347,13 +361,31 @@
                     Command="{Binding CommandExecuteErweiterteSerieSucheCommand}"
                     Style="{StaticResource OutlineButtonStyle}"
                     ToolTip="Kettensuche: folgt transitiv ähnlichen Bildern (A→B→C auch wenn A≠C)">
-                    <StackPanel Orientation="Horizontal">
+                    <StackPanel x:Name="STP_ErweiterteSerieInhalt" Orientation="Horizontal">
                         <TextBlock
+                            x:Name="TXT_ErweiterteSerieIcon"
                             Margin="0,1,7,0"
                             FontFamily="Segoe MDL2 Assets"
                             FontSize="13"
                             Text="&#xE71B;" />
-                        <TextBlock Text="Erw. Serie" />
+                        <TextBlock x:Name="TXT_ErweiterteSerieLabel" Text="Erw. Serie" />
+                    </StackPanel>
+                </Button>
+                <Button
+                    x:Name="BTN_SchemaAehnlich"
+                    Margin="4,0,0,0"
+                    Command="{Binding CommandExecuteSchemaAehnlichCommand}"
+                    Style="{StaticResource OutlineButtonStyle}"
+                    ToolTip="Schema-ähnliche Bilder zum gewählten Bild finden (Schwelle unter Einstellungen)">
+                    <StackPanel x:Name="STP_SchemaInhalt" Orientation="Horizontal">
+                        <TextBlock
+                            x:Name="TXT_SchemaIcon"
+                            Margin="0,1,7,0"
+                            VerticalAlignment="Center"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="14"
+                            Text="&#xE8B3;" />
+                        <TextBlock x:Name="TXT_SchemaLabel" Text="Schema-ähnlich" />
                     </StackPanel>
                 </Button>
 
@@ -384,45 +416,61 @@
                     Maximum="100"
                     Minimum="0"
                     Value="{Binding SerieFortschritt}" />
-                <StackPanel Grid.Column="1" Margin="8,0,0,0" Orientation="Horizontal">
+                <StackPanel
+                    x:Name="STP_AbbrechenKnoepfe"
+                    Grid.Column="1"
+                    Margin="8,0,0,0"
+                    Orientation="Horizontal">
                     <Button
                         x:Name="BTN_SerieSucheAbbrechen"
                         Padding="6,2"
                         VerticalAlignment="Center"
                         Command="{Binding CommandExecuteSerieSucheCancelCommand}"
+                        Content="&#xE711;"
                         Cursor="Hand"
                         FontFamily="Segoe MDL2 Assets"
                         FontSize="10"
                         Style="{StaticResource OutlineButtonStyle}"
-                        Content="&#xE711;"
                         ToolTip="Seriensuche abbrechen" />
                     <Button
                         x:Name="BTN_ErweiterteSerieSucheAbbrechen"
                         Padding="6,2"
                         VerticalAlignment="Center"
                         Command="{Binding CommandExecuteErweiterteSerieSucheCancelCommand}"
+                        Content="&#xE711;"
                         Cursor="Hand"
                         FontFamily="Segoe MDL2 Assets"
                         FontSize="10"
                         Style="{StaticResource OutlineButtonStyle}"
-                        Content="&#xE711;"
                         ToolTip="Erweiterte Seriensuche abbrechen" />
                     <Button
                         x:Name="BTN_DublettenAbbrechen"
                         Padding="6,2"
                         VerticalAlignment="Center"
                         Command="{Binding CommandExecuteDublettenCancelCommand}"
+                        Content="&#xE711;"
                         Cursor="Hand"
                         FontFamily="Segoe MDL2 Assets"
                         FontSize="10"
                         Style="{StaticResource OutlineButtonStyle}"
-                        Content="&#xE711;"
                         ToolTip="Dublettensuche abbrechen" />
+                    <Button
+                        x:Name="BTN_SchemaAehnlichAbbrechen"
+                        Padding="6,2"
+                        VerticalAlignment="Center"
+                        Command="{Binding CommandExecuteSchemaAehnlichCancelCommand}"
+                        Content="&#xE711;"
+                        Cursor="Hand"
+                        FontFamily="Segoe MDL2 Assets"
+                        FontSize="10"
+                        Style="{StaticResource OutlineButtonStyle}"
+                        ToolTip="Schema-Ähnlichkeitssuche abbrechen" />
                 </StackPanel>
             </Grid>
 
             <!--  Such-Status (z. B. „Keine Treffer…") – nah an der Serien-Suche  -->
             <TextBlock
+                x:Name="TXT_SucheStatus"
                 Margin="2,8,2,0"
                 FontFamily="Segoe UI"
                 FontSize="12"
@@ -440,8 +488,190 @@
                 </TextBlock.Style>
             </TextBlock>
 
+            <!--  Ergebnis: erkannte Begriffe des gewählten Bildes – eigene Karte (wie die Einstellungen)  -->
+            <Border
+                x:Name="BRD_BegriffeKarte"
+                Margin="2,10,2,2"
+                Padding="14"
+                Background="#FFFCFCFC"
+                BorderBrush="#FFECECEC"
+                BorderThickness="1"
+                CornerRadius="10">
+                <StackPanel x:Name="STP_BegriffeKarte">
+
+                    <!--  Kopf mit Tag-Symbol: bildet das Paar zum „Tag-Schwelle"-Regler oben  -->
+                    <StackPanel
+                        x:Name="STP_BegriffeKopf"
+                        Margin="0,0,0,6"
+                        Orientation="Horizontal">
+                        <TextBlock
+                            x:Name="TXT_BegriffeKopfIcon"
+                            Margin="0,1,6,0"
+                            VerticalAlignment="Center"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="14"
+                            Foreground="#FF3B4A9C"
+                            Text="&#xE8EC;" />
+                        <TextBlock
+                            x:Name="TXT_BegriffeKopfLabel"
+                            FontFamily="Segoe UI"
+                            FontSize="13"
+                            FontWeight="SemiBold"
+                            Foreground="#FF3B4A9C"
+                            Text="Erkannte Begriffe" />
+                    </StackPanel>
+
+                    <DockPanel x:Name="DKP_BegriffeBereich" Margin="0,0,0,0">
+                        <!--  Kleine Vorschau + Heatmap-Overlay  -->
+                        <Grid
+                            x:Name="GRD_Vorschau"
+                            Width="64"
+                            Height="64"
+                            Margin="0,0,10,0"
+                            d:Visibility="Visible"
+                            DockPanel.Dock="Left"
+                            Visibility="{Binding AnalyseBildVorschau, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                            <Border
+                                x:Name="BRD_VorschauBild"
+                                d:Background="#FFE0E6F5"
+                                BorderBrush="#FFD3DAF5"
+                                BorderThickness="1"
+                                CornerRadius="6">
+                                <Border.Background>
+                                    <ImageBrush ImageSource="{Binding AnalyseBildVorschau}" Stretch="Uniform" />
+                                </Border.Background>
+                            </Border>
+                            <Border
+                                x:Name="BRD_HeatmapOverlay"
+                                ClipToBounds="True"
+                                CornerRadius="6">
+                                <Image
+                                    x:Name="IMG_Heatmap"
+                                    Opacity="0.7"
+                                    Source="{Binding HeatmapOverlay}"
+                                    Stretch="Uniform" />
+                            </Border>
+                        </Grid>
+
+                        <ItemsControl
+                            x:Name="IC_ErkannteBegriffe"
+                            d:DataContext="{d:DesignInstance}"
+                            ItemsSource="{Binding ErkannteBegriffe}">
+                            <d:ItemsControl.Items>
+                                <sys:String>Vogel 27 %</sys:String>
+                                <sys:String>Sonnenblume 26 %</sys:String>
+                                <sys:String>Gelb 26 %</sys:String>
+                                <sys:String>Papagei 25 %</sys:String>
+                                <sys:String>Baum 25 %</sys:String>
+                                <sys:String>Nahaufnahme 25 %</sys:String>
+                                <sys:String>Zitrone 25 %</sys:String>
+                                <sys:String>Obst 25 %</sys:String>
+                            </d:ItemsControl.Items>
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border
+                                        Margin="0,0,6,6"
+                                        Padding="9,4"
+                                        Background="#FFEEF1FB"
+                                        BorderBrush="#FFD3DAF5"
+                                        BorderThickness="1"
+                                        CornerRadius="10"
+                                        Cursor="Hand"
+                                        MouseLeftButtonDown="BegriffChip_MouseLeftButtonDown">
+                                        <Border.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Click="BegriffChip_AlleAnzeigen" Header="Alle Bilder mit diesem Begriff" />
+                                            </ContextMenu>
+                                        </Border.ContextMenu>
+                                        <TextBlock
+                                            FontFamily="Segoe UI"
+                                            FontSize="12"
+                                            Foreground="#FF3B4A9C"
+                                            Text="{Binding}" />
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </DockPanel>
+
+                    <!--  Anzahl erkannter Begriffe – unter den Chips  -->
+                    <TextBlock
+                        x:Name="TXT_AnalyseStatus"
+                        Margin="0,8,0,0"
+                        FontFamily="Segoe UI"
+                        FontSize="12"
+                        Foreground="#FF888888"
+                        Text="{Binding AnalyseStatus}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding AnalyseStatus}" Value="">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <!--  Heatmap-Lade-Hinweis  -->
+                    <StackPanel
+                        x:Name="STP_HeatmapHinweis"
+                        Margin="0,4,0,0"
+                        Orientation="Horizontal"
+                        Visibility="{Binding HeatmapLaeuft, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                        <TextBlock
+                            x:Name="TXT_HeatmapSpinner"
+                            VerticalAlignment="Center"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="14"
+                            Foreground="#FF5C6BC0"
+                            RenderTransformOrigin="0.5,0.5"
+                            Text="&#xE72C;">
+                            <TextBlock.RenderTransform>
+                                <RotateTransform />
+                            </TextBlock.RenderTransform>
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HeatmapLaeuft}" Value="True">
+                                            <DataTrigger.EnterActions>
+                                                <BeginStoryboard>
+                                                    <Storyboard>
+                                                        <DoubleAnimation
+                                                            RepeatBehavior="Forever"
+                                                            Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                            From="0"
+                                                            To="360"
+                                                            Duration="0:0:1" />
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </DataTrigger.EnterActions>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock
+                            x:Name="TXT_HeatmapHinweisText"
+                            VerticalAlignment="Center"
+                            FontFamily="Segoe UI"
+                            FontSize="11"
+                            Foreground="#FF888888"
+                            Text="  Heatmap wird berechnet…" />
+                    </StackPanel>
+
+                </StackPanel>
+            </Border>
+
             <!--  Einstellungen: aufklappbar über den Filter-Button  -->
             <Border
+                x:Name="BRD_Einstellungen"
                 Margin="0,10,0,0"
                 Padding="14"
                 Background="#FFFCFCFC"
@@ -449,24 +679,27 @@
                 BorderThickness="1"
                 CornerRadius="10"
                 Visibility="{Binding IsIndexPopoverOffen, Converter={StaticResource CLconverterVisiblityBoolian}}">
-                <StackPanel>
+                <StackPanel x:Name="STP_Einstellungen">
 
                     <!--  Kopfzeile: Anzahl + Ordner-Fortschritt  -->
-                    <Grid>
-                        <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                    <Grid x:Name="GRD_EinstellungenKopf">
+                        <StackPanel x:Name="STP_IndexAnzahl" VerticalAlignment="Center" Orientation="Horizontal">
                             <TextBlock
+                                x:Name="TXT_IndexAnzahlIcon"
                                 Margin="0,1,8,0"
                                 FontFamily="Segoe MDL2 Assets"
                                 FontSize="14"
                                 Foreground="#FF6B6B6B"
                                 Text="&#xE8FD;" />
                             <TextBlock
+                                x:Name="TXT_IndexAnzahl"
                                 FontFamily="Segoe UI"
                                 FontSize="14"
                                 Foreground="#FF2B2B2B"
                                 Text="{Binding IndexAnzahlText}" />
                         </StackPanel>
                         <TextBlock
+                            x:Name="TXT_IndexOrdner"
                             HorizontalAlignment="Right"
                             VerticalAlignment="Center"
                             FontFamily="Segoe UI"
@@ -476,14 +709,15 @@
                     </Grid>
 
                     <!--  Filter nach: Kategorie + Wert  -->
-                    <Grid Margin="0,16,0,0">
+                    <Grid x:Name="GRD_Filter" Margin="0,16,0,0">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="90" />
+                            <ColumnDefinition Width="100" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="12" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <TextBlock
+                            x:Name="TXT_FilterLabel"
                             Grid.Column="0"
                             VerticalAlignment="Center"
                             FontFamily="Segoe UI"
@@ -509,19 +743,33 @@
                     </Grid>
 
                     <!--  Tag-Schwelle  -->
-                    <Grid Margin="0,14,0,0">
+                    <Grid x:Name="GRD_TagSchwelle" Margin="0,14,0,0">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="90" />
+                            <ColumnDefinition Width="100" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock
+                        <StackPanel
+                            x:Name="STP_TagSchwelleLabel"
                             Grid.Column="0"
                             VerticalAlignment="Center"
-                            FontFamily="Segoe UI"
-                            FontSize="13"
-                            Foreground="#FF555555"
-                            Text="Tag-Schwelle" />
+                            Orientation="Horizontal"
+                            ToolTip="Schwelle für die erkannten Begriffe unten – nur Begriffe ab diesem Score anzeigen.">
+                            <TextBlock
+                                x:Name="TXT_TagSchwelleIcon"
+                                Margin="0,1,6,0"
+                                VerticalAlignment="Center"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="14"
+                                Foreground="#FF3B4A9C"
+                                Text="&#xE8EC;" />
+                            <TextBlock
+                                x:Name="TXT_TagSchwelleLabel"
+                                FontFamily="Segoe UI"
+                                FontSize="13"
+                                Foreground="#FF555555"
+                                Text="Tag-Schwelle" />
+                        </StackPanel>
                         <Slider
                             x:Name="SLD_TagSchwelle"
                             Grid.Column="1"
@@ -532,6 +780,7 @@
                             SmallChange="0.01"
                             Value="{Binding TagSchwelle, Mode=TwoWay}" />
                         <TextBlock
+                            x:Name="TXT_TagSchwelleWert"
                             Grid.Column="2"
                             Width="40"
                             Margin="10,0,0,0"
@@ -544,13 +793,14 @@
                     </Grid>
 
                     <!--  Mindest-Ähnlichkeit der Suchtreffer  -->
-                    <Grid Margin="0,14,0,0">
+                    <Grid x:Name="GRD_MindestAehnlichkeit" Margin="0,14,0,0">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="90" />
+                            <ColumnDefinition Width="100" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock
+                            x:Name="TXT_MindestLabel"
                             Grid.Column="0"
                             VerticalAlignment="Center"
                             FontFamily="Segoe UI"
@@ -568,6 +818,7 @@
                             SmallChange="1"
                             Value="{Binding MindestAehnlichkeit, Mode=TwoWay}" />
                         <TextBlock
+                            x:Name="TXT_MindestWert"
                             Grid.Column="2"
                             Width="40"
                             Margin="10,0,0,0"
@@ -576,6 +827,58 @@
                             FontSize="13"
                             Foreground="#FF2B2B2B"
                             Text="{Binding MindestAehnlichkeit, StringFormat={}{0:F0} %}"
+                            TextAlignment="Right" />
+                    </Grid>
+
+                    <!--  Schwelle der „Schema-ähnlich"-Suche (Bild→Bild, höherer Bereich).
+                          Erst bedienbar, nachdem „Schema-ähnlich" Treffer geliefert hat.  -->
+                    <Grid x:Name="GRD_SchemaAehnlichkeit" Margin="0,14,0,0" IsEnabled="{Binding ErgebnisseSindSchemaAehnlich}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel
+                            x:Name="STP_SchemaSchwelleLabel"
+                            Grid.Column="0"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal"
+                            ToolTip="Schwelle der Schema-ähnlich-Suche (Bild als Anfrage). Höher = strenger, weniger Treffer.">
+                            <TextBlock
+                                x:Name="TXT_SchemaSchwelleIcon"
+                                Margin="0,1,6,0"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="14"
+                                Foreground="#FF555555"
+                                Text="&#xE8B3;" />
+                            <TextBlock
+                                x:Name="TXT_SchemaSchwelleLabel"
+                                FontFamily="Segoe UI"
+                                FontSize="13"
+                                Foreground="#FF555555"
+                                Text="Schema-Ähnl." />
+                        </StackPanel>
+                        <Slider
+                            x:Name="SLD_SchemaAehnlichkeit"
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            LargeChange="5"
+                            Maximum="100"
+                            Minimum="50"
+                            SmallChange="1"
+                            Value="{Binding SchemaAehnlichkeitProzent, Mode=TwoWay}" />
+                        <TextBlock
+                            x:Name="TXT_SchemaSchwelleWert"
+                            Grid.Column="2"
+                            Width="40"
+                            Margin="10,0,0,0"
+                            VerticalAlignment="Center"
+                            FontFamily="Segoe UI"
+                            FontSize="13"
+                            Foreground="#FF2B2B2B"
+                            Text="{Binding SchemaAehnlichkeitProzent, StringFormat={}{0:F0} %}"
                             TextAlignment="Right" />
                     </Grid>
 
@@ -592,25 +895,27 @@
 
                     <!--  Trennlinie  -->
                     <Border
+                        x:Name="BRD_Trennlinie"
                         Height="1"
                         Margin="0,16,0,14"
                         Background="#FFEAEAEA" />
 
                     <!--  Werkzeug-Buttons  -->
-                    <StackPanel Orientation="Horizontal">
+                    <StackPanel x:Name="STP_WerkzeugButtons" Orientation="Horizontal">
                         <Button
                             x:Name="BTN_Uebersicht"
                             Margin="0,0,10,0"
                             Command="{Binding CommandExecuteUebersichtCommand}"
                             Style="{StaticResource OutlineButtonStyle}"
                             ToolTip="Tag-Übersicht anzeigen">
-                            <StackPanel Orientation="Horizontal">
+                            <StackPanel x:Name="STP_UebersichtInhalt" Orientation="Horizontal">
                                 <TextBlock
+                                    x:Name="TXT_UebersichtIcon"
                                     Margin="0,1,7,0"
                                     FontFamily="Segoe MDL2 Assets"
                                     FontSize="13"
                                     Text="&#xE9D9;" />
-                                <TextBlock Text="Übersicht" />
+                                <TextBlock x:Name="TXT_UebersichtLabel" Text="Übersicht" />
                             </StackPanel>
                         </Button>
                         <Button
@@ -619,13 +924,14 @@
                             Command="{Binding CommandExecuteDublettenCommand}"
                             Style="{StaticResource OutlineButtonStyle}"
                             ToolTip="Dubletten finden (fast identische Bilder im Ordner)">
-                            <StackPanel Orientation="Horizontal">
+                            <StackPanel x:Name="STP_DublettenInhalt" Orientation="Horizontal">
                                 <TextBlock
+                                    x:Name="TXT_DublettenIcon"
                                     Margin="0,1,7,0"
                                     FontFamily="Segoe MDL2 Assets"
                                     FontSize="13"
                                     Text="&#xE8C8;" />
-                                <TextBlock Text="Dubletten" />
+                                <TextBlock x:Name="TXT_DublettenLabel" Text="Dubletten" />
                             </StackPanel>
                         </Button>
                         <Button
@@ -634,13 +940,14 @@
                             IsEnabled="False"
                             Style="{StaticResource OutlineButtonStyle}"
                             ToolTip="Query-Bild wählen und Ähnliche suchen">
-                            <StackPanel Orientation="Horizontal">
+                            <StackPanel x:Name="STP_QueryBildInhalt" Orientation="Horizontal">
                                 <TextBlock
+                                    x:Name="TXT_QueryBildIcon"
                                     Margin="0,1,7,0"
                                     FontFamily="Segoe MDL2 Assets"
                                     FontSize="13"
                                     Text="&#xE8B9;" />
-                                <TextBlock Text="Query-Bild" />
+                                <TextBlock x:Name="TXT_QueryBildLabel" Text="Query-Bild" />
                             </StackPanel>
                         </Button>
                     </StackPanel>
@@ -650,10 +957,12 @@
 
             <!--  CLIP lädt: Warte-Symbol (dreht sich)  -->
             <StackPanel
+                x:Name="STP_ClipLaedt"
                 Margin="2,10,2,0"
                 Orientation="Horizontal"
                 Visibility="{Binding ClipLaedt, Converter={StaticResource CLconverterVisiblityBoolian}}">
                 <TextBlock
+                    x:Name="TXT_ClipSpinner"
                     VerticalAlignment="Center"
                     FontFamily="Segoe MDL2 Assets"
                     FontSize="16"
@@ -688,6 +997,7 @@
                     </TextBlock.Style>
                 </TextBlock>
                 <TextBlock
+                    x:Name="TXT_ClipLaedtText"
                     Margin="10,0,0,0"
                     VerticalAlignment="Center"
                     FontFamily="Segoe UI"
@@ -697,8 +1007,9 @@
             </StackPanel>
 
             <!--  Indexier-Fortschritt  -->
-            <StackPanel Margin="2,10,2,0">
+            <StackPanel x:Name="STP_IndexFortschritt" Margin="2,10,2,0">
                 <TextBlock
+                    x:Name="TXT_IndexFortschrittText"
                     FontFamily="Segoe UI"
                     FontSize="12"
                     Foreground="#FF555555"
@@ -724,156 +1035,10 @@
                     Value="{Binding IndexFortschritt}" />
             </StackPanel>
 
-            <!--  Ergebnis: erkannte Begriffe des gewählten Bildes  -->
-            <StackPanel Margin="2,10,2,2">
-                <DockPanel x:Name="DKP_BegriffeBereich" Margin="0,0,0,0">
-                    <!--  Kleine Vorschau + Heatmap-Overlay  -->
-                    <Grid
-                        x:Name="GRD_Vorschau"
-                        Width="64"
-                        Height="64"
-                        Margin="0,0,10,0"
-                        DockPanel.Dock="Left"
-                        Visibility="{Binding AnalyseBildVorschau, Converter={StaticResource CLconverterVisiblityBoolian}}"
-                        d:Visibility="Visible">
-                        <Border
-                            x:Name="BRD_VorschauBild"
-                            d:Background="#FFE0E6F5"
-                            BorderBrush="#FFD3DAF5"
-                            BorderThickness="1"
-                            CornerRadius="6">
-                            <Border.Background>
-                                <ImageBrush ImageSource="{Binding AnalyseBildVorschau}" Stretch="Uniform" />
-                            </Border.Background>
-                        </Border>
-                        <Border
-                            x:Name="BRD_HeatmapOverlay"
-                            ClipToBounds="True"
-                            CornerRadius="6">
-                            <Image
-                                x:Name="IMG_Heatmap"
-                                Opacity="0.7"
-                                Source="{Binding HeatmapOverlay}"
-                                Stretch="Uniform" />
-                        </Border>
-                    </Grid>
-
-                    <ItemsControl
-                        x:Name="IC_ErkannteBegriffe"
-                        d:DataContext="{d:DesignInstance}"
-                        ItemsSource="{Binding ErkannteBegriffe}">
-                        <d:ItemsControl.Items>
-                            <sys:String>Vogel 27 %</sys:String>
-                            <sys:String>Sonnenblume 26 %</sys:String>
-                            <sys:String>Gelb 26 %</sys:String>
-                            <sys:String>Papagei 25 %</sys:String>
-                            <sys:String>Baum 25 %</sys:String>
-                            <sys:String>Nahaufnahme 25 %</sys:String>
-                            <sys:String>Zitrone 25 %</sys:String>
-                            <sys:String>Obst 25 %</sys:String>
-                        </d:ItemsControl.Items>
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Border
-                                    Margin="0,0,6,6"
-                                    Padding="9,4"
-                                    Background="#FFEEF1FB"
-                                    BorderBrush="#FFD3DAF5"
-                                    BorderThickness="1"
-                                    CornerRadius="10"
-                                    Cursor="Hand"
-                                    MouseLeftButtonDown="BegriffChip_MouseLeftButtonDown">
-                                    <Border.ContextMenu>
-                                        <ContextMenu>
-                                            <MenuItem
-                                                Click="BegriffChip_AlleAnzeigen"
-                                                Header="Alle Bilder mit diesem Begriff" />
-                                        </ContextMenu>
-                                    </Border.ContextMenu>
-                                    <TextBlock
-                                        FontFamily="Segoe UI"
-                                        FontSize="12"
-                                        Foreground="#FF3B4A9C"
-                                        Text="{Binding}" />
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </DockPanel>
-
-                <!--  Anzahl erkannter Begriffe – unter den Chips  -->
-                <TextBlock
-                    Margin="0,8,0,0"
-                    FontFamily="Segoe UI"
-                    FontSize="12"
-                    Foreground="#FF888888"
-                    Text="{Binding AnalyseStatus}">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Visibility" Value="Visible" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding AnalyseStatus}" Value="">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-
-                <!--  Heatmap-Lade-Hinweis  -->
-                <StackPanel
-                    Margin="0,4,0,0"
-                    Orientation="Horizontal"
-                    Visibility="{Binding HeatmapLaeuft, Converter={StaticResource CLconverterVisiblityBoolian}}">
-                    <TextBlock
-                        VerticalAlignment="Center"
-                        FontFamily="Segoe MDL2 Assets"
-                        FontSize="14"
-                        Foreground="#FF5C6BC0"
-                        RenderTransformOrigin="0.5,0.5"
-                        Text="&#xE72C;">
-                        <TextBlock.RenderTransform>
-                            <RotateTransform />
-                        </TextBlock.RenderTransform>
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HeatmapLaeuft}" Value="True">
-                                        <DataTrigger.EnterActions>
-                                            <BeginStoryboard>
-                                                <Storyboard>
-                                                    <DoubleAnimation
-                                                        RepeatBehavior="Forever"
-                                                        Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
-                                                        From="0"
-                                                        To="360"
-                                                        Duration="0:0:1" />
-                                                </Storyboard>
-                                            </BeginStoryboard>
-                                        </DataTrigger.EnterActions>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                    <TextBlock
-                        VerticalAlignment="Center"
-                        FontFamily="Segoe UI"
-                        FontSize="11"
-                        Foreground="#FF888888"
-                        Text="  Heatmap wird berechnet…" />
-                </StackPanel>
-            </StackPanel>
-
             <!--  Suchergebnisse: klickbare Miniaturen  -->
-            <StackPanel Margin="2,4,2,2">
+            <StackPanel x:Name="STP_SuchErgebnisse" Margin="2,4,2,2">
                 <!--  Treffer in die Bilderliste übernehmen  -->
-                <StackPanel Orientation="Horizontal">
+                <StackPanel x:Name="STP_TrefferUebernehmenLeiste" Orientation="Horizontal">
                     <StackPanel.Style>
                         <Style TargetType="StackPanel">
                             <Setter Property="Visibility" Value="Visible" />
@@ -891,13 +1056,14 @@
                         Command="{Binding CommandExecuteTrefferUebernehmenCommand}"
                         Style="{StaticResource OutlineButtonStyle}"
                         ToolTip="Die Suchtreffer in die Bilderliste übernehmen (Wiederherstellen: Alle neu einlesen)">
-                        <StackPanel Orientation="Horizontal">
+                        <StackPanel x:Name="STP_TrefferUebernehmenInhalt" Orientation="Horizontal">
                             <TextBlock
+                                x:Name="TXT_TrefferUebernehmenIcon"
                                 Margin="0,1,7,0"
                                 FontFamily="Segoe MDL2 Assets"
                                 FontSize="13"
                                 Text="&#xE71C;" />
-                            <TextBlock Text="In Liste übernehmen" />
+                            <TextBlock x:Name="TXT_TrefferUebernehmenLabel" Text="In Liste übernehmen" />
                         </StackPanel>
                     </Button>
                 </StackPanel>
@@ -908,15 +1074,59 @@
                     Margin="0,8,0,0"
                     HorizontalScrollBarVisibility="Disabled"
                     VerticalScrollBarVisibility="Auto">
-                    <ItemsControl x:Name="IC_SuchErgebnisse" ItemsSource="{Binding SuchErgebnisse}"
-                                  d:DataContext="{d:DesignInstance}">
+                    <ItemsControl
+                        x:Name="IC_SuchErgebnisse"
+                        d:DataContext="{d:DesignInstance}"
+                        ItemsSource="{Binding SuchErgebnisse}">
                         <d:ItemsControl.Items>
-                            <Border Width="104" Height="78" Margin="0,0,6,6" Background="#FFE0E0E0" BorderBrush="#FFDADADA" BorderThickness="1" CornerRadius="6" />
-                            <Border Width="104" Height="78" Margin="0,0,6,6" Background="#FFE8E8E8" BorderBrush="#FFDADADA" BorderThickness="1" CornerRadius="6" />
-                            <Border Width="104" Height="78" Margin="0,0,6,6" Background="#FFE0E0E0" BorderBrush="#FFDADADA" BorderThickness="1" CornerRadius="6" />
-                            <Border Width="104" Height="78" Margin="0,0,6,6" Background="#FFE8E8E8" BorderBrush="#FFDADADA" BorderThickness="1" CornerRadius="6" />
-                            <Border Width="104" Height="78" Margin="0,0,6,6" Background="#FFE0E0E0" BorderBrush="#FFDADADA" BorderThickness="1" CornerRadius="6" />
-                            <Border Width="104" Height="78" Margin="0,0,6,6" Background="#FFE8E8E8" BorderBrush="#FFDADADA" BorderThickness="1" CornerRadius="6" />
+                            <Border
+                                Width="104"
+                                Height="78"
+                                Margin="0,0,6,6"
+                                Background="#FFE0E0E0"
+                                BorderBrush="#FFDADADA"
+                                BorderThickness="1"
+                                CornerRadius="6" />
+                            <Border
+                                Width="104"
+                                Height="78"
+                                Margin="0,0,6,6"
+                                Background="#FFE8E8E8"
+                                BorderBrush="#FFDADADA"
+                                BorderThickness="1"
+                                CornerRadius="6" />
+                            <Border
+                                Width="104"
+                                Height="78"
+                                Margin="0,0,6,6"
+                                Background="#FFE0E0E0"
+                                BorderBrush="#FFDADADA"
+                                BorderThickness="1"
+                                CornerRadius="6" />
+                            <Border
+                                Width="104"
+                                Height="78"
+                                Margin="0,0,6,6"
+                                Background="#FFE8E8E8"
+                                BorderBrush="#FFDADADA"
+                                BorderThickness="1"
+                                CornerRadius="6" />
+                            <Border
+                                Width="104"
+                                Height="78"
+                                Margin="0,0,6,6"
+                                Background="#FFE0E0E0"
+                                BorderBrush="#FFDADADA"
+                                BorderThickness="1"
+                                CornerRadius="6" />
+                            <Border
+                                Width="104"
+                                Height="78"
+                                Margin="0,0,6,6"
+                                Background="#FFE8E8E8"
+                                BorderBrush="#FFDADADA"
+                                BorderThickness="1"
+                                CornerRadius="6" />
                         </d:ItemsControl.Items>
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
