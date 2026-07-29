@@ -1,7 +1,5 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Emgu.CV;
-using Emgu.CV.CvEnum;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
@@ -54,7 +52,6 @@ namespace TestImage
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteAlleBilderInsKeinFavVerschiebenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteSuchenGleichesBildByteVergleichCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteSuchenUngefährGleichesBildCommand))]
-        [NotifyCanExecuteChangedFor(nameof(CommandExecuteSuchenUngefährGleichesBildEmguCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteBildInsKIFehlerVerschiebenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteAlleBilderMiteinanderAufByteGleichheitPrüfenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteAlleBilderNeuEinlesenCommand))]
@@ -73,10 +70,6 @@ namespace TestImage
 
         [ObservableProperty]
         public partial string ProzentAbgleich { get; set; } = "0";
-
-        [ObservableProperty]
-        [NotifyCanExecuteChangedFor(nameof(CommandExecuteSuchenUngefährGleichesBildEmguCommand))]
-        public partial int BildAbgleichProzent { get; set; } = 80;
 
         /// <summary>
         /// Gets or sets a value indicating whether the image file is damaged.
@@ -2171,145 +2164,6 @@ namespace TestImage
             }
 
 
-
-        }
-
-        #endregion
-
-        //Emgu.CV
-        #region Command Ungefähr Gleiches Bild suchen, mit Emgu.CV ( max 10 % Abweichung  )
-
-        private bool CanExecuteSuchenUngefährGleichesBildEmgu()
-        {
-            return OcAufgabens.Count > 1 && (!PrüfungLäuft);
-
-        }
-
-        [RelayCommand(CanExecute = nameof(CanExecuteSuchenUngefährGleichesBildEmgu), IncludeCancelCommand = true)]
-        private async Task CommandExecuteSuchenUngefährGleichesBildEmgu(CancellationToken token)
-        {
-            var sw = Stopwatch.StartNew();
-            try
-            {
-                PrüfungLäuft = true;
-
-                await MeTa_SuchenUngefährGleichesBildEmgu(token);
-            }
-            catch (Exception)
-            {
-
-            }
-            finally
-            {
-                PrüfungLäuft = false;
-                PercentageValueVerschieben = 0.0;
-                LabelDropContent = "Gs  " + sw.Elapsed.TotalSeconds.ToString("F2") + " Sek";
-                ProzentAbgleich = string.Empty;
-
-                AufgabenView.Refresh();
-            }
-
-
-        }
-
-        private async Task MeTa_SuchenUngefährGleichesBildEmgu(CancellationToken token)
-        {
-            //throw new NotImplementedException();
-
-            var sw = Stopwatch.StartNew();
-            DateTime started = DateTime.Now;
-            IProgress<CLProgressStückzahl> progressStück = new Progress<CLProgressStückzahl>(value => PercentageValueVerschieben = value.Percent);
-
-            var bilder = OcAufgabens.ToList();
-            long gszähler = bilder.Count - 1;
-            int zähler = 0;
-
-            Mat image1 = CvInvoke.Imread(SelectedBildchen?.BName, ImreadModes.AnyColor);
-
-            foreach (var item in bilder)
-            {
-                // Command CommandExecuteSuchenUngefährGleichesBildEmgu Abbrechen
-                // >>> Abbruch prüfen <<<
-                token.ThrowIfCancellationRequested();
-
-
-                var pgs = new CLProgressStückzahl(started, gszähler, zähler++, false);
-
-                progressStück?.Report(pgs);
-
-                LabelDropContent = pgs.Restzeit;
-                ProzentAbgleich = pgs.Percent.ToString("F2");
-
-                if (File.Exists(item.BName) & (item.BName != SelectedBildchen?.BName))
-                {
-                    //var gleich = await MieneServices.IsFileGleichAsync(SelectedBildchen?.BName, item.BName, token);
-                    //if (!gleich)
-                    //{
-                    //    // Bildchen aus der Collection entfernen
-                    //    OcAufgabens.Remove(item);
-                    //}
-
-                    //ulong hash1 = await MieneServices.GetImageHash(item.BName);
-                    //ulong hash2 = await MieneServices.GetImageHash(SelectedBildchen?.BName);
-
-                    //int distance = await MieneServices.HammingDistance(hash1, hash2);
-
-                    try
-                    {
-                        //using var img1 = new Image<Bgr, byte>(SelectedBildchen?.BName);
-                        //using var img2 = new Image<Bgr, byte>(item.BName);
-
-
-
-                        //// Load two images (grayscale for feature detection)
-                        //Mat img1 = CvInvoke.Imread(SelectedBildchen?.BName, ImreadModes.Grayscale);
-                        //Mat img2 = CvInvoke.Imread(item.BName, ImreadModes.Grayscale);
-
-                        // double similarity = await MieneServices.CompareImagesORB(img1, img2);
-
-
-                        //// Lade zwei Bilder
-                        //Mat image1 = CvInvoke.Imread(SelectedBildchen?.BName, ImreadModes.AnyColor);
-                        //Mat image2 = CvInvoke.Imread(item.BName, ImreadModes.AnyColor);
-
-                        //if (image1.IsEmpty || image2.IsEmpty)
-                        //{
-                        //    Console.WriteLine("Fehler: Eines der Bilder konnte nicht geladen werden.");
-                        //    continue;
-                        //}
-
-                        //// Falls Größen unterschiedlich → skalieren
-                        //if (image1.Size != image2.Size)
-                        //    CvInvoke.Resize(image2, image2, image1.Size);
-
-                        // double similarity = CalculateSSIM(image1, image2);
-
-
-
-
-                        double similarity = await MieneServices.CompareBilderGleichheitORB(image1, item.BName);
-                        Console.WriteLine($"Ähnlichkeit: {similarity * 100:F2}%");
-
-                        //Console.WriteLine($"Ähnlichkeitswert: {similarity:F2}%");
-
-                        if ((similarity * 100) >= BildAbgleichProzent)
-                        {
-                            Console.WriteLine("Bilder sind wahrscheinlich ähnlich.");
-                        }
-                        else
-                        {
-                            Console.WriteLine("Bilder unterscheiden sich deutlich.");
-
-                            // Bildchen aus der Collection entfernen
-                            OcAufgabens.Remove(item);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Fehler: {ex.Message}");
-                    }
-                }
-            }
 
         }
 

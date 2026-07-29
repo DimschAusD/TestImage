@@ -1,11 +1,92 @@
-﻿<Application x:Class="TestImage.App"
+<Application x:Class="TestImage.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:TestImage"
+             xmlns:Converters="clr-namespace:TestImage.Converters"
+             xmlns:Converters1="clr-namespace:TestImageViewer.Converters"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-        <ResourceDictionary Source="/Images/PfeilNachLinks.xaml" />
-        
-        
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Images/PfeilNachLinks.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!--  App-weite Converter: auch von den Ansichts-UserControls (Normal/Vollbild) nutzbar.  -->
+            <Converters1:ConverterAktivZuFarbe x:Key="ConverterAktivZuFarbe" />
+            <Converters:ConverterFullPathToNameConverter x:Key="ConverterFullPathToNameConverter" />
+            <Converters:CLconverterCountBildchenFuerLinks x:Key="CLconverterCountBildchenFuerLinks" />
+            <Converters:ConverterPositionZuViertel x:Key="ConverterPositionZuViertel" />
+            <Converters:ConverterPositionZuFarbe x:Key="ConverterPositionZuFarbe" />
+            <Converters:ConverterPositionZuDreiecke x:Key="ConverterPositionZuDreiecke" />
+            <Converters:ConverterVisiblityBoolianInvertiert x:Key="ConverterVisiblityBoolianInvertiert" />
+            <Converters:CLconverterBrushesBoolianG5 x:Key="CLconverterBrushesBoolianG5" />
+            <Converters:CLconverterBrushesBoolianG2 x:Key="CLconverterBrushesBoolianG2" />
+            <Converters:CLconverterBrushesBoolianG1 x:Key="CLconverterBrushesBoolianG1" />
+            <Converters:CLconverterStringZuMB x:Key="CLconverterStringZuMB" />
+            <local:CLconverterImageScallierung x:Key="CLconverterImageScallierung" />
+            <local:CLconverterBrushesBoolian x:Key="CLconverterBrushesBoolian" />
+            <local:CLconverterVisiblityBoolian x:Key="CLconverterVisiblityBoolian" />
+            <local:CLconverterProgressbarIntPlusEins x:Key="CLconverterProgressbarIntPlusEins" />
+            <local:CLconverterColorBoolianMasterHintergrund x:Key="CLconverterColorBoolianMasterHintergrund" />
+            <local:CLconverterStringToString x:Key="CLconverterStringToString" />
+            <local:CLconverterStringZuKleinemImage x:Key="CLconverterStringZuKleinemImage" />
+            <local:CLconverterStringZuImage x:Key="CLconverterStringZuImage" />
+            <Converters:ConverterVerschobenSegment x:Key="VerschobenSegmentConverter" />
+            <local:BoolToBrushConverter x:Key="BoolToBrushConverter" />
+
+            <!--  Wasserzeichen-Brush (von der Normalansicht genutzt).  -->
+            <VisualBrush
+                x:Key="WasserzeichenFilter"
+                AlignmentX="Center"
+                AlignmentY="Center"
+                Stretch="None">
+                <VisualBrush.Visual>
+                    <Label
+                        Content="Filter Name"
+                        FontStyle="Italic"
+                        Foreground="Gray"
+                        Opacity="0.5" />
+                </VisualBrush.Visual>
+            </VisualBrush>
+
+            <!--  App-weiter, heller Umriss-Button (auch von den Ansichts-UserControls genutzt).  -->
+            <Style x:Key="OutlineButtonStyle" TargetType="{x:Type Button}">
+                <Setter Property="Height" Value="34" />
+                <Setter Property="Padding" Value="12,0" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Background" Value="#FFFFFFFF" />
+                <Setter Property="Foreground" Value="#FF2B2B2B" />
+                <Setter Property="FontFamily" Value="Segoe UI" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type Button}">
+                            <Border
+                                x:Name="bd"
+                                Padding="{TemplateBinding Padding}"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="#FFDADADA"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                SnapsToDevicePixels="True">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="bd" Property="Background" Value="#FFF3F4F6" />
+                                    <Setter TargetName="bd" Property="BorderBrush" Value="#FFC4C4C4" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="bd" Property="Background" Value="#FFE9EBEF" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="bd" Property="Opacity" Value="0.45" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>
