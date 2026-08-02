@@ -196,6 +196,34 @@
                                     Foreground="White"
                                     Text="&#xE10B;" />
                             </Border>
+                            <!--  Badge: Wasserzeichen oder Metadaten-Markierung gefunden  -->
+                            <Border
+                                x:Name="BRD_WasserzeichenBadge"
+                                Width="18"
+                                Height="18"
+                                Margin="4,4,0,0"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Top"
+                                Background="#DDD97706"
+                                CornerRadius="9"
+                                ToolTip="{Binding WasserzeichenGrund}"
+                                Visibility="{Binding HatWasserzeichen, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                                <Border.Effect>
+                                    <DropShadowEffect
+                                        BlurRadius="4"
+                                        Opacity="0.6"
+                                        ShadowDepth="1"
+                                        Color="Black" />
+                                </Border.Effect>
+                                <TextBlock
+                                    x:Name="IC_WasserzeichenBadge"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="9"
+                                    Foreground="White"
+                                    Text="&#xE72E;" />
+                            </Border>
                         </Grid>
                     </Border>
                 </DataTemplate>
@@ -1033,7 +1061,7 @@
                     MouseOverBackground="#FFB7F393"
                     MouseOverBorderBrush="{DynamicResource {x:Static SystemColors.ActiveCaptionBrushKey}}"
                     PressedBackground="#FFCACFFE"
-                    SmallImageSource="{svg1:SvgIcon Source=Images/EinGleicher.svg}"
+                    SmallImageSource="{svg1:SvgIcon Source=/Images/EinGleicher.svg}"
                     ToolTip="Byte-Abgleich, gleiches Bild">
                     <RibbonButton.ContextMenu>
                         <ContextMenu>
@@ -1046,7 +1074,7 @@
                                         Width="16"
                                         Height="16"
                                         d:Source="/Images/VieleGleicheKlein.png"
-                                        Source="{svg1:SvgIcon Source=Images/vielegleiche.svg}" />
+                                        Source="{svg1:SvgIcon Source=/Images/vielegleiche.svg}" />
                                 </MenuItem.Icon>
                             </MenuItem>
                             <!--  Icon="{svg1:SvgIcon Source=Images/EinGleicher.svg}" d:Icon="/Images/Gleich.png"  -->
@@ -1059,7 +1087,7 @@
                                         Width="16"
                                         Height="16"
                                         d:Source="/Images/VieleGleicheKlein.png"
-                                        Source="{svg1:SvgIcon Source=Images/vielegleiche.svg}" />
+                                        Source="{svg1:SvgIcon Source=/Images/vielegleiche.svg}" />
                                 </MenuItem.Icon>
                             </MenuItem>
 

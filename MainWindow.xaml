@@ -62,6 +62,11 @@
                         <Setter Property="Margin" Value="0" />
                         <Setter Property="Background" Value="#FF111111" />
                     </DataTrigger>
+                    <!--  Dubletten-Ansicht füllt das Fenster randlos aus.  -->
+                    <DataTrigger Binding="{Binding IsDublettenAnsicht}" Value="True">
+                        <Setter Property="Margin" Value="0" />
+                        <Setter Property="Background" Value="#FFF6F7F9" />
+                    </DataTrigger>
                 </Style.Triggers>
             </Style>
         </Grid.Style>
@@ -74,13 +79,26 @@
             <!--  StackPanel + ListBox1 + ListBox2  -->
         </Grid.RowDefinitions>
 
-        <!--  NORMALANSICHT (Ziel des schrittweisen Umzugs). Nur wenn nicht maximiert.  -->
+        <!--  NORMALANSICHT (Ziel des schrittweisen Umzugs). Weicht dem Bildmodus und der Dubletten-Ansicht.  -->
         <ansichten:NormalAnsicht
             x:Name="VIEW_Normal"
             Grid.Row="0"
             Grid.RowSpan="3"
-            Panel.ZIndex="40"
-            Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}" />
+            Panel.ZIndex="40">
+            <ansichten:NormalAnsicht.Style>
+                <Style TargetType="{x:Type ansichten:NormalAnsicht}">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsImageMaximiert}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding IsDublettenAnsicht}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </ansichten:NormalAnsicht.Style>
+        </ansichten:NormalAnsicht>
 
 
         <!--  VOLLBILDANSICHT: eigenes Bild + Klickzonen + Filmstrip + Hover + Drop-Overlay. Nur im Bildmodus.  -->
@@ -92,6 +110,13 @@
             Visibility="{Binding IsImageMaximiert, Converter={StaticResource CLconverterVisiblityBoolian}}" />
 
 
+        <!--  DUBLETTEN-ANSICHT: Byte-Duplikate in anderen Ordnern suchen und aufräumen.  -->
+        <ansichten:DublettenAnsicht
+            x:Name="VIEW_Dubletten"
+            Grid.Row="0"
+            Grid.RowSpan="3"
+            Panel.ZIndex="60"
+            Visibility="{Binding IsDublettenAnsicht, Converter={StaticResource CLconverterVisiblityBoolian}}" />
 
 
         <!--  Host-Cluster: Webcam-/Mikrofon-/Screen-Share-Indikatoren, oben rechts neben dem Umschalt-Button, in BEIDEN Modi sichtbar.  -->
@@ -214,6 +239,55 @@
 
         </StackPanel>
 
+        <!--  Schwebender Button: Byte-Duplikate aufräumen (eigene Ansicht)  -->
+        <Button
+            x:Name="BTN_DublettenAnsicht"
+            Grid.Row="0"
+            Width="28"
+            Height="28"
+            Margin="0,4,64,0"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Top"
+            Panel.ZIndex="100"
+            Command="{Binding CommandExecuteDublettenAnsichtOeffnenCommand}"
+            Content="&#xE8C8;"
+            Cursor="Hand"
+            Focusable="False"
+            FontFamily="Segoe MDL2 Assets"
+            FontSize="14"
+            ToolTip="Byte-Duplikate in anderen Ordnern aufräumen">
+            <Button.Style>
+                <Style TargetType="{x:Type Button}">
+                    <Setter Property="Opacity" Value="0.4" />
+                    <Setter Property="Background" Value="#88000000" />
+                    <Setter Property="Foreground" Value="White" />
+                    <Setter Property="BorderThickness" Value="0" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="{x:Type Button}">
+                                <Border
+                                    Padding="4"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="6">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                    <Style.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Opacity" Value="0.9" />
+                            <Setter Property="Background" Value="#CC334155" />
+                        </Trigger>
+                        <!--  In der Dubletten-Ansicht selbst überflüssig — dort führt "Zurück" heraus.  -->
+                        <DataTrigger Binding="{Binding IsDublettenAnsicht}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Button.Style>
+        </Button>
+
         <!--  Schwebender Toggle-Button: Bildmodus umschalten (F11)  -->
         <Button
             x:Name="BTN_BildmodusToggle"
@@ -257,6 +331,10 @@
                         <DataTrigger Binding="{Binding IsImageMaximiert}" Value="True">
                             <Setter Property="Content" Value="&#xE73F;" />
                             <Setter Property="Opacity" Value="0.6" />
+                        </DataTrigger>
+                        <!--  In der Dubletten-Ansicht kein Bildmodus-Wechsel.  -->
+                        <DataTrigger Binding="{Binding IsDublettenAnsicht}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>

@@ -1,7 +1,12 @@
 ###############################################################################
 # Set default behavior to automatically normalize line endings.
+#
+# eol=crlf: Im Arbeitsverzeichnis liegen die Dateien immer mit CRLF vor
+# (Windows-/Visual-Studio-Projekt). Ohne diese Angabe meldet GitHub Desktop
+# "This file uses 'LF' line endings, but Git is configured to convert them
+# to 'CRLF' the next time the file is checked out."
 ###############################################################################
-* text=auto
+* text=auto eol=crlf
 
 ###############################################################################
 # Set default behavior for command prompt diff.

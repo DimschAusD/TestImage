@@ -6,7 +6,7 @@
     xmlns:local="clr-namespace:TestImage"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:sys="clr-namespace:System;assembly=mscorlib"
-    Width="855"
+    Width="889"
     mc:Ignorable="d">
     <UserControl.Resources>
         <local:CLconverterVisiblityBoolian x:Key="CLconverterVisiblityBoolian" />
@@ -242,14 +242,15 @@
                             </Border>
                         </Popup>
 
-                        <!--  Such-Button (Auslöser)  -->
+                        <!--  Such-Button (Auslöser) – weicht dem Abbrechen-Spinner, solange gesucht wird  -->
                         <Button
                             x:Name="BTN_Suchen"
                             Grid.Column="1"
                             Width="36"
                             Command="{Binding CommandExecuteFreitextSucheCommand}"
                             Cursor="Hand"
-                            ToolTip="Suchen">
+                            ToolTip="Suchen"
+                            Visibility="{Binding CommandExecuteFreitextSucheCommand.IsRunning, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}">
                             <Button.Style>
                                 <Style TargetType="Button">
                                     <Setter Property="Background" Value="Transparent" />
@@ -261,6 +262,7 @@
                                                     Background="{TemplateBinding Background}"
                                                     CornerRadius="0,7,7,0">
                                                     <TextBlock
+                                                        x:Name="TXT_SuchLupe"
                                                         HorizontalAlignment="Center"
                                                         VerticalAlignment="Center"
                                                         FontFamily="Segoe MDL2 Assets"
@@ -282,6 +284,120 @@
                                 </Style>
                             </Button.Style>
                         </Button>
+
+                        <!--
+                            Läuft die Suche, sitzt hier der drehende Kreispfeil – klickbar zum
+                            Abbrechen. Beim Überfahren wechselt er zum X, damit erkennbar ist,
+                            dass der Klick abbricht und nicht neu sucht.
+                        -->
+                        <Button
+                            x:Name="BTN_SucheAbbrechen"
+                            Grid.Column="1"
+                            Width="36"
+                            d:Visibility="Visible"
+                            Command="{Binding CommandExecuteFreitextSucheCancelCommand}"
+                            Cursor="Hand"
+                            ToolTip="Suche abbrechen"
+                            Visibility="{Binding CommandExecuteFreitextSucheCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Background" Value="Transparent" />
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border
+                                                    x:Name="ab"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="0,7,7,0">
+                                                    <Grid x:Name="GRD_AbbrechenIkone">
+                                                        <!--  Drehender Kreispfeil  -->
+                                                        <TextBlock
+                                                            x:Name="TXT_SuchSpinner"
+                                                            HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center"
+                                                            FontFamily="Segoe MDL2 Assets"
+                                                            FontSize="14"
+                                                            Foreground="#FF5C6BC0"
+                                                            RenderTransformOrigin="0.5,0.5"
+                                                            Text="&#xE72C;">
+                                                            <TextBlock.RenderTransform>
+                                                                <RotateTransform Angle="0" />
+                                                            </TextBlock.RenderTransform>
+                                                        </TextBlock>
+
+                                                        <!--  Nur bei Hover: Abbrechen-X  -->
+                                                        <TextBlock
+                                                            x:Name="TXT_AbbrechenX"
+                                                            HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center"
+                                                            FontFamily="Segoe MDL2 Assets"
+                                                            FontSize="12"
+                                                            Foreground="#FFC62828"
+                                                            Text="&#xE711;"
+                                                            Visibility="Collapsed" />
+                                                    </Grid>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <!--  Dreht, solange die Suche läuft.  -->
+                                                    <DataTrigger Binding="{Binding CommandExecuteFreitextSucheCommand.IsRunning}" Value="True">
+                                                        <DataTrigger.EnterActions>
+                                                            <BeginStoryboard x:Name="SB_SuchSpinner">
+                                                                <Storyboard RepeatBehavior="Forever">
+                                                                    <DoubleAnimation
+                                                                        Storyboard.TargetName="TXT_SuchSpinner"
+                                                                        Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                        From="0"
+                                                                        To="360"
+                                                                        Duration="0:0:0.9" />
+                                                                </Storyboard>
+                                                            </BeginStoryboard>
+                                                        </DataTrigger.EnterActions>
+                                                        <DataTrigger.ExitActions>
+                                                            <StopStoryboard BeginStoryboardName="SB_SuchSpinner" />
+                                                        </DataTrigger.ExitActions>
+                                                    </DataTrigger>
+
+                                                    <!--  Maus darüber: X statt Spinner, damit die Klickwirkung klar ist.  -->
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="ab" Property="Background" Value="#FFFDECEC" />
+                                                        <Setter TargetName="TXT_SuchSpinner" Property="Visibility" Value="Collapsed" />
+                                                        <Setter TargetName="TXT_AbbrechenX" Property="Visibility" Value="Visible" />
+                                                    </Trigger>
+                                                    <Trigger Property="IsPressed" Value="True">
+                                                        <Setter TargetName="ab" Property="Background" Value="#FFF9D8D8" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+
+                        <!--
+                            Dünne Fortschrittslinie am unteren Rand des Suchfelds (Browser-Stil):
+                            auch wahrnehmbar, wenn der Blick auf der Ergebnisliste liegt.
+                            Marquee während Modell/Index, echter Balken beim Laden der Miniaturen.
+                            Seitliches Margin hält sie innerhalb der abgerundeten Ecken.
+                        -->
+                        <ProgressBar
+                            x:Name="PGB_SuchfeldLinie"
+                            Grid.Column="0"
+                            Grid.ColumnSpan="2"
+                            Height="2"
+                            Margin="8,0,8,2"
+                            VerticalAlignment="Bottom"
+                            Panel.ZIndex="10"
+                            d:Value="45"
+                            d:Visibility="Visible"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Foreground="#FF5C6BC0"
+                            IsIndeterminate="{Binding SuchfeldIndeterminate}"
+                            Maximum="100"
+                            Minimum="0"
+                            Visibility="{Binding CommandExecuteFreitextSucheCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}}"
+                            Value="{Binding SuchfeldFortschritt}" />
                     </Grid>
                 </Border>
 
@@ -388,7 +504,7 @@
                     Margin="4,0,0,0"
                     Command="{Binding CommandExecuteSchemaAehnlichCommand}"
                     Style="{StaticResource OutlineButtonStyle}"
-                    ToolTip="Schema-ähnliche Bilder zum gewählten Bild finden (Schwelle unter Einstellungen)">
+                    ToolTip="Schema-ähnliche Bilder zum gewählten Bild finden (Regler erscheint darunter nach der Suche)">
                     <StackPanel x:Name="STP_SchemaInhalt" Orientation="Horizontal">
                         <TextBlock
                             x:Name="TXT_SchemaIcon"
@@ -400,6 +516,116 @@
                         <TextBlock x:Name="TXT_SchemaLabel" Text="Schema-ähnlich" />
                     </StackPanel>
                 </Button>
+
+                <!--
+                    Hilfe zur Schema-Suche. Bewusst kein Button, sondern ein Chip mit
+                    Fragezeichen-Cursor: es gibt nichts zu klicken, nur zu lesen.
+                    ShowDuration hochgesetzt, weil die 5-Sekunden-Vorgabe für einen
+                    mehrzeiligen Ablauf zu kurz ist.
+                -->
+                <Border
+                    x:Name="BRD_SchemaHilfe"
+                    Width="22"
+                    Height="22"
+                    Margin="6,0,0,0"
+                    VerticalAlignment="Center"
+                    Background="#FFF3F4F6"
+                    BorderBrush="#FFCBD5E1"
+                    BorderThickness="1"
+                    CornerRadius="11"
+                    Cursor="Help"
+                    ToolTipService.InitialShowDelay="200"
+                    ToolTipService.ShowDuration="120000">
+                    <TextBlock
+                        x:Name="IC_SchemaHilfe"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontFamily="Segoe MDL2 Assets"
+                        FontSize="11"
+                        Foreground="#FF64748B"
+                        Text="&#xE897;" />
+                    <Border.ToolTip>
+                        <StackPanel x:Name="STP_SchemaHilfeTip" MaxWidth="400">
+                            <TextBlock
+                                x:Name="TXT_HilfeTitel"
+                                FontSize="13"
+                                FontWeight="SemiBold"
+                                Foreground="#FF111827"
+                                Text="Schema-ähnliche Bilder finden" />
+                            <TextBlock
+                                x:Name="TXT_HilfeEinleitung"
+                                Margin="0,4,0,0"
+                                FontSize="12"
+                                Foreground="#FF374151"
+                                Text="Nimmt das gewählte Bild als Vorlage und sucht im selben Ordner Bilder mit ähnlichem Aufbau und Motiv."
+                                TextWrapping="Wrap" />
+
+                            <TextBlock
+                                x:Name="TXT_HilfeVoraussetzung"
+                                Margin="0,8,0,0"
+                                FontSize="11"
+                                Foreground="Gray"
+                                Text="Voraussetzung: Der Ordner muss indiziert sein – sonst bleibt der Knopf grau."
+                                TextWrapping="Wrap" />
+
+                            <TextBlock
+                                x:Name="TXT_HilfeAblaufTitel"
+                                Margin="0,10,0,0"
+                                FontSize="12"
+                                FontWeight="SemiBold"
+                                Foreground="#FF111827"
+                                Text="Ablauf" />
+                            <TextBlock
+                                x:Name="TXT_HilfeAblauf"
+                                Margin="0,3,0,0"
+                                FontSize="12"
+                                Foreground="#FF374151"
+                                TextWrapping="Wrap">
+                                <Run Text="1." />
+                                <Run Text="Bild wählen, das als Vorlage dienen soll." />
+                                <LineBreak />
+                                <Run Text="2." />
+                                <Run Text="„Schema-ähnlich“ klicken. Geladen wird alles ab 50 % – der breite Kandidatensatz." />
+                                <LineBreak />
+                                <Run Text="3." />
+                                <Run Text="Mit dem Regler darunter eingrenzen. Er filtert sofort, ohne neu zu suchen." />
+                                <LineBreak />
+                                <Run Text="4." />
+                                <Run Text="Passt die Auswahl, mit „Treffer übernehmen“ in die Bildliste holen." />
+                            </TextBlock>
+
+                            <TextBlock
+                                x:Name="TXT_HilfeKalibriertTitel"
+                                Margin="0,10,0,0"
+                                FontSize="12"
+                                FontWeight="SemiBold"
+                                Foreground="#FF111827"
+                                Text="Häkchen „Kalibriert“" />
+                            <TextBlock
+                                x:Name="TXT_HilfeKalibriert"
+                                Margin="0,3,0,0"
+                                FontSize="12"
+                                Foreground="#FF374151"
+                                Text="Zieht die dicht beieinander liegenden Ähnlichkeitswerte auseinander, damit die Schwelle sauberer trennt. Es wirkt erst bei der nächsten Suche: Häkchen setzen, dann erneut klicken. Die Schwelle springt dabei auf den Standard des Modus (74 % roh, 80 % kalibriert), weil die Skala eine andere ist."
+                                TextWrapping="Wrap" />
+
+                            <TextBlock
+                                x:Name="TXT_HilfeLueckeTitel"
+                                Margin="0,10,0,0"
+                                FontSize="12"
+                                FontWeight="SemiBold"
+                                Foreground="#FF111827"
+                                Text="Woran du den Erfolg abliest" />
+                            <TextBlock
+                                x:Name="TXT_HilfeLuecke"
+                                Margin="0,3,0,0"
+                                FontSize="12"
+                                Foreground="#FF374151"
+                                Text="Die Statuszeile nennt die „Lücke“: den Abstand zwischen dem letzten angezeigten Treffer und dem höchsten verworfenen Bild. Je grösser die Lücke, desto sicherer liegt die Schwelle zwischen Serie und Zufall. Mit dem Komponenten-Regler (0 bis 6) lohnt ein Durchgang – wird die Lücke wieder kleiner, wird schon echtes Signal weggeschnitten."
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border.ToolTip>
+                </Border>
 
             </StackPanel>
 
@@ -437,10 +663,10 @@
                         x:Name="BTN_SerieSucheAbbrechen"
                         Padding="6,2"
                         VerticalAlignment="Center"
+                        d:Visibility="Visible"
                         Command="{Binding CommandExecuteSerieSucheCancelCommand}"
                         Content="&#xE711;"
                         Cursor="Hand"
-                        d:Visibility="Visible"
                         FontFamily="Segoe MDL2 Assets"
                         FontSize="10"
                         Style="{StaticResource OutlineButtonStyle}"
@@ -450,10 +676,10 @@
                         x:Name="BTN_ErweiterteSerieSucheAbbrechen"
                         Padding="6,2"
                         VerticalAlignment="Center"
+                        d:Visibility="Visible"
                         Command="{Binding CommandExecuteErweiterteSerieSucheCancelCommand}"
                         Content="&#xE711;"
                         Cursor="Hand"
-                        d:Visibility="Visible"
                         FontFamily="Segoe MDL2 Assets"
                         FontSize="10"
                         Style="{StaticResource OutlineButtonStyle}"
@@ -463,10 +689,10 @@
                         x:Name="BTN_DublettenAbbrechen"
                         Padding="6,2"
                         VerticalAlignment="Center"
+                        d:Visibility="Visible"
                         Command="{Binding CommandExecuteDublettenCancelCommand}"
                         Content="&#xE711;"
                         Cursor="Hand"
-                        d:Visibility="Visible"
                         FontFamily="Segoe MDL2 Assets"
                         FontSize="10"
                         Style="{StaticResource OutlineButtonStyle}"
@@ -476,15 +702,28 @@
                         x:Name="BTN_SchemaAehnlichAbbrechen"
                         Padding="6,2"
                         VerticalAlignment="Center"
+                        d:Visibility="Visible"
                         Command="{Binding CommandExecuteSchemaAehnlichCancelCommand}"
                         Content="&#xE711;"
                         Cursor="Hand"
-                        d:Visibility="Visible"
                         FontFamily="Segoe MDL2 Assets"
                         FontSize="10"
                         Style="{StaticResource OutlineButtonStyle}"
                         ToolTip="Schema-Ähnlichkeitssuche abbrechen"
                         Visibility="{Binding CommandExecuteSchemaAehnlichCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}}" />
+                    <Button
+                        x:Name="BTN_BegriffSucheAbbrechen"
+                        Padding="6,2"
+                        VerticalAlignment="Center"
+                        d:Visibility="Visible"
+                        Command="{Binding CommandExecuteBegriffSucheCancelCommand}"
+                        Content="&#xE711;"
+                        Cursor="Hand"
+                        FontFamily="Segoe MDL2 Assets"
+                        FontSize="10"
+                        Style="{StaticResource OutlineButtonStyle}"
+                        ToolTip="Suche nach dem Begriff abbrechen"
+                        Visibility="{Binding CommandExecuteBegriffSucheCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}}" />
                 </StackPanel>
             </Grid>
 
@@ -553,8 +792,8 @@
                         <!--  Kleine Vorschau + Heatmap-Overlay  -->
                         <Grid
                             x:Name="GRD_Vorschau"
-                            Width="64"
-                            Height="64"
+                            Width="85"
+                            Height="85"
                             Margin="0,0,10,0"
                             d:Visibility="Visible"
                             DockPanel.Dock="Left"
@@ -848,44 +1087,6 @@
                             SelectedItem="{Binding SelectedFilterWert, Mode=TwoWay}" />
                     </Grid>
 
-                    <!--  Mindest-Ähnlichkeit der Suchtreffer  -->
-                    <Grid x:Name="GRD_MindestAehnlichkeit" Margin="0,14,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="100" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock
-                            x:Name="TXT_MindestLabel"
-                            Grid.Column="0"
-                            VerticalAlignment="Center"
-                            FontFamily="Segoe UI"
-                            FontSize="13"
-                            Foreground="#FF555555"
-                            Text="Mindest-Ähnl."
-                            ToolTip="Nur Suchtreffer über dieser Ähnlichkeit zeigen" />
-                        <Slider
-                            x:Name="SLD_MindestAehnlichkeit"
-                            Grid.Column="1"
-                            VerticalAlignment="Center"
-                            LargeChange="5"
-                            Maximum="60"
-                            Minimum="0"
-                            SmallChange="1"
-                            Value="{Binding MindestAehnlichkeit, Mode=TwoWay}" />
-                        <TextBlock
-                            x:Name="TXT_MindestWert"
-                            Grid.Column="2"
-                            Width="40"
-                            Margin="10,0,0,0"
-                            VerticalAlignment="Center"
-                            FontFamily="Segoe UI"
-                            FontSize="13"
-                            Foreground="#FF2B2B2B"
-                            Text="{Binding MindestAehnlichkeit, StringFormat={}{0:F0} %}"
-                            TextAlignment="Right" />
-                    </Grid>
-
                     <!--  Begriffe auf Deutsch statt Englisch  -->
                     <CheckBox
                         x:Name="CHK_BegriffeAufDeutsch"
@@ -896,6 +1097,68 @@
                         FontSize="13"
                         Foreground="#FF555555"
                         IsChecked="{Binding BegriffeAufDeutsch, Mode=TwoWay}" />
+
+                    <!--
+                        Wasserzeichen-Muster lernen: einmalig aus einem Ordner, in dem alle
+                        Bilder denselben Aufdruck tragen. Danach prüft jedes Indexieren
+                        automatisch mit. Ohne Muster greift nur die Metadaten-Prüfung.
+                    -->
+                    <Grid x:Name="GRD_WasserzeichenLernen" Margin="0,14,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition x:Name="COL_WzButton" Width="Auto" />
+                            <ColumnDefinition x:Name="COL_WzAbbrechen" Width="Auto" />
+                            <ColumnDefinition x:Name="COL_WzStatus" Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Button
+                            x:Name="BTN_WasserzeichenMaskeLernen"
+                            Grid.Column="0"
+                            Padding="8,2"
+                            VerticalAlignment="Center"
+                            Command="{Binding CommandExecuteWasserzeichenMaskeLernenCommand}"
+                            Cursor="Hand"
+                            Style="{StaticResource OutlineButtonStyle}"
+                            ToolTip="Muster aus einem Beispielordner lernen – alle Bilder darin müssen dasselbe Wasserzeichen tragen (mindestens 5).">
+                            <StackPanel x:Name="STP_WzLernenInhalt" Orientation="Horizontal">
+                                <TextBlock
+                                    x:Name="IC_WzLernen"
+                                    Margin="0,0,6,0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="12"
+                                    Text="&#xE72E;" />
+                                <TextBlock x:Name="TXT_WzLernen" Text="Wasserzeichen-Muster lernen" />
+                            </StackPanel>
+                        </Button>
+
+                        <Button
+                            x:Name="BTN_WasserzeichenLernenAbbrechen"
+                            Grid.Column="1"
+                            Margin="6,0,0,0"
+                            Padding="6,2"
+                            VerticalAlignment="Center"
+                            d:Visibility="Visible"
+                            Command="{Binding CommandExecuteWasserzeichenMaskeLernenCancelCommand}"
+                            Content="&#xE711;"
+                            Cursor="Hand"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="10"
+                            Style="{StaticResource OutlineButtonStyle}"
+                            ToolTip="Lernen abbrechen"
+                            Visibility="{Binding CommandExecuteWasserzeichenMaskeLernenCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}}" />
+
+                        <TextBlock
+                            x:Name="TXT_WasserzeichenStatus"
+                            Grid.Column="2"
+                            Margin="10,0,0,0"
+                            VerticalAlignment="Center"
+                            d:Text="Muster aus 32 Bildern gelernt."
+                            FontFamily="Segoe UI"
+                            FontSize="11"
+                            Foreground="Gray"
+                            Text="{Binding WasserzeichenStatus}"
+                            TextTrimming="CharacterEllipsis" />
+                    </Grid>
 
                     <!--  Trennlinie  -->
                     <Border
@@ -1065,17 +1328,131 @@
                 Schwelle der „Schema-ähnlich"-Suche (Bild→Bild) – eigener Rahmen, außerhalb
                 der Einstellungen. Erscheint, sobald „Schema-ähnlich" Treffer geliefert hat.
             -->
+            <!--
+                Mindest-Ähnlichkeit der Freitext-/Standardtreffer. Gehört zum Suchfeld,
+                nicht in die allgemeinen Einstellungen: RenderSuchErgebnisse filtert damit
+                genau diese Treffer. Gegenstück zu BRD_SchemaSchwelle — sichtbar ist immer
+                der Slider, der die aktuelle Trefferart auch wirklich filtert.
+            -->
+            <Border
+                x:Name="BRD_MindestSchwelle"
+                Margin="2,10,2,0"
+                Padding="10"
+                d:Visibility="Visible"
+                Background="#FFFCFCFC"
+                BorderBrush="#FFE3E3E3"
+                BorderThickness="1"
+                CornerRadius="8">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <!--
+                                Kein Treffersatz vorhanden: nichts zu filtern. Bewusst am
+                                Cache und nicht an SuchErgebnisse.Count — sonst blendet der
+                                Slider sich selbst aus, sobald er alles wegfiltert, und
+                                liesse sich nicht mehr zurückziehen.
+                            -->
+                            <DataTrigger Binding="{Binding HatTrefferCache}" Value="False">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                            <!--  Schema-Treffer: dort filtert BRD_SchemaSchwelle.  -->
+                            <DataTrigger Binding="{Binding ErgebnisseSindSchemaAehnlich}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <Grid x:Name="GRD_MindestAehnlichkeit">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="100" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel
+                        x:Name="STP_MindestLabel"
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal"
+                        ToolTip="Nur Treffer der Freitext-Suche über dieser Ähnlichkeit zeigen">
+                        <TextBlock
+                            x:Name="TXT_MindestIcon"
+                            Margin="0,1,6,0"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="14"
+                            Foreground="#FF555555"
+                            Text="&#xE721;" />
+                        <TextBlock
+                            x:Name="TXT_MindestLabel"
+                            FontFamily="Segoe UI"
+                            FontSize="13"
+                            Foreground="#FF555555"
+                            Text="Mindest-Ähnl." />
+                    </StackPanel>
+                    <Slider
+                        x:Name="SLD_MindestAehnlichkeit"
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        LargeChange="5"
+                        Maximum="60"
+                        Minimum="0"
+                        SmallChange="1"
+                        Value="{Binding MindestAehnlichkeit, Mode=TwoWay}" />
+                    <Border
+                        x:Name="BRD_MindestWert"
+                        Grid.Column="2"
+                        Margin="10,0,0,0"
+                        Padding="8,2"
+                        VerticalAlignment="Center"
+                        Background="#FFF0F0F0"
+                        BorderBrush="#FFDADADA"
+                        BorderThickness="1"
+                        CornerRadius="9">
+                        <TextBlock
+                            x:Name="TXT_MindestWert"
+                            MinWidth="34"
+                            d:Text="23 %"
+                            FontFamily="Segoe UI"
+                            FontSize="12"
+                            FontWeight="SemiBold"
+                            Foreground="#FF555555"
+                            Text="{Binding MindestAehnlichkeit, StringFormat={}{0:F0} %}"
+                            TextAlignment="Center" />
+                    </Border>
+                    <Button
+                        x:Name="BTN_MindestSchwelleStandard"
+                        Grid.Column="3"
+                        Margin="6,0,0,0"
+                        Padding="6,2"
+                        VerticalAlignment="Center"
+                        Command="{Binding CommandExecuteMindestSchwelleZuruecksetzenCommand}"
+                        Content="&#xE845;"
+                        Cursor="Hand"
+                        FontFamily="Segoe MDL2 Assets"
+                        FontSize="11"
+                        Style="{StaticResource OutlineButtonStyle}"
+                        ToolTip="Mindest-Ähnlichkeit auf Standard (23 %) zurücksetzen" />
+                </Grid>
+            </Border>
+
             <Border
                 x:Name="BRD_SchemaSchwelle"
                 Margin="2,10,2,0"
                 Padding="10"
+                d:Visibility="Visible"
                 Background="#FFFCFCFC"
                 BorderBrush="#FFE3E3E3"
                 BorderThickness="1"
                 CornerRadius="8"
-                d:Visibility="Visible"
                 Visibility="{Binding ErgebnisseSindSchemaAehnlich, Converter={StaticResource CLconverterVisiblityBoolian}}">
                 <Grid x:Name="GRD_SchemaAehnlichkeit">
+                    <Grid.RowDefinitions>
+                        <RowDefinition x:Name="ROW_SchemaSchwelle" Height="Auto" />
+                        <RowDefinition x:Name="ROW_SchemaKalibrierung" Height="Auto" />
+                    </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="100" />
                         <ColumnDefinition Width="*" />
@@ -1146,7 +1523,90 @@
                         FontFamily="Segoe MDL2 Assets"
                         FontSize="11"
                         Style="{StaticResource OutlineButtonStyle}"
-                        ToolTip="Schema-Ähnlichkeit auf Standard (74 %) zurücksetzen" />
+                        ToolTip="Schema-Ähnlichkeit auf den Standardwert des aktuellen Modus zurücksetzen" />
+
+                    <!--
+                        Embedding-Kalibrierung: Mittelvektor abziehen und die stärksten
+                        Hauptkomponenten herausprojizieren. Spreizt die eng beieinander
+                        liegenden CLIP-Ähnlichkeiten und macht die Schwelle trennschärfer.
+                        Achtung: andere Skala — Schwelle gilt nur je Modus.
+                    -->
+                    <Grid
+                        x:Name="GRD_SchemaKalibrierung"
+                        Grid.Row="1"
+                        Grid.ColumnSpan="4"
+                        Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition x:Name="COL_KalibrierSchalter" Width="Auto" />
+                            <ColumnDefinition x:Name="COL_KalibrierRegler" Width="*" />
+                            <ColumnDefinition x:Name="COL_KalibrierWert" Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <CheckBox
+                            x:Name="CHK_SchemaKalibrierung"
+                            Grid.Column="0"
+                            VerticalAlignment="Center"
+                            VerticalContentAlignment="Center"
+                            FontFamily="Segoe UI"
+                            FontSize="12"
+                            Foreground="#FF555555"
+                            IsChecked="{Binding SchemaKalibrierungAktiv, Mode=TwoWay}"
+                            ToolTip="Embeddings vor dem Vergleich zentrieren und die stärksten Hauptkomponenten entfernen. Danach erneut suchen.">
+                            <TextBlock x:Name="TXT_KalibrierLabel" Text="Kalibriert" />
+                        </CheckBox>
+
+                        <StackPanel
+                            x:Name="STP_KalibrierKomponenten"
+                            Grid.Column="1"
+                            Margin="14,0,0,0"
+                            VerticalAlignment="Center"
+                            IsEnabled="{Binding SchemaKalibrierungAktiv}"
+                            Orientation="Horizontal">
+                            <TextBlock
+                                x:Name="TXT_KomponentenLabel"
+                                Margin="0,0,8,0"
+                                VerticalAlignment="Center"
+                                FontFamily="Segoe UI"
+                                FontSize="11"
+                                Foreground="Gray"
+                                Text="entfernte Komponenten" />
+                            <Slider
+                                x:Name="SLD_KalibrierKomponenten"
+                                Width="90"
+                                VerticalAlignment="Center"
+                                IsSnapToTickEnabled="True"
+                                LargeChange="1"
+                                Maximum="6"
+                                Minimum="0"
+                                SmallChange="1"
+                                TickFrequency="1"
+                                ToolTip="0 = nur zentrieren. 3 ist ein guter Ausgangswert; zu viele entfernen echtes Signal."
+                                Value="{Binding SchemaKalibrierungKomponenten, Mode=TwoWay}" />
+                        </StackPanel>
+
+                        <Border
+                            x:Name="BRD_KalibrierWert"
+                            Grid.Column="2"
+                            Margin="10,0,0,0"
+                            Padding="8,2"
+                            VerticalAlignment="Center"
+                            Background="#FFF0F0F0"
+                            BorderBrush="#FFDADADA"
+                            BorderThickness="1"
+                            CornerRadius="9"
+                            IsEnabled="{Binding SchemaKalibrierungAktiv}">
+                            <TextBlock
+                                x:Name="TXT_KalibrierKomponentenWert"
+                                MinWidth="34"
+                                d:Text="3 PC"
+                                FontFamily="Segoe UI"
+                                FontSize="12"
+                                FontWeight="SemiBold"
+                                Foreground="#FF555555"
+                                Text="{Binding SchemaKalibrierungKomponenten, StringFormat={}{0:F0} PC}"
+                                TextAlignment="Center" />
+                        </Border>
+                    </Grid>
                 </Grid>
             </Border>
 
@@ -1193,6 +1653,24 @@
                         x:Name="IC_SuchErgebnisse"
                         d:DataContext="{d:DesignInstance}"
                         ItemsSource="{Binding SuchErgebnisse}">
+                        <!--
+                            Nach einem Ordnerwechsel per Drop wurden die Treffer verworfen.
+                            Die rosa Fläche zeigt das auch dann noch, wenn die Suchleiste
+                            erst später wieder aufgeklappt wird. MinHeight ist nötig, weil
+                            das ItemsControl ohne Einträge sonst keine sichtbare Fläche hat.
+                            Verschwindet beim nächsten Suchlauf (LeereTrefferCache).
+                        -->
+                        <ItemsControl.Style>
+                            <Style TargetType="ItemsControl">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SuchErgebnisseVeraltet}" Value="True">
+                                        <Setter Property="Background" Value="#FFF9D7E3" />
+                                        <Setter Property="MinHeight" Value="64" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ItemsControl.Style>
                         <d:ItemsControl.Items>
                             <Border
                                 Width="104"

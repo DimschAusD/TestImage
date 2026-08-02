@@ -536,7 +536,19 @@ namespace TestImage
 
 
 
-        public async Task OnFileDrop(string[] filepaths)
+        /// <summary>
+        /// Drop durch den Nutzer (IFileDragDropTarget). Wechselt dabei der Ordner, werden
+        /// die Suchtreffer des alten Ordners verworfen — sonst führt ein Klick darauf
+        /// zurück in den vorherigen Ordner.
+        /// </summary>
+        public Task OnFileDrop(string[] filepaths)
+            => OnFileDrop(filepaths, verwerfeSuchtreffer: true);
+
+        /// <param name="verwerfeSuchtreffer">
+        /// False für interne Aufrufe: Beim Öffnen eines Suchtreffers aus einem anderen
+        /// Ordner und beim Neu-Einlesen muss die Trefferliste stehen bleiben.
+        /// </param>
+        private async Task OnFileDrop(string[] filepaths, bool verwerfeSuchtreffer)
         {
             // 1570
 
@@ -571,6 +583,19 @@ namespace TestImage
                 }
 
                 // !fullDateiName.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase)
+
+                // Vor dem Überschreiben von DropDateiName prüfen, ob der Ordner wechselt.
+                // Nur dann sind die alten Suchtreffer hinfällig; beim erneuten Drop aus
+                // demselben Ordner bleiben sie brauchbar.
+                if (verwerfeSuchtreffer)
+                {
+                    string? alterOrdner = string.IsNullOrEmpty(DropDateiName)
+                        ? null : Path.GetDirectoryName(DropDateiName);
+                    string? neuerOrdner = Path.GetDirectoryName(fullDateiName);
+
+                    if (!string.Equals(alterOrdner, neuerOrdner, StringComparison.OrdinalIgnoreCase))
+                        VerwerfeSuchtreffer();
+                }
 
                 LabelDropContent = Path.GetFileName(fullDateiName);
                 DropDateiName = fullDateiName;
@@ -639,6 +664,9 @@ namespace TestImage
 
                 // Index-Status des (neuen) Ordners bestimmen → steuert „Schema-ähnlich".
                 PruefeAktuellerOrdnerIndiziert();
+
+                // Bereits gespeicherte Wasserzeichen-Befunde übernehmen (Badges).
+                LadeWasserzeichenBefunde(Path.GetDirectoryName(fullDateiName));
             }
 
 
@@ -2998,8 +3026,95 @@ namespace TestImage
         /// <summary>Alle Top-Treffer der letzten Suche (ungefiltert, mit Score) für das Live-Filtern.</summary>
         private readonly System.Collections.Generic.List<(SuchErgebnis Erg, float Score)> _alleSuchTreffer = new();
 
+        /// <summary>
+        /// True, sobald ein Treffersatz zum Filtern vorliegt. Steuert die Sichtbarkeit der
+        /// Schwellen-Slider und bleibt beim Schieben stabil — anders als
+        /// <see cref="SuchErgebnisse"/>.Count, das beim Hochziehen auf 0 fällt und den
+        /// Slider sonst mitsamt seiner Karte ausblenden würde (er könnte nicht mehr
+        /// zurückgezogen werden).
+        /// </summary>
+        [ObservableProperty]
+        private bool _hatTrefferCache;
+
+        /// <summary>
+        /// True, wenn die Trefferliste wegen eines Ordnerwechsels verworfen wurde. Färbt
+        /// IC_SuchErgebnisse ein, damit der Grund auch dann erkennbar ist, wenn die
+        /// Suchleiste erst später über BTN_IndexSuchleiste wieder geöffnet wird.
+        /// </summary>
+        [ObservableProperty]
+        private bool _suchErgebnisseVeraltet;
+
+        /// <summary>
+        /// Restzeit lesbar aufbereiten: unter einer Minute in Sekunden, darüber in
+        /// Minuten und Sekunden. „462 s“ sagt niemandem etwas, „7 min 42 s“ schon.
+        /// Liefert leer, wenn keine sinnvolle Schätzung vorliegt.
+        /// </summary>
+        private static string FormatiereRestzeit(int sekunden)
+        {
+            if (sekunden <= 0)
+                return string.Empty;
+
+            if (sekunden < 60)
+                return $"{sekunden} s";
+
+            int minuten = sekunden / 60;
+            int rest = sekunden % 60;
+
+            return rest > 0 ? $"{minuten} min {rest} s" : $"{minuten} min";
+        }
+
+        /// <summary>Leert den Treffer-Cache und meldet den Zustand an die Oberfläche.</summary>
+        private void LeereTrefferCache()
+        {
+            _alleSuchTreffer.Clear();
+            HatTrefferCache = false;
+
+            // Jeder Suchlauf beginnt hiermit → Einfärbung des letzten Wechsels aufheben.
+            SuchErgebnisseVeraltet = false;
+        }
+
+        /// <summary>
+        /// Verwirft die angezeigten Suchtreffer samt Cache. Wird beim Ordnerwechsel per
+        /// Drop gerufen: Treffer aus dem alten Ordner würden sonst beim Anklicken dorthin
+        /// zurückspringen.
+        /// </summary>
+        private void VerwerfeSuchtreffer()
+        {
+            bool hatteTreffer = SuchErgebnisse.Count > 0 || _alleSuchTreffer.Count > 0;
+
+            SuchErgebnisse.Clear();
+            LeereTrefferCache();
+            ErgebnisseSindSchemaAehnlich = false;
+            _letzteFrage = string.Empty;
+
+            if (hatteTreffer)
+            {
+                SucheStatus = "Neuer Ordner geladen – Suche bitte wiederholen.";
+
+                // Nach LeereTrefferCache() setzen, das die Markierung zurücknimmt.
+                SuchErgebnisseVeraltet = true;
+            }
+
+            CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
+        }
+
         /// <summary>Letzte Suchanfrage (für die Statuszeile beim Neu-Filtern).</summary>
         private string _letzteFrage = string.Empty;
+
+        /// <summary>
+        /// Fortschritt der Freitextsuche in Prozent für die dünne Linie am unteren Rand
+        /// des Suchfelds (PGB_SuchfeldLinie).
+        /// </summary>
+        [ObservableProperty]
+        private int _suchfeldFortschritt;
+
+        /// <summary>
+        /// True, solange die Dauer unbekannt ist (Modell laden, Index abfragen) — dann
+        /// läuft die Linie als Marquee. Beim Laden der Miniaturen wird auf echten
+        /// Prozent-Fortschritt umgeschaltet.
+        /// </summary>
+        [ObservableProperty]
+        private bool _suchfeldIndeterminate = true;
 
         /// <summary>Kurzstatus der Freitextsuche.</summary>
         [ObservableProperty]
@@ -3101,8 +3216,8 @@ namespace TestImage
             finally { HeatmapLaeuft = false; }
         }
 
-        [RelayCommand]
-        private async Task CommandExecuteBegriffSuche(string? chipText)
+        [RelayCommand(IncludeCancelCommand = true)]
+        private async Task CommandExecuteBegriffSuche(string? chipText, CancellationToken token)
         {
             if (string.IsNullOrEmpty(chipText))
             {
@@ -3123,31 +3238,75 @@ namespace TestImage
             }
 
             SuchErgebnisse.Clear();
-            _alleSuchTreffer.Clear();
+            LeereTrefferCache();
             SucheStatus = $"Suche alle Bilder mit '{anzeigeName}'…";
 
-            var pfade = await _bildAnalyse.SucheNachKonzeptAsync(ordner, englisch);
-            if (pfade.Count == 0)
+            // Fortschrittsleiste GRD_SerieFortschritt mitbenutzen: erst Marquee für die
+            // Index-Abfrage, danach echter Balken fürs Laden der Miniaturen.
+            SerieFortschritt = 0;
+            SerieIndeterminate = true;
+            SerieSucheLaeuft = true;
+
+            try
             {
-                SucheStatus = $"Kein Bild mit '{anzeigeName}' im Index gefunden.";
-                return;
-            }
+                var pfade = await _bildAnalyse.SucheNachKonzeptAsync(ordner, englisch);
 
-            _letzteFrage = anzeigeName;
-            var ergebnisse = await Task.Run(() =>
-                pfade.Select(p => new SuchErgebnis
+                token.ThrowIfCancellationRequested();
+
+                if (pfade.Count == 0)
                 {
-                    Path = p,
-                    DateiName = Path.GetFileName(p),
-                    ProzentText = "✓",
-                    Thumb = LadeThumb(p)
-                }).ToList());
+                    SucheStatus = $"Kein Bild mit '{anzeigeName}' im Index gefunden.";
+                    return;
+                }
 
-            await FuegeErgebnisseEinAsync(ergebnisse.Select(e => (e, 1f)).ToList());
+                _letzteFrage = anzeigeName;
 
-            SucheStatus = $"{pfade.Count} Bilder mit '{anzeigeName}'.";
-            CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
+                // Ab hier echter Prozent-Fortschritt: Miniaturen einzeln laden, damit
+                // Balken und Restzeit den langsamen Teil abbilden.
+                SerieIndeterminate = false;
+
+                var ergebnisse = new System.Collections.Generic.List<SuchErgebnis>(pfade.Count);
+                var uhr = System.Diagnostics.Stopwatch.StartNew();
+
+                for (int i = 0; i < pfade.Count; i++)
+                {
+                    token.ThrowIfCancellationRequested();
+
+                    string p = pfade[i];
+                    var thumb = await Task.Run(() => LadeThumb(p), token);
+
+                    ergebnisse.Add(new SuchErgebnis
+                    {
+                        Path = p,
+                        DateiName = Path.GetFileName(p),
+                        ProzentText = "✓",
+                        Thumb = thumb
+                    });
+
+                    int fertig = i + 1;
+                    SerieFortschritt = (int)(fertig * 100.0 / pfade.Count);
+
+                    // SchaetzeRestzeit liegt in AufgabeViewModel.ByteDubletten.cs (gleiche partial-Klasse).
+                    string rest = SchaetzeRestzeit(uhr.Elapsed, fertig, pfade.Count);
+                    SucheStatus = $"'{anzeigeName}': {fertig} / {pfade.Count}"
+                        + (rest.Length > 0 ? " – " + rest : string.Empty);
+                }
+
+                await FuegeErgebnisseEinAsync(ergebnisse.Select(e => (e, 1f)).ToList());
+
+                SucheStatus = $"{pfade.Count} Bilder mit '{anzeigeName}'.";
+                CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
+            }
+            catch (OperationCanceledException)
+            {
+                SucheStatus = $"Suche nach '{anzeigeName}' abgebrochen.";
+            }
+            finally
+            {
+                SerieSucheLaeuft = false;
+            }
         }
+
 
         private static ImageSource ErzeugeHeatmapBild(float[,] scores, double bildBreite = 1, double bildHoehe = 1)
         {
@@ -3316,7 +3475,12 @@ namespace TestImage
                 return;
             }
 
+            // Der einmalige Modellstart dauert spürbar. Der Hinweis geht zusätzlich in
+            // die Statuszeile unter den Buttons – STP_ClipLaedt sitzt weiter unten im
+            // Panel und wird übersehen, wenn der Blick auf dem geklickten Knopf liegt.
+            // Die aufrufenden Commands setzen danach ihren eigenen Text.
             ClipLaedt = true;
+            SucheStatus = "Lade KI-Modell … (einmalig beim ersten Mal, dauert einen Moment)";
             try
             { await _bildAnalyse.StelleSicherGeladenAsync(); }
             finally { ClipLaedt = false; }
@@ -3334,7 +3498,15 @@ namespace TestImage
 
         /// <summary>Mindest-Ähnlichkeit der Suchtreffer in Prozent (0..100).</summary>
         [ObservableProperty]
-        private double _mindestAehnlichkeit = 23;
+        private double _mindestAehnlichkeit = MindestAehnlichkeitStandard;
+
+        /// <summary>Standardwert der Mindest-Ähnlichkeit in Prozent (Reset-Button).</summary>
+        public const double MindestAehnlichkeitStandard = 23;
+
+        /// <summary>Setzt die Mindest-Ähnlichkeit auf den Standardwert zurück.</summary>
+        [RelayCommand]
+        private void CommandExecuteMindestSchwelleZuruecksetzen()
+            => MindestAehnlichkeit = MindestAehnlichkeitStandard;
 
         // Slider bewegt → gecachte Treffer neu filtern (ohne erneute Suche).
         // Nicht wenn gerade Schema-ähnlich-Treffer aktiv sind – die filtert ihr eigener Slider.
@@ -3398,7 +3570,7 @@ namespace TestImage
             }
 
             SuchErgebnisse.Clear();
-            _alleSuchTreffer.Clear();
+            LeereTrefferCache();
             string anzeige = $"{kategorie}: {wert}";
             SucheStatus = $"Filtere '{anzeige}'…";
             FilterLaeuft = true;
@@ -3674,8 +3846,9 @@ namespace TestImage
                         double proSek = p.done / Math.Max(uhr.Elapsed.TotalSeconds, 0.001);
                         restSek = (int)Math.Ceiling((p.total - p.done) / Math.Max(proSek, 0.001));
                     }
-                    IndexFortschrittText = restSek > 0
-                        ? $"Indexiere {p.done}/{p.total} – noch ~{restSek} s"
+                    string restText = FormatiereRestzeit(restSek);
+                    IndexFortschrittText = restText.Length > 0
+                        ? $"Indexiere {p.done}/{p.total} – noch ~{restText}"
                         : $"Indexiere {p.done}/{p.total}…";
                 });
 
@@ -3687,22 +3860,36 @@ namespace TestImage
                     return;
                 }
 
-                IndexFortschritt = 100;
                 IndexAnzahlText = $"{anzahl} Bilder im Index";
                 IndexOrdnerText = "indexiert 1/1 Ordner";
-                IndexFortschrittText = $"Fertig: {anzahl} Bilder im Ordner '{Path.GetFileName(ordner)}' indexiert.";
+
+                // Im selben Durchgang auf Wasserzeichen prüfen (sichtbarer Aufdruck +
+                // Metadaten-Markierungen). Eigener Fortschritt, damit die zweite Phase
+                // nicht wie ein Hänger nach „100 %" aussieht.
+                IndexFortschritt = 0;
+                var wzFortschritt = new Progress<(int Erledigt, int Gesamt)>(p =>
+                {
+                    IndexFortschritt = p.Gesamt > 0 ? 100.0 * p.Erledigt / p.Gesamt : 0;
+                    IndexFortschrittText = $"Prüfe Wasserzeichen {p.Erledigt}/{p.Gesamt}…";
+                });
+
+                await PruefeWasserzeichenAsync(ordner, wzFortschritt, token);
+
+                IndexFortschritt = 100;
+                IndexFortschrittText =
+                    $"Fertig: {anzahl} Bilder indexiert. {WasserzeichenStatus}";
                 AktualisiereFilterOptionen();
                 PruefeAktuellerOrdnerIndiziert();   // Index existiert jetzt → „Schema-ähnlich" freischalten
 
                 if (!string.IsNullOrWhiteSpace(SucheText) && _alleSuchTreffer.Count > 0)
                 {
                     SucheStatus = "Index aktualisiert – Suche wird wiederholt…";
-                    await CommandExecuteFreitextSuche();
+                    await CommandExecuteFreitextSuche(token);
                 }
                 else if (_alleSuchTreffer.Count > 0)
                 {
                     SuchErgebnisse.Clear();
-                    _alleSuchTreffer.Clear();
+                    LeereTrefferCache();
                     SucheStatus = "Index aktualisiert – bitte erneut suchen/filtern.";
                 }
             }
@@ -3726,8 +3913,8 @@ namespace TestImage
             IsIndexPopoverOffen = !IsIndexPopoverOffen;
         }
 
-        [RelayCommand]
-        private async Task CommandExecuteFreitextSuche()
+        [RelayCommand(IncludeCancelCommand = true)]
+        private async Task CommandExecuteFreitextSuche(CancellationToken token)
         {
             string frage = (SucheText ?? string.Empty).Trim();
             if (frage.Length == 0)
@@ -3744,16 +3931,25 @@ namespace TestImage
             }
 
             SuchErgebnisse.Clear();
-            _alleSuchTreffer.Clear();
+            LeereTrefferCache();
             CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
             ErgebnisseSindSchemaAehnlich = false;   // andere Suche → Schema-Slider ausblenden
+
+            // Linie am Suchfeld: erst Marquee (Dauer unbekannt), später echter Balken.
+            SuchfeldFortschritt = 0;
+            SuchfeldIndeterminate = true;
+
             try
             {
                 await StelleClipBereitAsync();
                 SucheStatus = $"Suche '{frage}'…";
 
                 // Alle Top-Treffer holen (Schwelle 0); gefiltert wird lokal per Slider.
+                // SucheAsync nimmt keinen Token — der Abbruch greift erst danach.
                 var treffer = await _bildAnalyse.SucheAsync(ordner, frage, topN: 60, minSim: 0f);
+
+                token.ThrowIfCancellationRequested();
+
                 if (treffer.Count == 0)
                 {
                     SucheStatus = "Keine Treffer – ist der Ordner schon indexiert?";
@@ -3761,22 +3957,46 @@ namespace TestImage
                 }
 
                 _letzteFrage = frage;
-                var ergebnisse = await Task.Run(() =>
-                    treffer.Select(t => (Erg: new SuchErgebnis
+
+                // Miniaturen einzeln laden, damit die Linie den langsamen Teil abbildet.
+                SuchfeldIndeterminate = false;
+
+                var ergebnisse = new System.Collections.Generic.List<(SuchErgebnis Erg, float Score)>(treffer.Count);
+
+                for (int i = 0; i < treffer.Count; i++)
+                {
+                    token.ThrowIfCancellationRequested();
+
+                    var t = treffer[i];
+                    var thumb = await Task.Run(() => LadeThumb(t.Path), token);
+
+                    ergebnisse.Add((new SuchErgebnis
                     {
                         Path = t.Path,
                         DateiName = Path.GetFileName(t.Path),
                         ProzentText = $"{t.Score * 100f:F0} %",
-                        Thumb = LadeThumb(t.Path)
-                    }, t.Score)).ToList());
+                        Thumb = thumb
+                    }, t.Score));
+
+                    SuchfeldFortschritt = (int)((i + 1) * 100.0 / treffer.Count);
+                }
 
                 await FuegeErgebnisseEinAsync(ergebnisse);
 
                 RenderSuchErgebnisse();
             }
+            catch (OperationCanceledException)
+            {
+                SucheStatus = $"Suche nach '{frage}' abgebrochen.";
+            }
             catch (Exception ex)
             {
                 SucheStatus = "Fehler bei der Suche: " + ex.Message;
+            }
+            finally
+            {
+                // Für den nächsten Lauf wieder unbestimmt starten.
+                SuchfeldIndeterminate = true;
             }
         }
 
@@ -3784,6 +4004,7 @@ namespace TestImage
         private void RenderSuchErgebnisse()
         {
             ErgebnisseSindSchemaAehnlich = false;   // Freitext-/Standardtreffer: Mindest-Slider filtert
+            HatTrefferCache = _alleSuchTreffer.Count > 0;
             SuchErgebnisse.Clear();
             float min = (float)(MindestAehnlichkeit / 100.0);
 
@@ -3879,7 +4100,8 @@ namespace TestImage
             //    und das Bild auswählen, damit jeder Treffer anklickbar bleibt.
             if (File.Exists(pfad))
             {
-                await OnFileDrop(new[] { pfad });
+                // Trefferliste behalten – der Nutzer klickt sich gerade durch sie hindurch.
+                await OnFileDrop(new[] { pfad }, verwerfeSuchtreffer: false);
                 var wieder = OcAufgabens.FirstOrDefault(
                     b => string.Equals(b.BName, pfad, StringComparison.OrdinalIgnoreCase));
                 if (wieder != null)
@@ -4002,7 +4224,7 @@ namespace TestImage
                 .ToList();
 
             ErgebnisseSindSchemaAehnlich = false;   // Übersicht: nicht der Schema-Slider
-            _alleSuchTreffer.Clear();
+            LeereTrefferCache();
             SuchErgebnisse.Clear();
 
             foreach (var kv in sortiert)
@@ -4030,6 +4252,7 @@ namespace TestImage
         {
             return SelectedBildchen != null
                 && !string.IsNullOrEmpty(SelectedBildchen.BName)
+                && AktuellerOrdnerIndiziert   // vergleicht die Embeddings aus dem Index
                 && !SerieSucheLaeuft;
         }
 
@@ -4056,7 +4279,7 @@ namespace TestImage
             }
 
             SuchErgebnisse.Clear();
-            _alleSuchTreffer.Clear();
+            LeereTrefferCache();
             CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
             ErgebnisseSindSchemaAehnlich = false;   // andere Suche → Schema-Slider ausblenden
             SucheStatus = "Suche Dubletten im Ordner…";
@@ -4144,8 +4367,9 @@ namespace TestImage
                     SerieFortschritt = (int)(fertig * 100.0 / gesamt);
                     double proSek = fertig / Math.Max(uhr.Elapsed.TotalSeconds, 0.001);
                     int restSek = (int)Math.Ceiling((gesamt - fertig) / Math.Max(proSek, 0.001));
-                    SucheStatus = restSek > 0
-                        ? $"Lade Vorschaubilder… {fertig}/{gesamt} – noch ~{restSek} s"
+                    string restText = FormatiereRestzeit(restSek);
+                    SucheStatus = restText.Length > 0
+                        ? $"Lade Vorschaubilder… {fertig}/{gesamt} – noch ~{restText}"
                         : $"Lade Vorschaubilder… {fertig}/{gesamt}";
                 }
             }
@@ -4173,7 +4397,7 @@ namespace TestImage
 
         /// <summary>Setzt die Schema-Ähnlichkeit auf den Standardwert zurück.</summary>
         [RelayCommand]
-        private void CommandExecuteSchemaSchwelleZuruecksetzen() => SchemaAehnlichkeitProzent = SchemaAehnlichkeitStandard;
+        private void CommandExecuteSchemaSchwelleZuruecksetzen() => SchemaAehnlichkeitProzent = AktuellerSchemaStandard;
 
         /// <summary>
         /// Untergrenze des geladenen Kandidatensatzes (= Slider-Minimum). Es werden
@@ -4181,6 +4405,50 @@ namespace TestImage
         /// Anzeige live nach unten wie oben filtern kann, ohne neu zu suchen.
         /// </summary>
         private const float SchemaKandidatenFloor = 0.5f;
+
+        #region Embedding-Kalibrierung (Stufe 1)
+
+        /// <summary>
+        /// Rohe CLIP-Embeddings vor dem Vergleich zentrieren und die stärksten
+        /// Hauptkomponenten herausprojizieren (siehe <see cref="EmbeddingKalibrierung"/>).
+        /// Standard aus, damit die am rohen Kosinus eingemessenen 74 % weiter gelten —
+        /// zum Vergleichen bewusst umschalten.
+        /// </summary>
+        [ObservableProperty]
+        private bool _schemaKalibrierungAktiv;
+
+        /// <summary>
+        /// Wie viele Hauptkomponenten entfernt werden. 0 = nur zentrieren.
+        /// 3 ist der übliche Ausgangswert; mehr entfernt zunehmend echtes Signal.
+        /// </summary>
+        [ObservableProperty]
+        private int _schemaKalibrierungKomponenten = 3;
+
+        /// <summary>
+        /// Standardschwelle im kalibrierten Modus. Dort liegt die mittlere Ähnlichkeit
+        /// bei 50 % (Kosinus 0), echte Treffer deutlich darüber — die 74 % vom rohen
+        /// Kosinus sind hier bedeutungslos.
+        /// </summary>
+        public const double SchemaAehnlichkeitStandardKalibriert = 80;
+
+        /// <summary>Der zum aktuellen Modus passende Standardwert (Reset-Button).</summary>
+        private double AktuellerSchemaStandard => SchemaKalibrierungAktiv
+            ? SchemaAehnlichkeitStandardKalibriert
+            : SchemaAehnlichkeitStandard;
+
+        // Moduswechsel: Skala ändert sich, also Schwelle auf den passenden Standard
+        // stellen — sonst filtert der alte Wert im neuen Modus sinnlos.
+        partial void OnSchemaKalibrierungAktivChanged(bool value)
+        {
+            SchemaAehnlichkeitProzent = AktuellerSchemaStandard;
+
+            if (_ergebnisseSindSchemaAehnlich)
+                SucheStatus = value
+                    ? "Kalibrierung ein — Suche erneut ausführen, um sie anzuwenden."
+                    : "Kalibrierung aus — Suche erneut ausführen.";
+        }
+
+        #endregion
 
         /// <summary>
         /// True, solange die angezeigten Treffer aus der „Schema-ähnlich"-Suche
@@ -4197,6 +4465,9 @@ namespace TestImage
         /// </summary>
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteSchemaAehnlichCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteSerieSucheCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteErweiterteSerieSucheCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteDublettenCommand))]
         private bool _aktuellerOrdnerIndiziert;
 
         /// <summary>Bestimmt neu, ob der Ordner des aktuellen Bildes indiziert ist.</summary>
@@ -4255,7 +4526,7 @@ namespace TestImage
             }
 
             SuchErgebnisse.Clear();
-            _alleSuchTreffer.Clear();
+            LeereTrefferCache();
             CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
             SucheStatus = $"Suche Schema-ähnliche Bilder zu '{Path.GetFileName(bildPfad)}'…";
             SerieFortschritt = 0;
@@ -4270,7 +4541,8 @@ namespace TestImage
                 // ab dem Slider-Minimum (breiter Kandidatensatz). Das Bild selbst ist
                 // mit 100 % dabei. Angezeigt wird dann per Slider gefiltert.
                 var treffer = await _bildAnalyse.SucheNachSerieAsync(
-                    ordner, bildPfad, topN: 200, minSim: SchemaKandidatenFloor, token);
+                    ordner, bildPfad, topN: 200, minSim: SchemaKandidatenFloor, token,
+                    kalibrierKomponenten: SchemaKalibrierungAktiv ? SchemaKalibrierungKomponenten : -1);
                 if (treffer.Count <= 1)
                 {
                     ErgebnisseSindSchemaAehnlich = true;
@@ -4307,7 +4579,17 @@ namespace TestImage
             SerieIndeterminate = false;   // ab jetzt echter Prozent-Fortschritt
             SerieFortschritt = 0;
 
+            // Wie bei der Seriensuche schon während des Ladens anzeigen: Der Kandidatensatz
+            // ist absteigend sortiert, die Bilder über der Schwelle kommen also zuerst. Ohne
+            // das erscheint das erste Bild erst, wenn alle bis zu 200 Kandidaten geladen sind
+            // – auf einer HDD dauert das spürbar lange. Der Rest wird weiter geladen, damit
+            // der Schema-Regler danach ohne neue Suche nach unten filtern kann.
+            SuchErgebnisse.Clear();
+            ErgebnisseSindSchemaAehnlich = true;   // Schema-Regler sofort einblenden
+            float schwelle = (float)(SchemaAehnlichkeitProzent / 100.0);
+
             int gesamt = treffer.Count;
+            int angezeigt = 0;
             var uhr = System.Diagnostics.Stopwatch.StartNew();
 
             for (int i = 0; i < gesamt; i++)
@@ -4324,14 +4606,27 @@ namespace TestImage
                     Thumb = thumb
                 };
                 _alleSuchTreffer.Add((erg, t.Score));
+                HatTrefferCache = true;
+
+                if (t.Score >= schwelle)
+                {
+                    SuchErgebnisse.Add(erg);
+                    angezeigt++;
+                }
 
                 int fertig = i + 1;
                 SerieFortschritt = (int)(fertig * 100.0 / gesamt);
                 double proSek = fertig / Math.Max(uhr.Elapsed.TotalSeconds, 0.001);
                 int restSek = (int)Math.Ceiling((gesamt - fertig) / Math.Max(proSek, 0.001));
-                SucheStatus = restSek > 0
-                    ? $"Lade Vorschaubilder… {fertig}/{gesamt} – noch ~{restSek} s"
-                    : $"Lade Vorschaubilder… {fertig}/{gesamt}";
+
+                // Sobald die Schwelle unterschritten ist, laufen nur noch Kandidaten für
+                // den Regler ein – das ehrlich benennen, sonst wirkt es wie Stillstand.
+                string was = t.Score >= schwelle
+                    ? $"Lade Treffer… {angezeigt} angezeigt"
+                    : $"Lade Reserve für den Regler… {fertig}/{gesamt}";
+
+                string restText = FormatiereRestzeit(restSek);
+                SucheStatus = restText.Length > 0 ? $"{was} – noch ~{restText}" : was;
             }
         }
 
@@ -4342,15 +4637,19 @@ namespace TestImage
         /// </summary>
         private void RenderSchemaAehnlich()
         {
+            HatTrefferCache = _alleSuchTreffer.Count > 0;
             SuchErgebnisse.Clear();
             float min = (float)(SchemaAehnlichkeitProzent / 100.0);
 
             int gezeigt = 0;
             float niedrigster = 0f;
+            float hoechsterVerworfen = -1f;
             foreach (var (erg, score) in _alleSuchTreffer)
             {
                 if (score < min)
                 {
+                    // Liste ist absteigend → der erste Verworfene ist der höchste.
+                    if (hoechsterVerworfen < 0f) hoechsterVerworfen = score;
                     continue;
                 }
 
@@ -4359,9 +4658,20 @@ namespace TestImage
                 gezeigt++;
             }
 
+            // Abstand zwischen letztem Treffer und erstem verworfenen Bild. Je grösser
+            // die Lücke, desto sauberer trennt die Schwelle — die Kennzahl zum Vergleich
+            // von rohem und kalibriertem Modus.
+            string luecke = gezeigt > 1 && hoechsterVerworfen >= 0f
+                ? $", Lücke {(niedrigster - hoechsterVerworfen) * 100f:F0} Pkt."
+                : string.Empty;
+
+            string modus = SchemaKalibrierungAktiv
+                ? $" [kalibriert, {SchemaKalibrierungKomponenten} PC]"
+                : " [roh]";
+
             SucheStatus = gezeigt <= 1
-                ? $"Keine schema-ähnlichen Bilder ≥ {SchemaAehnlichkeitProzent:F0} %."
-                : $"{gezeigt} schema-ähnliche Bilder (≥ {SchemaAehnlichkeitProzent:F0} %, niedrigster {niedrigster * 100f:F0} %).";
+                ? $"Keine schema-ähnlichen Bilder ≥ {SchemaAehnlichkeitProzent:F0} %.{modus}"
+                : $"{gezeigt} schema-ähnliche Bilder (≥ {SchemaAehnlichkeitProzent:F0} %, niedrigster {niedrigster * 100f:F0} %{luecke}).{modus}";
 
             CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
         }
@@ -4370,6 +4680,7 @@ namespace TestImage
         {
             return SelectedBildchen != null
                 && !string.IsNullOrEmpty(SelectedBildchen.BName)
+                && AktuellerOrdnerIndiziert   // ohne Index liefert SucheNachSerieAsync nichts
                 && !SerieSucheLaeuft;
         }
 
@@ -4389,7 +4700,7 @@ namespace TestImage
             }
 
             SuchErgebnisse.Clear();
-            _alleSuchTreffer.Clear();
+            LeereTrefferCache();
             CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
             ErgebnisseSindSchemaAehnlich = false;   // andere Suche → Schema-Slider ausblenden
             SucheStatus = $"Suche Serie für '{Path.GetFileName(bildPfad)}'…";
@@ -4430,6 +4741,7 @@ namespace TestImage
         {
             return SelectedBildchen != null
                 && !string.IsNullOrEmpty(SelectedBildchen.BName)
+                && AktuellerOrdnerIndiziert   // arbeitet ebenfalls auf dem Index
                 && !SerieSucheLaeuft;
         }
 
@@ -4449,7 +4761,7 @@ namespace TestImage
             }
 
             SuchErgebnisse.Clear();
-            _alleSuchTreffer.Clear();
+            LeereTrefferCache();
             CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
             ErgebnisseSindSchemaAehnlich = false;   // andere Suche → Schema-Slider ausblenden
             SucheStatus = $"Erweiterte Seriensuche für '{Path.GetFileName(bildPfad)}'…";
@@ -4541,8 +4853,9 @@ namespace TestImage
                 // Restzeit aus bisheriger Ladegeschwindigkeit hochrechnen.
                 double proSek = fertig / Math.Max(uhr.Elapsed.TotalSeconds, 0.001);
                 int restSek = (int)Math.Ceiling((gesamt - fertig) / Math.Max(proSek, 0.001));
-                SucheStatus = restSek > 0
-                    ? $"Lade Vorschaubilder… {fertig}/{gesamt} – noch ~{restSek} s"
+                string restText = FormatiereRestzeit(restSek);
+                SucheStatus = restText.Length > 0
+                    ? $"Lade Vorschaubilder… {fertig}/{gesamt} – noch ~{restText}"
                     : $"Lade Vorschaubilder… {fertig}/{gesamt}";
             }
         }
@@ -4582,7 +4895,8 @@ namespace TestImage
                 // OnFileDrop(string[] filepaths) neu initialisieren, um die Bilder neu einzulesen
                 var dateien = new string[] { DropDateiName };
 
-                await OnFileDrop(dateien);
+                // Derselbe Ordner wird neu eingelesen – Trefferliste bleibt gültig.
+                await OnFileDrop(dateien, verwerfeSuchtreffer: false);
             }
             finally
             {

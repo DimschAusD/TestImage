@@ -302,9 +302,15 @@ namespace TestImage.Bildersuche
         /// Seriensuche: holt das gespeicherte CLIP-Embedding des Bildes aus dem
         /// Index und sucht alle visuell ähnlichen Bilder im selben Ordner.
         /// </summary>
+        /// <param name="kalibrierKomponenten">
+        /// −1 = aus (roher CLIP-Kosinus wie bisher). Ab 0 werden die Embeddings vor dem
+        /// Vergleich zentriert und so viele Hauptkomponenten herausprojiziert
+        /// (siehe <see cref="EmbeddingKalibrierung"/>). Die Ähnlichkeitsskala ist dann
+        /// eine andere — <paramref name="minSim"/> muss dafür passend gewählt sein.
+        /// </param>
         public async Task<IReadOnlyList<(string Path, float Score)>> SucheNachSerieAsync(
             string ordner, string bildPfad, int topN = 80, float minSim = 0.85f,
-            CancellationToken abbruch = default)
+            CancellationToken abbruch = default, int kalibrierKomponenten = -1)
         {
             if (!await StelleSicherGeladenAsync().ConfigureAwait(false))
                 return Array.Empty<(string, float)>();
@@ -325,13 +331,46 @@ namespace TestImage.Bildersuche
                     return Array.Empty<(string, float)>();
 
                 var treffer = new List<(string Path, float Score)>();
-                foreach (var k in index.Entries)
+
+                // Kalibrierter Weg: Mittelvektor und stärkste Hauptkomponenten aus dem
+                // gesamten Ordner-Index gewinnen, dann darauf vergleichen.
+                EmbeddingKalibrierung? kalibrierung = null;
+                if (kalibrierKomponenten >= 0)
                 {
-                    abbruch.ThrowIfCancellationRequested();
-                    if (k.Descriptor.Length == 0) continue;
-                    float sim = _cnn!.Similarity(entry.Descriptor, k.Descriptor);
-                    if (sim >= minSim)
-                        treffer.Add((k.Path, sim));
+                    var gueltige = index.Entries
+                        .Where(e => e.Descriptor.Length > 0)
+                        .Select(e => e.Descriptor)
+                        .ToList();
+
+                    kalibrierung = EmbeddingKalibrierung.Erstelle(gueltige, kalibrierKomponenten, abbruch);
+                }
+
+                if (kalibrierung is not null)
+                {
+                    var frageVektor = kalibrierung.Anwenden(entry.Descriptor);
+
+                    foreach (var k in index.Entries)
+                    {
+                        abbruch.ThrowIfCancellationRequested();
+                        if (k.Descriptor.Length == 0) continue;
+
+                        float sim = EmbeddingKalibrierung.Aehnlichkeit(
+                            frageVektor, kalibrierung.Anwenden(k.Descriptor));
+
+                        if (sim >= minSim)
+                            treffer.Add((k.Path, sim));
+                    }
+                }
+                else
+                {
+                    foreach (var k in index.Entries)
+                    {
+                        abbruch.ThrowIfCancellationRequested();
+                        if (k.Descriptor.Length == 0) continue;
+                        float sim = _cnn!.Similarity(entry.Descriptor, k.Descriptor);
+                        if (sim >= minSim)
+                            treffer.Add((k.Path, sim));
+                    }
                 }
 
                 treffer.Sort((a, b) => b.Score.CompareTo(a.Score));

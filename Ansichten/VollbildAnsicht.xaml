@@ -28,6 +28,7 @@
             Drop="Vollbild_Drop"
             RenderOptions.BitmapScalingMode="HighQuality"
             Source="{Binding DisplayImage}"
+            d:Source="/Images/HeavyO.jpg"
             Stretch="Uniform">
             <Image.RenderTransform>
                 <TranslateTransform x:Name="imgShakeTransform" />
@@ -86,6 +87,7 @@
             VerticalAlignment="Bottom"
             FocusVisualStyle="{x:Null}"
             d:ItemsSource="{d:SampleData ItemCount=8}"
+            d:Visibility="Visible"
             local:HorizontalListBoxBehavior.CenterSelectedItem="True"
             local:HorizontalListBoxBehavior.EnableHorizontalMouseWheel="True"
             IsSynchronizedWithCurrentItem="True"
@@ -208,7 +210,10 @@
                     <Grid Width="100" Height="72">
                         <!--  Bild komplett sichtbar, kein Zuschnitt  -->
                         <Border ClipToBounds="True" CornerRadius="5">
-                            <Image Source="{Binding BName, Converter={StaticResource CLconverterStringZuKleinemImage}}" Stretch="Uniform" />
+                            <Image
+                                Source="{Binding BName, Converter={StaticResource CLconverterStringZuKleinemImage}}"
+                                d:Source="/Images/HeavyO.jpg"
+                                Stretch="Uniform" />
                         </Border>
                         <!--  Vignette unten (Kontrast für Stern-Icon)  -->
                         <Rectangle
@@ -247,6 +252,34 @@
                                 FontSize="9"
                                 Foreground="White"
                                 Text="&#xE10B;" />
+                        </Border>
+                        <!--  Badge: Wasserzeichen oder Metadaten-Markierung gefunden  -->
+                        <Border
+                            x:Name="BRD_WasserzeichenBadgeVollbild"
+                            Width="18"
+                            Height="18"
+                            Margin="4,4,0,0"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Top"
+                            Background="#DDD97706"
+                            CornerRadius="9"
+                            ToolTip="{Binding WasserzeichenGrund}"
+                            Visibility="{Binding HatWasserzeichen, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                            <Border.Effect>
+                                <DropShadowEffect
+                                    BlurRadius="4"
+                                    Opacity="0.6"
+                                    ShadowDepth="1"
+                                    Color="Black" />
+                            </Border.Effect>
+                            <TextBlock
+                                x:Name="IC_WasserzeichenBadgeVollbild"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="9"
+                                Foreground="White"
+                                Text="&#xE72E;" />
                         </Border>
                     </Grid>
                 </DataTemplate>
