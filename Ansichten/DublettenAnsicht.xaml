@@ -73,23 +73,23 @@
             <Setter Property="Foreground" Value="#FF9B1C1C" />
         </Style>
 
-        <!--  Karte: weiss, feiner Rand, abgerundet.  -->
+        <!--
+            Karte: weiss, feiner Rand, abgerundet.
+            
+            Bewusst OHNE DropShadowEffect: Ein Effect zwingt WPF, den ganzen Teilbaum
+            samt Text als Bitmap durch die Effekt-Pipeline zu rendern. Dabei geht die
+            ClearType-Darstellung verloren und die Schrift wirkt weich – genau der
+            „WinForms-Eindruck". Die Tiefe kommt stattdessen über einen etwas
+            kräftigeren Rand.
+        -->
         <Style x:Key="Karte" TargetType="Border">
             <Setter Property="Background" Value="White" />
-            <Setter Property="BorderBrush" Value="#FFCBD5E1" />
+            <Setter Property="BorderBrush" Value="#FFC3CEDC" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="8" />
             <Setter Property="Padding" Value="12,10,12,12" />
             <Setter Property="Margin" Value="0,0,0,10" />
-            <Setter Property="Effect">
-                <Setter.Value>
-                    <DropShadowEffect
-                        BlurRadius="8"
-                        Opacity="0.10"
-                        ShadowDepth="1"
-                        Color="#FF64748B" />
-                </Setter.Value>
-            </Setter>
+            <Setter Property="SnapsToDevicePixels" Value="True" />
         </Style>
 
         <Style x:Key="KartenTitel" TargetType="TextBlock">
@@ -104,20 +104,24 @@
             <Setter Property="Margin" Value="0,2,0,0" />
         </Style>
 
+        <!--
+            Pfadfeld: bewusst beschreibbar. Ein Pfad soll sich löschen, tippen oder
+            aus der Zwischenablage einfügen lassen – nicht nur über „Wählen …".
+        -->
         <Style x:Key="PfadFeld" TargetType="TextBox">
-            <Setter Property="Height" Value="26" />
-            <Setter Property="Padding" Value="6,0" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="8,0" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="IsReadOnly" Value="True" />
             <Setter Property="Background" Value="#FFF8FAFC" />
             <Setter Property="BorderBrush" Value="#FFCBD5E1" />
             <Setter Property="Foreground" Value="#FF1F2937" />
             <Setter Property="FontSize" Value="12" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
         </Style>
 
     </UserControl.Resources>
 
-    <!--  Byte-Dubletten-Ansicht: Basisordner behalten, Duplikate in Vergleichsordnern löschen.  -->
+    <!--  Byte-Dubletten-Ansicht: aus dem Dubletten-Ordner löschen, Referenzbestand behalten.  -->
     <Grid x:Name="GRD_DublettenWurzel" Background="#FFF6F7F9">
         <Grid.RowDefinitions>
             <RowDefinition x:Name="ROW_Kopf" Height="Auto" />
@@ -144,7 +148,7 @@
                 <TextBlock
                     x:Name="TXT_KopfUntertitel"
                     Style="{StaticResource KartenUntertitel}"
-                    Text="Bilder des Basisordners werden behalten — byte-identische Kopien in den Vergleichsordnern kommen in den Papierkorb." />
+                    Text="Aus dem Dubletten-Ordner kommt alles in den Papierkorb, was byte-identisch auch in einem Referenzordner liegt. Der Referenzbestand bleibt unangetastet." />
             </StackPanel>
 
             <Button
@@ -175,8 +179,8 @@
             <Grid x:Name="GRD_Ordner">
                 <Grid.RowDefinitions>
                     <RowDefinition x:Name="ROW_OrdnerTitel" Height="Auto" />
-                    <RowDefinition x:Name="ROW_Basis" Height="Auto" />
-                    <RowDefinition x:Name="ROW_Vergleich" Height="Auto" />
+                    <RowDefinition x:Name="ROW_Dubletten" Height="Auto" />
+                    <RowDefinition x:Name="ROW_Referenz" Height="Auto" />
                     <RowDefinition x:Name="ROW_Optionen" Height="Auto" />
                 </Grid.RowDefinitions>
 
@@ -198,156 +202,423 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!--  Basisordner  -->
-                <Grid
-                    x:Name="GRD_BasisOrdner"
+                <!--
+                    Dubletten-Ordner: die Seite, die weg kann. Als eigene Gruppe gerahmt,
+                    damit auf einen Blick klar ist, was zusammengehört – und dass diese
+                    Zeile die gefährliche ist.
+                -->
+                <Border
+                    x:Name="BRD_DublettenZeile"
                     Grid.Row="1"
-                    Margin="0,10,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition x:Name="COL_BasisLabel" Width="150" />
-                        <ColumnDefinition x:Name="COL_BasisFeld" Width="*" />
-                        <ColumnDefinition x:Name="COL_BasisButton" Width="Auto" />
-                    </Grid.ColumnDefinitions>
+                    Margin="0,10,0,0"
+                    Padding="8"
+                    local:OrdnerDropHelper.Command="{Binding CommandExecuteDublettenOrdnerAusDropCommand}"
+                    CornerRadius="8"
+                    SnapsToDevicePixels="True"
+                    ToolTip="Datei oder Ordner irgendwo auf diese Zeile ziehen, um den Dubletten-Ordner zu setzen">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Background" Value="#FFFEFCFC" />
+                            <Setter Property="BorderBrush" Value="#FFEBD8D8" />
+                            <Setter Property="BorderThickness" Value="1" />
+                            <Style.Triggers>
+                                <Trigger Property="local:OrdnerDropHelper.IstZielAktiv" Value="True">
+                                    <Setter Property="Background" Value="#FFFDECEC" />
+                                    <Setter Property="BorderBrush" Value="#FFD98A8A" />
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <Grid x:Name="GRD_DublettenOrdner">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition x:Name="COL_DublettenLabel" Width="Auto" />
+                            <ColumnDefinition x:Name="COL_DublettenFeld" Width="*" />
+                            <ColumnDefinition x:Name="COL_DublettenButton" Width="Auto" />
+                        </Grid.ColumnDefinitions>
 
-                    <StackPanel
-                        x:Name="STP_BasisLabel"
-                        Grid.Column="0"
-                        VerticalAlignment="Center">
-                        <TextBlock
-                            x:Name="TXT_BasisLabel"
-                            FontSize="12"
-                            FontWeight="SemiBold"
-                            Foreground="#FF1F2937"
-                            Text="Basisordner" />
-                        <TextBlock
-                            x:Name="TXT_BasisHinweis"
-                            FontSize="10"
-                            Foreground="#FF059669"
-                            Text="wird behalten" />
-                    </StackPanel>
-
-                    <TextBox
-                        x:Name="TXB_BasisOrdner"
-                        Grid.Column="1"
-                        Margin="0,0,8,0"
-                        d:Text="C:\Bilder\Sammlung"
-                        Style="{StaticResource PfadFeld}"
-                        Text="{Binding DublettenBasisOrdner}"
-                        ToolTip="{Binding DublettenBasisOrdner}" />
-
-                    <Button
-                        x:Name="BTN_BasisOrdnerWaehlen"
-                        Grid.Column="2"
-                        Command="{Binding CommandExecuteBasisOrdnerWaehlenCommand}"
-                        Content="Wählen …"
-                        Style="{StaticResource ButtonBasis}" />
-                </Grid>
-
-                <!--  Vergleichsordner  -->
-                <Grid
-                    x:Name="GRD_VergleichsOrdner"
-                    Grid.Row="2"
-                    Margin="0,10,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition x:Name="COL_VergleichLabel" Width="150" />
-                        <ColumnDefinition x:Name="COL_VergleichListe" Width="*" />
-                        <ColumnDefinition x:Name="COL_VergleichButtons" Width="Auto" />
-                    </Grid.ColumnDefinitions>
-
-                    <StackPanel
-                        x:Name="STP_VergleichLabel"
-                        Grid.Column="0"
-                        VerticalAlignment="Top">
-                        <TextBlock
-                            x:Name="TXT_VergleichLabel"
-                            FontSize="12"
-                            FontWeight="SemiBold"
-                            Foreground="#FF1F2937"
-                            Text="Vergleichsordner" />
-                        <TextBlock
-                            x:Name="TXT_VergleichHinweis"
-                            FontSize="10"
-                            Foreground="#FF9B1C1C"
-                            Text="hier wird gelöscht" />
-                    </StackPanel>
-
-                    <Border
-                        x:Name="BRD_VergleichsListe"
-                        Grid.Column="1"
-                        MinHeight="60"
-                        MaxHeight="110"
-                        Margin="0,0,8,0"
-                        Background="#FFF8FAFC"
-                        BorderBrush="#FFCBD5E1"
-                        BorderThickness="1"
-                        CornerRadius="6">
-                        <Grid x:Name="GRD_VergleichsListeInhalt">
-                            <ListBox
-                                x:Name="LBX_VergleichsOrdner"
-                                d:ItemsSource="{d:SampleData ItemCount=2}"
+                        <StackPanel
+                            x:Name="STP_DublettenLabel"
+                            Grid.Column="0"
+                            VerticalAlignment="Center">
+                            <!--
+                                Keine feste Höhe: Zwei Textzeilen brauchen mehr als die vorherigen
+                                29 px, sonst werden Unterlängen (g, ö) abgeschnitten. Padding gibt
+                                Luft zum Rand, der dezente Hintergrund zeigt, dass hier abgelegt
+                                werden kann – beim Ziehen färbt er sich kräftiger.
+                            -->
+                            <!--
+                                Nur noch Beschriftung: Drop-Ziel ist die ganze Zeile
+                                (BRD_DublettenZeile), damit die Trefferfläche gross ist.
+                            -->
+                            <Border
+                                x:Name="BRD_DublettenDropZone"
+                                MinWidth="150"
+                                Padding="9,6"
                                 Background="Transparent"
-                                BorderThickness="0"
-                                FocusVisualStyle="{x:Null}"
-                                FontSize="12"
-                                ItemsSource="{Binding DublettenVergleichsOrdner}"
-                                ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                                SelectedItem="{Binding AusgewaehlterVergleichsOrdner, Mode=TwoWay}" />
+                                CornerRadius="6"
+                                SnapsToDevicePixels="True">
+                                <StackPanel x:Name="STP_DublettenDropInhalt">
+                                    <TextBlock
+                                        x:Name="TXT_DublettenLabel"
+                                        FontSize="12"
+                                        FontWeight="SemiBold"
+                                        Foreground="#FF1F2937"
+                                        Text="Dubletten-Ordner" />
+                                    <TextBlock
+                                        x:Name="TXT_DublettenHinweis"
+                                        Margin="0,2,0,0"
+                                        FontSize="10"
+                                        Foreground="#FF9B1C1C"
+                                        Text="hier wird gelöscht" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
 
+                        <!--
+                            UpdateSourceTrigger=PropertyChanged: Der Suchen-Knopf prüft per
+                            CanExecute, ob der Ordner existiert. Ohne das käme die Änderung
+                            erst beim Verlassen des Feldes an.
+                        -->
+                        <TextBox
+                            x:Name="TXB_DublettenOrdner"
+                            Grid.Column="1"
+                            Margin="8,0,8,0"
+                            d:Text="C:\Bilder\Sammlung"
+                            AllowDrop="False"
+                            Style="{StaticResource PfadFeld}"
+                            Text="{Binding DublettenOrdner, UpdateSourceTrigger=PropertyChanged}"
+                            ToolTip="Pfad lässt sich tippen, einfügen oder löschen" />
+
+                        <Button
+                            x:Name="BTN_DublettenOrdnerWaehlen"
+                            Grid.Column="2"
+                            Command="{Binding CommandExecuteDublettenOrdnerWaehlenCommand}"
+                            Content="Wählen …"
+                            Style="{StaticResource ButtonBasis}" />
+                    </Grid>
+                </Border>
+
+                <!--
+                    Referenzordner: der Bestand, der bleibt. Gleicher Rahmen wie die
+                    Dubletten-Zeile, nur in Grün – die beiden Seiten sollen sich auf
+                    einen Blick unterscheiden lassen.
+                -->
+                <Border
+                    x:Name="BRD_ReferenzZeile"
+                    Grid.Row="2"
+                    Margin="0,10,0,0"
+                    Padding="8"
+                    local:OrdnerDropHelper.Command="{Binding CommandExecuteReferenzOrdnerAusDropCommand}"
+                    CornerRadius="8"
+                    SnapsToDevicePixels="True"
+                    ToolTip="Datei oder Ordner irgendwo auf diese Zeile ziehen, um einen Referenzordner hinzuzufügen">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Background" Value="#FFFCFDFC" />
+                            <Setter Property="BorderBrush" Value="#FFDCEDE3" />
+                            <Setter Property="BorderThickness" Value="1" />
+                            <Style.Triggers>
+                                <Trigger Property="local:OrdnerDropHelper.IstZielAktiv" Value="True">
+                                    <Setter Property="Background" Value="#FFECFDF3" />
+                                    <Setter Property="BorderBrush" Value="#FF6BB68A" />
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <Grid x:Name="GRD_ReferenzOrdner">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition x:Name="COL_ReferenzLabel" Width="Auto" />
+                            <ColumnDefinition x:Name="COL_ReferenzListe" Width="*" />
+                            <ColumnDefinition x:Name="COL_ReferenzButtons" Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel
+                            x:Name="STP_ReferenzLabel"
+                            Grid.Column="0"
+                            VerticalAlignment="Top">
+                            <Border
+                                x:Name="BRD_ReferenzDropZone"
+                                MinWidth="150"
+                                Padding="9,6"
+                                Background="Transparent"
+                                CornerRadius="6"
+                                SnapsToDevicePixels="True">
+                                <StackPanel x:Name="STP_ReferenzDropInhalt">
+                                    <TextBlock
+                                        x:Name="TXT_ReferenzLabel"
+                                        FontSize="12"
+                                        FontWeight="SemiBold"
+                                        Foreground="#FF1F2937"
+                                        Text="Referenzordner" />
+                                    <TextBlock
+                                        x:Name="TXT_ReferenzHinweis"
+                                        Margin="0,2,0,0"
+                                        FontSize="10"
+                                        Foreground="#FF059669"
+                                        Text="bleibt unangetastet" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <Border
+                            x:Name="BRD_ReferenzListe"
+                            Grid.Column="1"
+                            MinHeight="60"
+                            MaxHeight="110"
+                            Margin="0,0,8,0"
+                            Background="#FFF8FAFC"
+                            BorderBrush="#FFCBD5E1"
+                            BorderThickness="1"
+                            CornerRadius="6">
+                            <Grid x:Name="GRD_ReferenzListeInhalt">
+                                <ListBox
+                                    x:Name="LBX_ReferenzOrdner"
+                                    d:ItemsSource="{d:SampleData ItemCount=2}"
+                                    AllowDrop="False"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    FocusVisualStyle="{x:Null}"
+                                    FontSize="12"
+                                    ItemsSource="{Binding DublettenReferenzOrdner}"
+                                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                    SelectedItem="{Binding AusgewaehlterReferenzOrdner, Mode=TwoWay}" />
+
+                                <TextBlock
+                                    x:Name="TXT_KeineReferenzOrdner"
+                                    Margin="8,0,0,0"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"
+                                    d:Visibility="Collapsed"
+                                    FontSize="11"
+                                    FontStyle="Italic"
+                                    Foreground="Gray"
+                                    IsHitTestVisible="False"
+                                    Text="Noch kein Referenzordner gewählt">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding DublettenReferenzOrdner.Count}" Value="0">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </Border>
+
+                        <StackPanel
+                            x:Name="STP_ReferenzButtons"
+                            Grid.Column="2"
+                            VerticalAlignment="Top">
+                            <Button
+                                x:Name="BTN_ReferenzOrdnerHinzufuegen"
+                                Margin="0,0,0,6"
+                                Command="{Binding CommandExecuteReferenzOrdnerHinzufuegenCommand}"
+                                Content="Ordner +"
+                                Style="{StaticResource ButtonBasis}"
+                                ToolTip="Einen oder mehrere Ordner zum Durchsuchen hinzufügen" />
+                            <!--
+                                „Eine Ebene höher" wie das „..“ im Dateimanager: ersetzt den
+                                markierten Eintrag durch seinen übergeordneten Ordner.
+                            -->
+                            <Button
+                                x:Name="BTN_ReferenzOrdnerEineEbeneHoch"
+                                Margin="0,0,0,6"
+                                Command="{Binding CommandExecuteReferenzOrdnerEineEbeneHochCommand}"
+                                Style="{StaticResource ButtonBasis}"
+                                ToolTip="Markierten Ordner durch den übergeordneten ersetzen (wie „..“ im Dateimanager)">
+                                <StackPanel x:Name="STP_EineEbeneHochInhalt" Orientation="Horizontal">
+                                    <TextBlock
+                                        x:Name="IC_EineEbeneHoch"
+                                        Margin="0,0,6,0"
+                                        VerticalAlignment="Center"
+                                        FontFamily="Segoe MDL2 Assets"
+                                        FontSize="12"
+                                        Text="&#xE74A;" />
+                                    <TextBlock x:Name="TXT_EineEbeneHoch" Text="Eine Ebene höher" />
+                                </StackPanel>
+                            </Button>
+
+                            <Button
+                                x:Name="BTN_ReferenzOrdnerEntfernen"
+                                Command="{Binding CommandExecuteReferenzOrdnerEntfernenCommand}"
+                                Content="Entfernen"
+                                Style="{StaticResource ButtonBasis}"
+                                ToolTip="Markierten Ordner aus der Liste nehmen" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!--
+                    Optionen unter den beiden gerahmten Zeilen. GRD_Ordner hat keine
+                    Spalten, ein Grid.Column wäre hier wirkungslos.
+                    
+                    WrapPanel statt StackPanel: Zwei Checkboxen mit Symbol, die
+                    Einlese-Anzeige und der Entfernen-Knopf passen nicht immer
+                    nebeneinander. Im StackPanel ragte das letzte Element seitlich
+                    heraus; hier bricht es um, und die Karte wächst mit (Zeile ist Auto).
+                -->
+                <WrapPanel
+                    x:Name="STP_DublettenOptionen"
+                    Grid.Row="3"
+                    Margin="2,12,0,0"
+                    Orientation="Horizontal">
+                    <CheckBox
+                        x:Name="CHK_MitUnterordnern"
+                        Margin="0,0,0,4"
+                        VerticalContentAlignment="Center"
+                        FontSize="12"
+                        Foreground="#FF1F2937"
+                        IsChecked="{Binding DublettenMitUnterordnern}"
+                        ToolTip="Aus: nur der Ordner selbst. Ein: alle Unterordner mit – auf grossen Bäumen deutlich langsamer.">
+                        <StackPanel x:Name="STP_UnterordnerInhalt" Orientation="Horizontal">
                             <TextBlock
-                                x:Name="TXT_KeineVergleichsOrdner"
-                                Margin="8,0,0,0"
-                                HorizontalAlignment="Left"
+                                x:Name="IC_Unterordner"
+                                Margin="0,0,6,0"
                                 VerticalAlignment="Center"
-                                d:Visibility="Collapsed"
-                                FontSize="11"
-                                FontStyle="Italic"
-                                Foreground="Gray"
-                                IsHitTestVisible="False"
-                                Text="Noch kein Vergleichsordner gewählt">
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="13"
+                                Foreground="#FF64748B"
+                                Text="&#xED43;" />
+                            <TextBlock x:Name="TXT_Unterordner" Text="Unterordner einbeziehen" />
+                        </StackPanel>
+                    </CheckBox>
+
+                    <!--
+                        Das Symbol wechselt mit dem Zustand: Bild-Symbol solange nur Bilder
+                        gesucht werden, Raster sobald alle Dateitypen gelten. So ist der
+                        aktuelle Modus auch ohne Lesen des Hakens erkennbar.
+                    -->
+                    <CheckBox
+                        x:Name="CHK_AlleDateitypen"
+                        Margin="24,0,0,4"
+                        VerticalContentAlignment="Center"
+                        FontSize="12"
+                        Foreground="#FF1F2937"
+                        IsChecked="{Binding DublettenAlleDateitypen}"
+                        ToolTip="Aus: nur Bilddateien (jpg, png, bmp, gif, webp). Ein: jede Datei – auch Archive, Videos, Dokumente. Die Liste wird sofort neu eingelesen.">
+                        <StackPanel x:Name="STP_DateitypenInhalt" Orientation="Horizontal">
+                            <TextBlock
+                                x:Name="IC_Dateitypen"
+                                Margin="0,0,6,0"
+                                VerticalAlignment="Center"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="13">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Setter Property="Text" Value="&#xEB9F;" />
+                                        <Setter Property="Foreground" Value="#FF64748B" />
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding DublettenVergleichsOrdner.Count}" Value="0">
-                                                <Setter Property="Visibility" Value="Visible" />
+                                            <DataTrigger Binding="{Binding DublettenAlleDateitypen}" Value="True">
+                                                <Setter Property="Text" Value="&#xE71D;" />
+                                                <Setter Property="Foreground" Value="#FF1F2937" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
-                        </Grid>
-                    </Border>
+                            <TextBlock x:Name="TXT_Dateitypen" Text="Alle Dateitypen" />
+                        </StackPanel>
+                    </CheckBox>
 
+                    <!--  Arbeitsanzeige: nur während des Einlesens, mit Abbruchmöglichkeit  -->
                     <StackPanel
-                        x:Name="STP_VergleichButtons"
-                        Grid.Column="2"
-                        VerticalAlignment="Top">
-                        <Button
-                            x:Name="BTN_VergleichsOrdnerHinzufuegen"
-                            Margin="0,0,0,6"
-                            Command="{Binding CommandExecuteVergleichsOrdnerHinzufuegenCommand}"
-                            Content="Ordner +"
-                            Style="{StaticResource ButtonBasis}"
-                            ToolTip="Einen oder mehrere Ordner zum Durchsuchen hinzufügen" />
-                        <Button
-                            x:Name="BTN_VergleichsOrdnerEntfernen"
-                            Command="{Binding CommandExecuteVergleichsOrdnerEntfernenCommand}"
-                            Content="Entfernen"
-                            Style="{StaticResource ButtonSekundär}"
-                            ToolTip="Markierten Ordner aus der Liste nehmen" />
-                    </StackPanel>
-                </Grid>
+                        x:Name="STP_EinlesenAnzeige"
+                        Margin="24,0,0,4"
+                        VerticalAlignment="Center"
+                        d:Visibility="Visible"
+                        Orientation="Horizontal"
+                        Visibility="{Binding CommandExecuteDublettenOrdnerNeuLesenCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                        <TextBlock
+                            x:Name="IC_EinlesenSpinner"
+                            VerticalAlignment="Center"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="13"
+                            Foreground="#FF64748B"
+                            RenderTransformOrigin="0.5,0.5"
+                            Text="&#xE72C;">
+                            <TextBlock.RenderTransform>
+                                <RotateTransform Angle="0" />
+                            </TextBlock.RenderTransform>
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CommandExecuteDublettenOrdnerNeuLesenCommand.IsRunning}" Value="True">
+                                            <DataTrigger.EnterActions>
+                                                <BeginStoryboard x:Name="SB_EinlesenSpinner">
+                                                    <Storyboard>
+                                                        <DoubleAnimation
+                                                            RepeatBehavior="Forever"
+                                                            Storyboard.TargetProperty="(RenderTransform).(RotateTransform.Angle)"
+                                                            From="0"
+                                                            To="360"
+                                                            Duration="0:0:0.9" />
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </DataTrigger.EnterActions>
+                                            <DataTrigger.ExitActions>
+                                                <StopStoryboard BeginStoryboardName="SB_EinlesenSpinner" />
+                                            </DataTrigger.ExitActions>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
 
-                <!--  Optionen  -->
-                <CheckBox
-                    x:Name="CHK_MitUnterordnern"
-                    Grid.Row="3"
-                    Margin="150,10,0,0"
-                    VerticalContentAlignment="Center"
-                    Content="Unterordner einbeziehen"
-                    FontSize="12"
-                    Foreground="#FF1F2937"
-                    IsChecked="{Binding DublettenMitUnterordnern}" />
+                        <TextBlock
+                            x:Name="TXT_EinlesenHinweis"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="11"
+                            Foreground="Gray"
+                            Text="liest …" />
+
+                        <Button
+                            x:Name="BTN_EinlesenAbbrechen"
+                            Margin="8,0,0,0"
+                            Padding="6,1"
+                            VerticalAlignment="Center"
+                            Command="{Binding CommandExecuteDublettenOrdnerNeuLesenCancelCommand}"
+                            Content="&#xE711;"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="9"
+                            Foreground="DarkRed"
+                            Style="{StaticResource ButtonSekundär}"
+                            ToolTip="Einlesen abbrechen" />
+                    </StackPanel>
+
+                    <!--
+                        Erscheint erst, wenn im Dubletten-Ordner keine Datei mehr liegt –
+                        also typischerweise nach dem Aufräumen. Löschstil, weil der Ordner
+                        tatsächlich verschwindet (in den Papierkorb).
+                    -->
+                    <Button
+                        x:Name="BTN_LeerenOrdnerLoeschen"
+                        Margin="24,0,0,4"
+                        Padding="9,1"
+                        VerticalAlignment="Center"
+                        d:Visibility="Visible"
+                        Command="{Binding CommandExecuteLeerenDublettenOrdnerLoeschenCommand}"
+                        Style="{StaticResource ButtonLöschen}"
+                        ToolTip="Der Dubletten-Ordner enthält keine Datei mehr – leere Hülle samt leerer Unterordner in den Papierkorb verschieben"
+                        Visibility="{Binding DublettenOrdnerIstLeer, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                        <StackPanel x:Name="STP_LeerenOrdnerInhalt" Orientation="Horizontal">
+                            <TextBlock
+                                x:Name="IC_LeererOrdner"
+                                Margin="0,0,6,0"
+                                VerticalAlignment="Center"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="12"
+                                Text="&#xE74D;" />
+                            <TextBlock
+                                x:Name="TXT_LeererOrdner"
+                                FontSize="11"
+                                Text="Leeren Ordner entfernen" />
+                        </StackPanel>
+                    </Button>
+                </WrapPanel>
             </Grid>
         </Border>
 
@@ -371,7 +642,7 @@
                     VerticalAlignment="Center"
                     Command="{Binding CommandExecuteByteDublettenSuchenCommand}"
                     Style="{StaticResource ButtonBasis}"
-                    ToolTip="Byte-identische Bilder in den Vergleichsordnern suchen">
+                    ToolTip="Im Dubletten-Ordner alles suchen, was byte-identisch im Referenzbestand liegt">
                     <StackPanel x:Name="STP_SuchenInhalt" Orientation="Horizontal">
                         <TextBlock
                             x:Name="IC_Suchen"
@@ -399,41 +670,67 @@
                     x:Name="STP_SuchFortschritt"
                     Grid.Column="2"
                     VerticalAlignment="Center">
+                    <!--
+                        Statuszeile ohne Restzeit: die steht jetzt unten direkt neben dem
+                        Balken, sonst stünde dieselbe Angabe zweimal untereinander.
+                    -->
                     <Grid x:Name="GRD_StatusZeile">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition x:Name="COL_StatusText" Width="*" />
-                            <ColumnDefinition x:Name="COL_StatusRestzeit" Width="Auto" />
-                        </Grid.ColumnDefinitions>
-
                         <TextBlock
                             x:Name="TXT_DublettenStatus"
-                            Grid.Column="0"
-                            d:Text="Prüfsummen: 240 / 980"
+                            d:Text="Wird in den Papierkorb verschoben … 12 von 40"
                             FontSize="12"
                             Foreground="#FF374151"
                             Text="{Binding DublettenStatus}"
                             TextTrimming="CharacterEllipsis" />
+                    </Grid>
+
+                    <!--  Balken, Restzeit und Abbruch in einer Zeile  -->
+                    <Grid x:Name="GRD_FortschrittZeile" Margin="0,6,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition x:Name="COL_Balken" Width="*" />
+                            <ColumnDefinition x:Name="COL_Restzeit" Width="Auto" />
+                            <ColumnDefinition x:Name="COL_Abbrechen" Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ProgressBar
+                            x:Name="PGB_DublettenFortschritt"
+                            Grid.Column="0"
+                            Height="4"
+                            VerticalAlignment="Center"
+                            d:Value="35"
+                            Background="#FFEFF1F4"
+                            BorderThickness="0"
+                            Foreground="#FF64748B"
+                            Maximum="{Binding DublettenFortschrittMax}"
+                            Value="{Binding DublettenFortschritt}" />
 
                         <TextBlock
                             x:Name="TXT_DublettenRestzeit"
                             Grid.Column="1"
-                            Margin="8,0,0,0"
-                            d:Text="noch ca. 12 s"
+                            Margin="10,0,0,0"
+                            VerticalAlignment="Center"
+                            d:Text="noch ca. 45 s"
                             FontSize="11"
                             Foreground="Gray"
                             Text="{Binding DublettenRestzeit}" />
-                    </Grid>
 
-                    <ProgressBar
-                        x:Name="PGB_DublettenFortschritt"
-                        Height="4"
-                        Margin="0,6,0,0"
-                        d:Value="35"
-                        Background="#FFEFF1F4"
-                        BorderThickness="0"
-                        Foreground="#FF64748B"
-                        Maximum="{Binding DublettenFortschrittMax}"
-                        Value="{Binding DublettenFortschritt}" />
+                        <Button
+                            x:Name="BTN_LoeschenAbbrechenBalken"
+                            Grid.Column="2"
+                            Margin="8,0,0,0"
+                            Padding="6,2"
+                            VerticalAlignment="Center"
+                            d:Visibility="Visible"
+                            Command="{Binding CommandExecuteMarkierteLoeschenCancelCommand}"
+                            Content="&#xE711;"
+                            Cursor="Hand"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="10"
+                            Foreground="DarkRed"
+                            Style="{StaticResource ButtonSekundär}"
+                            ToolTip="Verschieben in den Papierkorb abbrechen"
+                            Visibility="{Binding CommandExecuteMarkierteLoeschenCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}}" />
+                    </Grid>
                 </StackPanel>
             </Grid>
         </Border>
@@ -482,32 +779,42 @@
                     <Border
                         x:Name="BRD_TrefferZaehler"
                         Grid.Column="1"
-                        Padding="8,2"
+                        MinWidth="160"
+                        Padding="10,3"
                         Background="#FFF1F5F9"
                         BorderBrush="#FFCBD5E1"
                         BorderThickness="1"
-                        CornerRadius="9">
+                        CornerRadius="10">
+                        <!--
+                            Feste Mindestbreiten für Zahl und Grösse: Beim Löschen zählen
+                            beide herunter, und ohne das würde die Pille bei jedem Schritt
+                            in der Breite springen. Rechtsbündig, damit die Ziffern stehen.
+                        -->
                         <StackPanel x:Name="STP_TrefferZaehler" Orientation="Horizontal">
                             <TextBlock
                                 x:Name="TXT_TrefferMarkiert"
+                                MinWidth="26"
                                 d:Text="18"
-                                FontSize="11"
+                                FontSize="12"
                                 FontWeight="SemiBold"
                                 Foreground="#FF1F2937"
-                                Text="{Binding DublettenMarkierteAnzahl}" />
+                                Text="{Binding DublettenMarkierteAnzahl}"
+                                TextAlignment="Right" />
                             <TextBlock
                                 x:Name="TXT_TrefferMarkiertLabel"
-                                Margin="4,0,6,0"
-                                FontSize="11"
+                                Margin="5,0,8,0"
+                                FontSize="12"
                                 Foreground="Gray"
                                 Text="markiert" />
                             <TextBlock
                                 x:Name="TXT_TrefferGroesse"
+                                MinWidth="62"
                                 d:Text="42,3 MB"
-                                FontSize="11"
+                                FontSize="12"
                                 FontWeight="SemiBold"
                                 Foreground="#FF9B1C1C"
-                                Text="{Binding DublettenMarkierteGroesseText}" />
+                                Text="{Binding DublettenMarkierteGroesseText}"
+                                TextAlignment="Right" />
                         </StackPanel>
                     </Border>
                 </Grid>
@@ -532,6 +839,15 @@
                             VirtualizingPanel.IsVirtualizing="True"
                             VirtualizingPanel.VirtualizationMode="Recycling">
 
+                            <!--
+                                Nur für den Designer: zeigt alle vier Zeilenzustände
+                                (bestätigt/markiert, bestätigt/abgewählt, ungeprüft,
+                                gelöscht). Zur Laufzeit greift ItemsSource oben.
+                            -->
+                            <d:ListBox.ItemsSource>
+                                <bildersuche:ByteDublettenDesignDaten />
+                            </d:ListBox.ItemsSource>
+
                             <ListBox.ItemContainerStyle>
                                 <Style TargetType="ListBoxItem">
                                     <Setter Property="FocusVisualStyle" Value="{x:Null}" />
@@ -553,6 +869,7 @@
                                         <Grid x:Name="GRD_TrefferZeileInhalt">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition x:Name="COL_ZeileHaken" Width="Auto" />
+                                                <ColumnDefinition x:Name="COL_ZeileIcon" Width="Auto" />
                                                 <ColumnDefinition x:Name="COL_ZeileDublette" Width="*" />
                                                 <ColumnDefinition x:Name="COL_ZeileGroesse" Width="Auto" />
                                                 <ColumnDefinition x:Name="COL_ZeileExplorer" Width="Auto" />
@@ -566,7 +883,40 @@
                                                 IsChecked="{Binding IstMarkiert, Mode=TwoWay}"
                                                 ToolTip="Zum Löschen vormerken" />
 
-                                            <StackPanel x:Name="STP_ZeilePfade" Grid.Column="1">
+                                            <!--
+                                                Windows-Dateisymbol: zeigt auf einen Blick PDF, JPG,
+                                                Archiv … Kommt aus FileIconProvider, der je Endung
+                                                zwischenspeichert – kein Plattenzugriff pro Zeile.
+                                                
+                                                Darunter liegt ein neutrales Blatt-Symbol als
+                                                Platzhalter. Es braucht keinen Converter: Liefert der
+                                                Provider nichts (Datei fehlt, gesperrt, oder im
+                                                Designer), bleibt das Image leer und der Platzhalter
+                                                scheint durch. So bleibt die Spalte immer belegt und
+                                                die Zeilen fluchten.
+                                            -->
+                                            <Grid
+                                                x:Name="GRD_ZeileDateiIcon"
+                                                Grid.Column="1"
+                                                Width="16"
+                                                Height="16"
+                                                Margin="0,0,8,0"
+                                                VerticalAlignment="Center">
+                                                <TextBlock
+                                                    x:Name="IC_ZeileIconPlatzhalter"
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center"
+                                                    FontFamily="Segoe MDL2 Assets"
+                                                    FontSize="14"
+                                                    Foreground="#FFB4BECB"
+                                                    Text="&#xE7C3;" />
+                                                <Image
+                                                    x:Name="IMG_ZeileDateiIcon"
+                                                    RenderOptions.BitmapScalingMode="NearestNeighbor"
+                                                    Source="{Binding DublettenDatei, Converter={StaticResource CLconverterStringZuDateiIcon}}" />
+                                            </Grid>
+
+                                            <StackPanel x:Name="STP_ZeilePfade" Grid.Column="2">
                                                 <!--  Löschkandidat  -->
                                                 <TextBlock
                                                     x:Name="TXT_ZeileDublette"
@@ -585,29 +935,29 @@
                                                     ToolTip="{Binding DublettenDatei}" />
                                                 <!--  Behaltenes Gegenstück  -->
                                                 <StackPanel
-                                                    x:Name="STP_ZeileBasis"
+                                                    x:Name="STP_ZeileReferenz"
                                                     Margin="0,3,0,0"
                                                     Orientation="Horizontal">
                                                     <TextBlock
-                                                        x:Name="IC_ZeileBasis"
+                                                        x:Name="IC_ZeileReferenz"
                                                         Margin="0,0,4,0"
                                                         FontFamily="Segoe MDL2 Assets"
                                                         FontSize="9"
                                                         Foreground="#FF059669"
                                                         Text="&#xE73E;" />
                                                     <TextBlock
-                                                        x:Name="TXT_ZeileBasis"
+                                                        x:Name="TXT_ZeileReferenz"
                                                         FontSize="10"
                                                         Foreground="Gray"
-                                                        Text="{Binding BasisDatei}"
+                                                        Text="{Binding ReferenzDatei}"
                                                         TextTrimming="CharacterEllipsis"
-                                                        ToolTip="{Binding BasisDatei}" />
+                                                        ToolTip="{Binding ReferenzDatei}" />
                                                 </StackPanel>
                                             </StackPanel>
 
                                             <TextBlock
                                                 x:Name="TXT_ZeileGroesse"
-                                                Grid.Column="2"
+                                                Grid.Column="3"
                                                 Margin="10,0,0,0"
                                                 VerticalAlignment="Center"
                                                 FontSize="11"
@@ -616,7 +966,7 @@
 
                                             <Button
                                                 x:Name="BTN_ZeileImExplorer"
-                                                Grid.Column="3"
+                                                Grid.Column="4"
                                                 Width="24"
                                                 Height="24"
                                                 Margin="8,0,0,0"
@@ -633,6 +983,18 @@
                                     </Border>
 
                                     <DataTemplate.Triggers>
+                                        <!--
+                                            Noch nicht verglichen (reine Ordner-Auflistung nach dem
+                                            Drop): Haken gesperrt, Gegenstück-Zeile ausgeblendet.
+                                            Sonst entstünde der Eindruck, hier sei etwas geprüft.
+                                        -->
+                                        <DataTrigger Binding="{Binding IstBestaetigt}" Value="False">
+                                            <Setter TargetName="CHK_TrefferMarkiert" Property="IsEnabled" Value="False" />
+                                            <Setter TargetName="CHK_TrefferMarkiert" Property="Opacity" Value="0.35" />
+                                            <Setter TargetName="STP_ZeileReferenz" Property="Visibility" Value="Collapsed" />
+                                            <Setter TargetName="TXT_ZeileDublettenOrdner" Property="Foreground" Value="Gray" />
+                                        </DataTrigger>
+
                                         <!--  Bereits im Papierkorb: ausgegraut und durchgestrichen  -->
                                         <DataTrigger Binding="{Binding IstGeloescht}" Value="True">
                                             <Setter TargetName="BRD_TrefferZeile" Property="Opacity" Value="0.45" />

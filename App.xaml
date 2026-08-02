@@ -14,6 +14,7 @@
             <!--  App-weite Converter: auch von den Ansichts-UserControls (Normal/Vollbild) nutzbar.  -->
             <Converters1:ConverterAktivZuFarbe x:Key="ConverterAktivZuFarbe" />
             <Converters:ConverterFullPathToNameConverter x:Key="ConverterFullPathToNameConverter" />
+            <Converters:CLconverterStringZuDateiIcon x:Key="CLconverterStringZuDateiIcon" />
             <Converters:CLconverterCountBildchenFuerLinks x:Key="CLconverterCountBildchenFuerLinks" />
             <Converters:ConverterPositionZuViertel x:Key="ConverterPositionZuViertel" />
             <Converters:ConverterPositionZuFarbe x:Key="ConverterPositionZuFarbe" />

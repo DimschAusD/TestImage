@@ -14,8 +14,8 @@ using TestImage.Bildersuche;
 namespace TestImage
 {
     /// <summary>
-    /// Byte-Dubletten-Ansicht: sucht byte-identische Bilder des Basisordners in
-    /// beliebigen Vergleichsordnern und räumt die Duplikate dort weg.
+    /// Byte-Dubletten-Ansicht: sucht im Dubletten-Ordner alles, was byte-identisch
+    /// auch im Referenzbestand liegt, und räumt es weg.
     /// </summary>
     public partial class AufgabeViewModel
     {
@@ -31,9 +31,9 @@ namespace TestImage
             // Bildmodus verlassen, sonst liegen zwei Vollflächen-Ansichten übereinander.
             IsImageMaximiert = false;
 
-            // Basisordner beim ersten Öffnen aus dem aktuellen Bild vorbelegen.
-            if (string.IsNullOrWhiteSpace(DublettenBasisOrdner))
-                DublettenBasisOrdner = AktuellerBildOrdner() ?? string.Empty;
+            // Dubletten-Ordner beim ersten Öffnen aus dem aktuellen Bild vorbelegen.
+            if (string.IsNullOrWhiteSpace(DublettenOrdner))
+                DublettenOrdner = AktuellerBildOrdner() ?? string.Empty;
 
             IsDublettenAnsicht = true;
         }
@@ -60,18 +60,113 @@ namespace TestImage
 
         #region Zustand
 
-        /// <summary>Ordner, dessen Bilder behalten werden.</summary>
+        /// <summary>
+        /// Ordner, aus dem gelöscht wird. Alles darin, was byte-identisch auch in einem
+        /// Referenzordner liegt, kommt weg — die Seite, die im Dateimanager „links" wäre.
+        /// </summary>
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteByteDublettenSuchenCommand))]
-        private string _dublettenBasisOrdner = string.Empty;
+        private string _dublettenOrdner = string.Empty;
 
-        /// <summary>Ordner, in denen Duplikate gesucht und gelöscht werden dürfen.</summary>
-        public ObservableCollection<string> DublettenVergleichsOrdner { get; } = new();
+        /// <summary>Ordner, deren Dateien behalten werden (Bestand).</summary>
+        public ObservableCollection<string> DublettenReferenzOrdner { get; } = new();
 
         /// <summary>In der Ordnerliste markierter Eintrag (zum Entfernen).</summary>
         [ObservableProperty]
-        [NotifyCanExecuteChangedFor(nameof(CommandExecuteVergleichsOrdnerEntfernenCommand))]
-        private string? _ausgewaehlterVergleichsOrdner;
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteReferenzOrdnerEntfernenCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteReferenzOrdnerEineEbeneHochCommand))]
+        private string? _ausgewaehlterReferenzOrdner;
+
+        /// <summary>False = nur Bilddateien (Standard), True = alle Dateitypen.</summary>
+        [ObservableProperty]
+        private bool _dublettenAlleDateitypen;
+
+        // Beide Schalter ändern, was im Ordner überhaupt gefunden wird. Ohne erneutes
+        // Einlesen zeigte die Liste weiter den alten Stand – der Haken hätte scheinbar
+        // keine Wirkung.
+        partial void OnDublettenAlleDateitypenChanged(bool value) => LiesDublettenOrdnerNeu();
+
+        partial void OnDublettenMitUnterordnernChanged(bool value) => LiesDublettenOrdnerNeu();
+
+        /// <summary>
+        /// Stösst das Neu-Einlesen an, sofern überhaupt ein gültiger Ordner eingestellt
+        /// ist und gerade nichts anderes läuft.
+        /// </summary>
+        private void LiesDublettenOrdnerNeu()
+        {
+            if (IsDublettenAufgabeLäuft)
+                return;
+
+            if (string.IsNullOrWhiteSpace(DublettenOrdner) || !Directory.Exists(DublettenOrdner))
+                return;
+
+            CommandExecuteDublettenOrdnerNeuLesenCommand.Execute(null);
+        }
+
+        /// <summary>Liest den Dubletten-Ordner erneut ein (nach Optionswechsel).</summary>
+        [RelayCommand(IncludeCancelCommand = true)]
+        private async Task CommandExecuteDublettenOrdnerNeuLesen(CancellationToken token)
+        {
+            await ZeigeOrdnerInhaltAsync(DublettenOrdner, token);
+        }
+
+        /// <summary>
+        /// True, wenn im Dubletten-Ordner keine Datei mehr liegt. Steuert das Angebot,
+        /// die leere Hülle gleich mit zu entfernen — die bleibt nach dem Aufräumen übrig.
+        /// </summary>
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteLeerenDublettenOrdnerLoeschenCommand))]
+        private bool _dublettenOrdnerIstLeer;
+
+        /// <summary>Bestimmt neu, ob der Dubletten-Ordner leer ist.</summary>
+        private void PruefeDublettenOrdnerLeer()
+            => DublettenOrdnerIstLeer = ByteDublettenService.IstOrdnerLeer(DublettenOrdner);
+
+        private bool CanExecuteLeerenDublettenOrdnerLoeschen()
+            => !IsDublettenAufgabeLäuft && DublettenOrdnerIstLeer;
+
+        /// <summary>
+        /// Verschiebt den leeren Dubletten-Ordner in den Papierkorb. Nur möglich, wenn
+        /// wirklich keine Datei mehr darin liegt; der Service prüft das nochmals selbst.
+        /// </summary>
+        [RelayCommand(CanExecute = nameof(CanExecuteLeerenDublettenOrdnerLoeschen))]
+        private void CommandExecuteLeerenDublettenOrdnerLoeschen()
+        {
+            string ordner = DublettenOrdner;
+
+            if (!ByteDublettenService.IstOrdnerLeer(ordner))
+            {
+                DublettenStatus = "Der Ordner ist nicht mehr leer – bitte neu einlesen.";
+                PruefeDublettenOrdnerLeer();
+                return;
+            }
+
+            var antwort = MessageBox.Show(
+                $"Diesen Ordner in den Papierkorb verschieben?\n\n{ordner}\n\n"
+                + "In dem Ordner liegt keine einzige Datei mehr.\n"
+                + "Falls darin noch leere Unterordner stecken, wandern diese mit in den Papierkorb.\n\n"
+                + "Rückgängig machen lässt sich das über den Papierkorb.",
+                "Leeren Ordner entfernen",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question,
+                MessageBoxResult.No);
+
+            if (antwort != MessageBoxResult.Yes)
+                return;
+
+            if (ByteDublettenService.OrdnerInDenPapierkorb(ordner))
+            {
+                DublettenStatus = $"Ordner in den Papierkorb verschoben: {ordner}";
+                DublettenOrdner = string.Empty;
+                SetzeTreffer(Array.Empty<ByteDublettenTreffer>());
+            }
+            else
+            {
+                DublettenStatus = "Ordner konnte nicht entfernt werden (gesperrt oder kein Zugriff).";
+            }
+
+            PruefeDublettenOrdnerLeer();
+        }
 
         /// <summary>Gefundene Duplikate.</summary>
         public ObservableCollection<ByteDublettenTreffer> ByteDublettenTreffer { get; } = new();
@@ -80,7 +175,7 @@ namespace TestImage
         private bool _dublettenMitUnterordnern = true;
 
         [ObservableProperty]
-        private string _dublettenStatus = "Basisordner und Vergleichsordner wählen, dann suchen.";
+        private string _dublettenStatus = "Dubletten-Ordner und Referenzordner wählen, dann suchen.";
 
         [ObservableProperty]
         private int _dublettenFortschritt;
@@ -95,14 +190,17 @@ namespace TestImage
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteByteDublettenSuchenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteMarkierteLoeschenCommand))]
-        [NotifyCanExecuteChangedFor(nameof(CommandExecuteVergleichsOrdnerHinzufuegenCommand))]
-        [NotifyCanExecuteChangedFor(nameof(CommandExecuteVergleichsOrdnerEntfernenCommand))]
-        [NotifyCanExecuteChangedFor(nameof(CommandExecuteBasisOrdnerWaehlenCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteReferenzOrdnerHinzufuegenCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteReferenzOrdnerEntfernenCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteDublettenOrdnerWaehlenCommand))]
         private bool _isDublettenAufgabeLäuft;
 
-        /// <summary>Anzahl der zum Löschen vorgemerkten Treffer.</summary>
+        /// <summary>
+        /// Anzahl der zum Löschen vorgemerkten Treffer. Nur bestätigte zählen —
+        /// Einträge aus der reinen Ordner-Auflistung wurden nie verglichen.
+        /// </summary>
         public int DublettenMarkierteAnzahl =>
-            ByteDublettenTreffer.Count(t => t.IstMarkiert && !t.IstGeloescht);
+            ByteDublettenTreffer.Count(t => t.IstMarkiert && t.IstBestaetigt && !t.IstGeloescht);
 
         /// <summary>Speicherplatz, der beim Löschen frei wird.</summary>
         public string DublettenMarkierteGroesseText
@@ -110,7 +208,7 @@ namespace TestImage
             get
             {
                 long summe = ByteDublettenTreffer
-                    .Where(t => t.IstMarkiert && !t.IstGeloescht)
+                    .Where(t => t.IstMarkiert && t.IstBestaetigt && !t.IstGeloescht)
                     .Sum(t => t.GroesseBytes);
 
                 return summe >= 1024L * 1024 * 1024
@@ -158,26 +256,26 @@ namespace TestImage
         private bool CanExecuteOrdnerBearbeiten() => !IsDublettenAufgabeLäuft;
 
         [RelayCommand(CanExecute = nameof(CanExecuteOrdnerBearbeiten))]
-        private void CommandExecuteBasisOrdnerWaehlen()
+        private void CommandExecuteDublettenOrdnerWaehlen()
         {
             var dlg = new Microsoft.Win32.OpenFolderDialog
             {
-                Title = "Basisordner wählen — diese Bilder werden behalten",
-                InitialDirectory = OrdnerOderLeer(DublettenBasisOrdner) ?? AktuellerBildOrdner() ?? string.Empty
+                Title = "Dubletten-Ordner wählen — hieraus wird gelöscht",
+                InitialDirectory = OrdnerOderLeer(DublettenOrdner) ?? AktuellerBildOrdner() ?? string.Empty
             };
 
             if (dlg.ShowDialog() == true)
-                DublettenBasisOrdner = dlg.FolderName;
+                DublettenOrdner = dlg.FolderName;
         }
 
         [RelayCommand(CanExecute = nameof(CanExecuteOrdnerBearbeiten))]
-        private void CommandExecuteVergleichsOrdnerHinzufuegen()
+        private void CommandExecuteReferenzOrdnerHinzufuegen()
         {
             var dlg = new Microsoft.Win32.OpenFolderDialog
             {
-                Title = "Vergleichsordner wählen — hier werden Duplikate gelöscht",
+                Title = "Referenzordner wählen — dieser Bestand bleibt unangetastet",
                 Multiselect = true,
-                InitialDirectory = OrdnerOderLeer(DublettenBasisOrdner) ?? string.Empty
+                InitialDirectory = OrdnerOderLeer(DublettenOrdner) ?? string.Empty
             };
 
             if (dlg.ShowDialog() != true)
@@ -185,29 +283,204 @@ namespace TestImage
 
             foreach (var ordner in dlg.FolderNames)
             {
-                if (!DublettenVergleichsOrdner.Contains(ordner, StringComparer.OrdinalIgnoreCase))
-                    DublettenVergleichsOrdner.Add(ordner);
+                if (!DublettenReferenzOrdner.Contains(ordner, StringComparer.OrdinalIgnoreCase))
+                    DublettenReferenzOrdner.Add(ordner);
             }
 
             CommandExecuteByteDublettenSuchenCommand.NotifyCanExecuteChanged();
         }
 
-        private bool CanExecuteVergleichsOrdnerEntfernen()
-            => !IsDublettenAufgabeLäuft && !string.IsNullOrEmpty(AusgewaehlterVergleichsOrdner);
+        private bool CanExecuteReferenzOrdnerEntfernen()
+            => !IsDublettenAufgabeLäuft && !string.IsNullOrEmpty(AusgewaehlterReferenzOrdner);
 
-        [RelayCommand(CanExecute = nameof(CanExecuteVergleichsOrdnerEntfernen))]
-        private void CommandExecuteVergleichsOrdnerEntfernen()
+        [RelayCommand(CanExecute = nameof(CanExecuteReferenzOrdnerEntfernen))]
+        private void CommandExecuteReferenzOrdnerEntfernen()
         {
-            if (AusgewaehlterVergleichsOrdner is null)
+            if (AusgewaehlterReferenzOrdner is null)
                 return;
 
-            DublettenVergleichsOrdner.Remove(AusgewaehlterVergleichsOrdner);
-            AusgewaehlterVergleichsOrdner = null;
+            DublettenReferenzOrdner.Remove(AusgewaehlterReferenzOrdner);
+            AusgewaehlterReferenzOrdner = null;
             CommandExecuteByteDublettenSuchenCommand.NotifyCanExecuteChanged();
         }
 
         private static string? OrdnerOderLeer(string ordner)
             => !string.IsNullOrWhiteSpace(ordner) && Directory.Exists(ordner) ? ordner : null;
+
+        /// <summary>Übergeordneter Ordner, null bei Laufwerkswurzel oder ungültigem Pfad.</summary>
+        private static string? ElternOrdner(string? pfad)
+        {
+            if (string.IsNullOrWhiteSpace(pfad))
+                return null;
+
+            try { return new DirectoryInfo(pfad).Parent?.FullName; }
+            catch { return null; }
+        }
+
+        private bool CanExecuteReferenzOrdnerEineEbeneHoch()
+            => !IsDublettenAufgabeLäuft
+               && !string.IsNullOrEmpty(AusgewaehlterReferenzOrdner)
+               && ElternOrdner(AusgewaehlterReferenzOrdner) is not null;
+
+        /// <summary>
+        /// Ersetzt den markierten Referenzordner durch seinen übergeordneten — das „..“
+        /// aus dem Dateimanager. Praktisch, wenn der Bestand eine Ebene höher liegt als
+        /// der Ordner, den man gerade hineingezogen hat.
+        /// </summary>
+        [RelayCommand(CanExecute = nameof(CanExecuteReferenzOrdnerEineEbeneHoch))]
+        private void CommandExecuteReferenzOrdnerEineEbeneHoch()
+        {
+            string? aktuell = AusgewaehlterReferenzOrdner;
+            string? eltern = ElternOrdner(aktuell);
+
+            if (aktuell is null || eltern is null)
+                return;
+
+            int index = DublettenReferenzOrdner.IndexOf(aktuell);
+            if (index < 0)
+                return;
+
+            // Liegt der übergeordnete Ordner schon in der Liste, würde ein Ersetzen ihn
+            // doppeln – dann reicht es, den engeren Eintrag zu entfernen.
+            if (DublettenReferenzOrdner.Contains(eltern, StringComparer.OrdinalIgnoreCase))
+            {
+                DublettenReferenzOrdner.RemoveAt(index);
+                DublettenStatus = $"Bereits enthalten – Eintrag zusammengefasst zu: {eltern}";
+            }
+            else
+            {
+                DublettenReferenzOrdner[index] = eltern;
+                DublettenStatus = $"Eine Ebene höher: {eltern}";
+            }
+
+            AusgewaehlterReferenzOrdner = eltern;
+            CommandExecuteByteDublettenSuchenCommand.NotifyCanExecuteChanged();
+        }
+
+        /// <summary>
+        /// Übernimmt einen per Drag &amp; Drop abgelegten Ordner als Dubletten-Ordner.
+        /// Aufgerufen von <see cref="OrdnerDropHelper"/>; gezogen wird eine Datei daraus
+        /// oder der Ordner selbst.
+        /// </summary>
+        [RelayCommand(CanExecute = nameof(CanExecuteOrdnerBearbeiten))]
+        private void CommandExecuteDublettenOrdnerAusDrop(string? ordner)
+        {
+            if (string.IsNullOrWhiteSpace(ordner) || !Directory.Exists(ordner))
+                return;
+
+            DublettenOrdner = ordner;
+
+            // Bewusst über denselben Command wie der Optionswechsel: So gibt es genau
+            // einen Einlesevorgang, den der Abbrechen-Knopf sicher trifft.
+            CommandExecuteDublettenOrdnerNeuLesenCommand.Execute(null);
+        }
+
+        /// <summary>
+        /// Listet den Inhalt des Dubletten-Ordners in der Trefferliste auf — als Übersicht,
+        /// was auf der Löschseite liegt. Die Einträge sind noch <b>nicht</b> geprüft und
+        /// deshalb nicht markierbar; erst die Suche bestätigt echte Duplikate.
+        ///
+        /// Bewusst ohne Vorschaubilder und in Blöcken: Auf einer langsamen Platte würde
+        /// das Einlesen sonst die Oberfläche blockieren.
+        /// </summary>
+        private async Task ZeigeOrdnerInhaltAsync(string ordner, CancellationToken token)
+        {
+            IsDublettenAufgabeLäuft = true;
+            SetzeTreffer(Array.Empty<ByteDublettenTreffer>());
+            DublettenFortschritt = 0;
+            DublettenStatus = "Ordner wird gelesen …";
+
+            try
+            {
+                // Verzeichnis-Auflistung selbst kann auf HDD dauern → in den Hintergrund.
+                var dateien = await Task.Run(
+                    () => ByteDublettenService.ListeDateien(
+                        ordner, DublettenMitUnterordnern, DublettenAlleDateitypen, token),
+                    token);
+
+                DublettenFortschrittMax = Math.Max(1, dateien.Count);
+
+                var liste = new System.Collections.Generic.List<ByteDublettenTreffer>(dateien.Count);
+                var uhr = Stopwatch.StartNew();
+
+                for (int i = 0; i < dateien.Count; i++)
+                {
+                    token.ThrowIfCancellationRequested();
+
+                    long groesse;
+                    try { groesse = new FileInfo(dateien[i]).Length; }
+                    catch { groesse = 0; }
+
+                    liste.Add(new ByteDublettenTreffer
+                    {
+                        ReferenzDatei = string.Empty,   // noch nicht verglichen
+                        DublettenDatei = dateien[i],
+                        GroesseBytes = groesse,
+                        IstMarkiert = false             // nichts vormerken, was ungeprüft ist
+                    });
+
+                    // Nur gelegentlich melden und Luft lassen, sonst erstickt die UI.
+                    if ((i + 1) % 200 == 0 || i == dateien.Count - 1)
+                    {
+                        DublettenFortschritt = i + 1;
+                        DublettenStatus = $"Ordner wird gelesen … {i + 1} / {dateien.Count}"
+                            + RestzeitZusatz(uhr.Elapsed, i + 1, dateien.Count);
+                        await Task.Delay(1, token);
+                    }
+                }
+
+                SetzeTreffer(liste);
+
+                long summe = liste.Sum(t => t.GroesseBytes);
+                DublettenStatus = liste.Count == 0
+                    ? $"Im Dubletten-Ordner liegen keine {(DublettenAlleDateitypen ? "Dateien" : "Bilder")}."
+                    : $"{liste.Count} Einträge im Dubletten-Ordner ({GroesseText(summe)}) — noch nicht geprüft. "
+                      + "Referenzordner wählen und suchen.";
+            }
+            catch (OperationCanceledException)
+            {
+                DublettenStatus = "Einlesen abgebrochen.";
+            }
+            catch (Exception ex)
+            {
+                DublettenStatus = "Fehler beim Einlesen: " + ex.Message;
+            }
+            finally
+            {
+                DublettenFortschritt = 0;
+                IsDublettenAufgabeLäuft = false;
+                PruefeDublettenOrdnerLeer();
+            }
+        }
+
+        private static string RestzeitZusatz(TimeSpan verstrichen, int erledigt, int gesamt)
+        {
+            string rest = SchaetzeRestzeit(verstrichen, erledigt, gesamt);
+            return rest.Length > 0 ? " – " + rest : string.Empty;
+        }
+
+        private static string GroesseText(long bytes)
+            => bytes >= 1024L * 1024 * 1024
+                ? $"{bytes / 1024.0 / 1024.0 / 1024.0:0.00} GB"
+                : $"{bytes / 1024.0 / 1024.0:0.0} MB";
+
+        /// <summary>Fügt einen per Drag &amp; Drop abgelegten Ordner der Referenzliste hinzu.</summary>
+        [RelayCommand(CanExecute = nameof(CanExecuteOrdnerBearbeiten))]
+        private void CommandExecuteReferenzOrdnerAusDrop(string? ordner)
+        {
+            if (string.IsNullOrWhiteSpace(ordner) || !Directory.Exists(ordner))
+                return;
+
+            if (DublettenReferenzOrdner.Contains(ordner, StringComparer.OrdinalIgnoreCase))
+            {
+                DublettenStatus = "Dieser Referenzordner ist bereits in der Liste.";
+                return;
+            }
+
+            DublettenReferenzOrdner.Add(ordner);
+            DublettenStatus = $"Referenzordner hinzugefügt: {ordner}";
+            CommandExecuteByteDublettenSuchenCommand.NotifyCanExecuteChanged();
+        }
 
         #endregion
 
@@ -215,9 +488,9 @@ namespace TestImage
 
         private bool CanExecuteByteDublettenSuchen()
             => !IsDublettenAufgabeLäuft
-               && !string.IsNullOrWhiteSpace(DublettenBasisOrdner)
-               && Directory.Exists(DublettenBasisOrdner)
-               && DublettenVergleichsOrdner.Count > 0;
+               && !string.IsNullOrWhiteSpace(DublettenOrdner)
+               && Directory.Exists(DublettenOrdner)
+               && DublettenReferenzOrdner.Count > 0;
 
         [RelayCommand(CanExecute = nameof(CanExecuteByteDublettenSuchen), IncludeCancelCommand = true)]
         private async Task CommandExecuteByteDublettenSuchen(CancellationToken token)
@@ -243,20 +516,31 @@ namespace TestImage
                     }
                 });
 
+                var nichtLesbar = new System.Collections.Generic.List<string>();
+
                 var treffer = await ByteDublettenService.FindeByteDublettenAsync(
-                    DublettenBasisOrdner,
-                    DublettenVergleichsOrdner.ToList(),
+                    DublettenOrdner,
+                    DublettenReferenzOrdner.ToList(),
                     DublettenMitUnterordnern,
+                    DublettenAlleDateitypen,
                     fortschritt,
-                    token);
+                    token,
+                    nichtLesbar);
 
                 token.ThrowIfCancellationRequested();
 
                 SetzeTreffer(treffer);
 
-                DublettenStatus = treffer.Count == 0
+                // Gesperrte Dateien ausdrücklich nennen: Sie wurden nicht geprüft und
+                // könnten trotzdem Duplikate sein.
+                string zusatz = nichtLesbar.Count == 0
+                    ? string.Empty
+                    : $" — {nichtLesbar.Count} Datei(en) waren gesperrt und wurden nicht geprüft, Suche später wiederholen";
+
+                DublettenStatus = (treffer.Count == 0
                     ? "Keine Byte-Duplikate gefunden."
-                    : $"{treffer.Count} Byte-Duplikate gefunden — {DublettenMarkierteGroesseText} können frei werden.";
+                    : $"{treffer.Count} Byte-Duplikate gefunden — {DublettenMarkierteGroesseText} können frei werden.")
+                    + zusatz;
             }
             catch (OperationCanceledException)
             {
@@ -292,7 +576,8 @@ namespace TestImage
         [RelayCommand]
         private void CommandExecuteAlleDublettenMarkieren()
         {
-            foreach (var t in ByteDublettenTreffer.Where(t => !t.IstGeloescht))
+            // Nur bestätigte Duplikate – ungeprüfte Auflistungseinträge bleiben unberührt.
+            foreach (var t in ByteDublettenTreffer.Where(t => t.IstBestaetigt && !t.IstGeloescht))
                 t.IstMarkiert = true;
         }
 
@@ -325,8 +610,10 @@ namespace TestImage
         [RelayCommand(CanExecute = nameof(CanExecuteMarkierteLoeschen), IncludeCancelCommand = true)]
         private async Task CommandExecuteMarkierteLoeschen(CancellationToken token)
         {
+            // IstBestaetigt ist die Sicherheitsschranke: Ohne geprüftes Gegenstück
+            // darf nichts gelöscht werden, auch wenn die Markierung gesetzt wäre.
             var zuLoeschen = ByteDublettenTreffer
-                .Where(t => t.IstMarkiert && !t.IstGeloescht)
+                .Where(t => t.IstMarkiert && t.IstBestaetigt && !t.IstGeloescht)
                 .ToList();
 
             if (zuLoeschen.Count == 0)
@@ -335,7 +622,7 @@ namespace TestImage
             var antwort = MessageBox.Show(
                 $"{zuLoeschen.Count} Dublette(n) in den Papierkorb verschieben?\n\n" +
                 $"Es werden {DublettenMarkierteGroesseText} frei.\n" +
-                "Die Dateien im Basisordner bleiben unangetastet.",
+                "Der Referenzbestand bleibt unangetastet.",
                 "Byte-Duplikate aufräumen",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning,
@@ -347,9 +634,12 @@ namespace TestImage
             IsDublettenAufgabeLäuft = true;
             DublettenFortschritt = 0;
             DublettenFortschrittMax = zuLoeschen.Count;
+            DublettenRestzeit = string.Empty;
+            DublettenStatus = $"Wird in den Papierkorb verschoben … 0 von {zuLoeschen.Count}";
 
             int erledigt = 0;
             int fehler = 0;
+            var uhr = Stopwatch.StartNew();
 
             try
             {
@@ -360,7 +650,7 @@ namespace TestImage
                     try
                     {
                         // Sicherheitsnetz: nie löschen, wenn das Gegenstück fehlt.
-                        if (!File.Exists(treffer.BasisDatei))
+                        if (!File.Exists(treffer.ReferenzDatei))
                         {
                             fehler++;
                             continue;
@@ -380,12 +670,14 @@ namespace TestImage
                     }
 
                     DublettenFortschritt = ++erledigt;
-                    DublettenStatus = $"Papierkorb: {erledigt} / {zuLoeschen.Count}";
+                    DublettenStatus =
+                        $"Wird in den Papierkorb verschoben … {erledigt} von {zuLoeschen.Count}";
+                    DublettenRestzeit = SchaetzeRestzeit(uhr.Elapsed, erledigt, zuLoeschen.Count);
                 }
 
                 DublettenStatus = fehler == 0
                     ? $"{erledigt} Dublette(n) in den Papierkorb verschoben."
-                    : $"{erledigt - fehler} verschoben, {fehler} übersprungen (gesperrt oder Basisdatei fehlt).";
+                    : $"{erledigt - fehler} verschoben, {fehler} übersprungen (gesperrt oder Referenzdatei fehlt).";
             }
             catch (OperationCanceledException)
             {
@@ -393,8 +685,13 @@ namespace TestImage
             }
             finally
             {
+                DublettenRestzeit = string.Empty;
+                DublettenFortschritt = 0;
                 MeldeMarkierungGeaendert();
                 IsDublettenAufgabeLäuft = false;
+
+                // Nach dem Löschlauf ist der Ordner womöglich leer – dann darf er weg.
+                PruefeDublettenOrdnerLeer();
             }
         }
 

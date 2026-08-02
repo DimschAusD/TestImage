@@ -12,6 +12,11 @@
     Background="#FFC9C6C6"
     Icon="/Sternchen.ico"
     PreviewKeyDown="Window_PreviewKeyDown"
+    RenderOptions.ClearTypeHint="Enabled"
+    SnapsToDevicePixels="True"
+    TextOptions.TextFormattingMode="Display"
+    TextOptions.TextRenderingMode="ClearType"
+    UseLayoutRounding="True"
     mc:Ignorable="d">
     <Window.DataContext>
         <local:AufgabeViewModel />

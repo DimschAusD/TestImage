@@ -10,8 +10,11 @@ using System.Threading.Tasks;
 namespace TestImage.Bildersuche
 {
     /// <summary>
-    /// Sucht byte-identische Bilddateien zwischen einem Basisordner (wird behalten)
-    /// und beliebig vielen Vergleichsordnern (dort dürfen die Duplikate weg).
+    /// Sucht byte-identische Dateien zwischen dem Dubletten-Ordner (dort wird gelöscht)
+    /// und beliebig vielen Referenzordnern (die bleiben unangetastet).
+    ///
+    /// Denkweise wie im Zwei-Fenster-Dateimanager: eine Seite ist der Bestand, die
+    /// andere kommt weg. Der Dubletten-Ordner ist die Seite, die weg kann.
     ///
     /// Ablauf in drei Stufen, damit kein n²-Byte-Vergleich nötig ist:
     /// 1. Nach Dateigrösse gruppieren — nur Grössen, die auf beiden Seiten vorkommen.
@@ -24,66 +27,93 @@ namespace TestImage.Bildersuche
             { ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp" };
 
         /// <summary>
-        /// Sucht Byte-Duplikate der Basisordner-Dateien in den Vergleichsordnern.
+        /// Sucht im Dubletten-Ordner alle Dateien, die byte-identisch auch in einem
+        /// der Referenzordner liegen.
         /// </summary>
-        /// <param name="basisOrdner">Ordner, dessen Dateien behalten werden.</param>
-        /// <param name="vergleichsOrdner">Ordner, in denen Duplikate gesucht werden.</param>
+        /// <param name="dublettenOrdner">Ordner, aus dem gelöscht werden darf.</param>
+        /// <param name="referenzOrdner">Ordner, deren Dateien behalten werden.</param>
         /// <param name="mitUnterordnern">Unterordner ebenfalls durchsuchen.</param>
+        /// <param name="alleDateitypen">False = nur Bilddateien, True = jede Datei.</param>
         /// <param name="fortschritt">Meldet (Erledigt, Gesamt, Statustext).</param>
+        /// <param name="nichtLesbarAusgabe">
+        /// Wird mit den Dateien gefüllt, die wegen einer Sperre nicht geprüft werden
+        /// konnten. Diese sind <b>nicht</b> als „kein Duplikat" zu verstehen — sie wurden
+        /// gar nicht erst verglichen.
+        /// </param>
         internal static async Task<List<ByteDublettenTreffer>> FindeByteDublettenAsync(
-            string basisOrdner,
-            IReadOnlyList<string> vergleichsOrdner,
+            string dublettenOrdner,
+            IReadOnlyList<string> referenzOrdner,
             bool mitUnterordnern,
+            bool alleDateitypen,
             IProgress<(int Erledigt, int Gesamt, string Text)>? fortschritt,
-            CancellationToken token)
+            CancellationToken token,
+            List<string>? nichtLesbarAusgabe = null)
         {
             var treffer = new List<ByteDublettenTreffer>();
 
-            if (string.IsNullOrWhiteSpace(basisOrdner) || !Directory.Exists(basisOrdner))
+            if (string.IsNullOrWhiteSpace(dublettenOrdner) || !Directory.Exists(dublettenOrdner))
                 return treffer;
 
             var suchTiefe = mitUnterordnern ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
+            string was = alleDateitypen ? "Dateien" : "Bilder";
 
             fortschritt?.Report((0, 0, "Dateien werden erfasst …"));
 
-            // --- Basisdateien (werden behalten) ---
-            var basisDateien = await Task.Run(
-                () => SammleBilder(basisOrdner, suchTiefe), token);
+            // Der Dubletten-Ordner ist die Löschseite und wird deshalb aus dem
+            // Referenzbestand ausgeklammert — nicht umgekehrt.
+            //
+            // Wichtig für den häufigen Fall, dass der Dubletten-Ordner unterhalb eines
+            // Referenzordners liegt (z. B. Referenz "C:\Lesen", Dubletten
+            // "C:\Lesen\Alter_Desktop\..."). Würde man stattdessen alles unterhalb der
+            // Referenzordner schützen, bliebe kein einziger Kandidat übrig. Und ohne
+            // diese Ausklammerung fände sich jede Datei über den Referenzordner selbst
+            // wieder und wäre ihr eigenes Duplikat.
+            var dublettenWurzel = NormalisiereOrdner(dublettenOrdner);
 
-            if (basisDateien.Count == 0)
-            {
-                fortschritt?.Report((0, 0, "Im Basisordner wurden keine Bilder gefunden."));
-                return treffer;
-            }
+            // --- Referenzdateien (werden behalten) ---
+            var referenzDateien = new List<string>();
 
-            // Basisordner normalisiert — Dateien darunter dürfen nie Löschkandidat sein.
-            var basisWurzel = NormalisiereOrdner(basisOrdner);
-
-            // --- Vergleichsdateien (Löschkandidaten) ---
-            var vergleichsDateien = new List<string>();
-            foreach (var ordner in vergleichsOrdner)
+            foreach (var ordner in referenzOrdner)
             {
                 token.ThrowIfCancellationRequested();
 
                 if (string.IsNullOrWhiteSpace(ordner) || !Directory.Exists(ordner))
                     continue;
 
-                var gefunden = await Task.Run(() => SammleBilder(ordner, suchTiefe), token);
+                var gefunden = await Task.Run(
+                    () => SammleDateien(ordner, suchTiefe, alleDateitypen), token);
 
-                // Alles, was im Basisordner (oder darunter) liegt, wird geschützt.
-                vergleichsDateien.AddRange(
-                    gefunden.Where(d => !LiegtUnterhalb(d, basisWurzel)));
+                referenzDateien.AddRange(
+                    gefunden.Where(d => !LiegtUnterhalb(d, dublettenWurzel)));
             }
 
-            vergleichsDateien = vergleichsDateien
+            referenzDateien = referenzDateien
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            if (vergleichsDateien.Count == 0)
+            if (referenzDateien.Count == 0)
             {
-                fortschritt?.Report((0, 0, "In den Vergleichsordnern wurden keine Bilder gefunden."));
+                fortschritt?.Report((0, 0,
+                    $"Ausserhalb des Dubletten-Ordners wurden in den Referenzordnern keine {was} gefunden."));
                 return treffer;
             }
+
+            // --- Löschkandidaten: alles im Dubletten-Ordner ---
+            var kandidatenDateien = (await Task.Run(
+                    () => SammleDateien(dublettenOrdner, suchTiefe, alleDateitypen), token))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (kandidatenDateien.Count == 0)
+            {
+                fortschritt?.Report((0, 0, $"Im Dubletten-Ordner wurden keine {was} gefunden."));
+                return treffer;
+            }
+
+            // Ab hier heissen die Referenzdateien intern „basis" (Bestand) und die
+            // Kandidaten sind die Löschseite.
+            var basisDateien = referenzDateien;
+            var vergleichsDateien = kandidatenDateien;
 
             // --- Stufe 1: nach Dateigrösse vorfiltern ---
             fortschritt?.Report((0, 0, "Dateigrössen werden verglichen …"));
@@ -111,7 +141,7 @@ namespace TestImage.Bildersuche
             }
 
             // --- Stufe 2: Hashes berechnen ---
-            // Nur die Basisdateien hashen, deren Grösse überhaupt bei Kandidaten vorkommt.
+            // Nur die Referenzdateien hashen, deren Grösse überhaupt bei Kandidaten vorkommt.
             var relevanteGroessen = kandidaten.Select(k => k.Groesse).ToHashSet();
             var zuHashendeBasis = basisNachGroesse
                 .Where(g => relevanteGroessen.Contains(g.Key))
@@ -123,12 +153,16 @@ namespace TestImage.Bildersuche
 
             var basisHashes = new ConcurrentDictionary<string, List<string>>(StringComparer.Ordinal);
 
+            // Dateien, die trotz Wiederholung nicht gelesen werden konnten – werden am
+            // Ende gemeldet, damit sie nicht unbemerkt aus der Prüfung fallen.
+            var nichtLesbar = new ConcurrentBag<string>();
+
             await Parallel.ForEachAsync(
                 zuHashendeBasis,
                 new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = token },
                 async (datei, ct) =>
                 {
-                    var hash = await BerechneHashAsync(datei, ct);
+                    var hash = await BerechneHashAsync(datei, nichtLesbar, ct);
                     if (hash != null)
                     {
                         basisHashes.AddOrUpdate(
@@ -143,14 +177,14 @@ namespace TestImage.Bildersuche
                 });
 
             // --- Stufe 3: Kandidaten hashen und bei Treffer byteweise verifizieren ---
-            var gefundene = new ConcurrentBag<ByteDublettenTreffer>();
+            var treffersammlung = new ConcurrentBag<ByteDublettenTreffer>();
 
             await Parallel.ForEachAsync(
                 kandidaten,
                 new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = token },
                 async (kandidat, ct) =>
                 {
-                    var hash = await BerechneHashAsync(kandidat.Datei, ct);
+                    var hash = await BerechneHashAsync(kandidat.Datei, nichtLesbar, ct);
 
                     if (hash != null && basisHashes.TryGetValue(hash, out var basisListe))
                     {
@@ -159,11 +193,11 @@ namespace TestImage.Bildersuche
 
                         foreach (var basisDatei in schnappschuss)
                         {
-                            if (await SindByteGleichAsync(basisDatei, kandidat.Datei, ct))
+                            if (await SindByteGleichAsync(basisDatei, kandidat.Datei, nichtLesbar, ct))
                             {
-                                gefundene.Add(new ByteDublettenTreffer
+                                treffersammlung.Add(new ByteDublettenTreffer
                                 {
-                                    BasisDatei = basisDatei,
+                                    ReferenzDatei = basisDatei,
                                     DublettenDatei = kandidat.Datei,
                                     GroesseBytes = kandidat.Groesse
                                 });
@@ -177,28 +211,62 @@ namespace TestImage.Bildersuche
                         fortschritt?.Report((fertig, gesamt, $"Prüfsummen: {fertig} / {gesamt}"));
                 });
 
-            treffer = gefundene
+            treffer = treffersammlung
                 .OrderBy(t => t.DublettenOrdner, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(t => t.DublettenDateiName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
+            // Gesperrte Dateien ausdrücklich benennen: Sie wurden NICHT geprüft und
+            // könnten sehr wohl Duplikate sein — ein zweiter Lauf findet sie meist.
+            var uebergangeneListe = nichtLesbar.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            nichtLesbarAusgabe?.AddRange(uebergangeneListe);
+
+            int uebergangen = uebergangeneListe.Count;
+            string zusatz = uebergangen == 0
+                ? string.Empty
+                : $" {uebergangen} Datei(en) waren gesperrt und konnten nicht geprüft werden – Suche später wiederholen.";
+
             fortschritt?.Report((gesamt, gesamt,
-                treffer.Count == 0
+                (treffer.Count == 0
                     ? "Keine Byte-Duplikate gefunden."
-                    : $"{treffer.Count} Byte-Duplikate gefunden."));
+                    : $"{treffer.Count} Byte-Duplikate gefunden.") + zusatz));
 
             return treffer;
         }
 
-        /// <summary>Sammelt alle unterstützten Bilddateien eines Ordners.</summary>
-        private static List<string> SammleBilder(string ordner, SearchOption tiefe)
+        /// <summary>
+        /// Auflistung für die Ordner-Übersicht (nach dem Drop). Nach Pfad sortiert,
+        /// damit die Anzeige stabil bleibt.
+        /// </summary>
+        internal static List<string> ListeDateien(
+            string ordner, bool mitUnterordnern, bool alleDateitypen, CancellationToken token)
+        {
+            if (string.IsNullOrWhiteSpace(ordner) || !Directory.Exists(ordner))
+                return new List<string>();
+
+            var tiefe = mitUnterordnern ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
+            var dateien = SammleDateien(ordner, tiefe, alleDateitypen);
+
+            token.ThrowIfCancellationRequested();
+
+            dateien.Sort(StringComparer.OrdinalIgnoreCase);
+            return dateien;
+        }
+
+        /// <summary>
+        /// Sammelt die Dateien eines Ordners — standardmässig nur Bilder,
+        /// mit <paramref name="alleDateitypen"/> jede Datei.
+        /// </summary>
+        private static List<string> SammleDateien(string ordner, SearchOption tiefe, bool alleDateitypen)
         {
             try
             {
-                return Directory
-                    .EnumerateFiles(ordner, "*.*", tiefe)
-                    .Where(d => Bildendungen.Contains(Path.GetExtension(d).ToLowerInvariant()))
-                    .ToList();
+                var alle = Directory.EnumerateFiles(ordner, "*.*", tiefe);
+
+                if (!alleDateitypen)
+                    alle = alle.Where(d => Bildendungen.Contains(Path.GetExtension(d).ToLowerInvariant()));
+
+                return alle.ToList();
             }
             catch
             {
@@ -234,44 +302,94 @@ namespace TestImage.Bildersuche
             return map;
         }
 
-        private static async Task<string?> BerechneHashAsync(string datei, CancellationToken token)
-        {
-            try
-            {
-                using var stream = new FileStream(
-                    datei, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024, useAsync: true);
+        /// <summary>Wie oft ein gesperrter Zugriff wiederholt wird, bevor aufgegeben wird.</summary>
+        private const int LeseVersuche = 3;
 
-                var hash = await SHA256.HashDataAsync(stream, token);
-                return Convert.ToHexString(hash);
-            }
-            catch (OperationCanceledException)
+        /// <summary>Wartezeit zwischen zwei Leseversuchen.</summary>
+        private const int LesePauseMs = 200;
+
+        /// <summary>
+        /// SHA-256 der Datei. Bei gesperrter Datei (Virenscanner, Explorer-Vorschau,
+        /// anderes Programm) wird mehrfach nachgefasst — solche Sperren sind meist
+        /// kurzlebig. Gelingt es endgültig nicht, wird der Pfad in
+        /// <paramref name="nichtLesbar"/> vermerkt statt still übergangen: sonst
+        /// verschwindet die Datei kommentarlos aus der Trefferliste.
+        /// </summary>
+        private static async Task<string?> BerechneHashAsync(
+            string datei, ConcurrentBag<string>? nichtLesbar, CancellationToken token)
+        {
+            for (int versuch = 1; versuch <= LeseVersuche; versuch++)
             {
-                throw;
+                token.ThrowIfCancellationRequested();
+
+                try
+                {
+                    using var stream = new FileStream(
+                        datei, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 1024 * 1024, useAsync: true);
+
+                    var hash = await SHA256.HashDataAsync(stream, token);
+                    return Convert.ToHexString(hash);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (IOException) when (versuch < LeseVersuche)
+                {
+                    await Task.Delay(LesePauseMs, token);   // Sperre abwarten
+                }
+                catch (UnauthorizedAccessException) when (versuch < LeseVersuche)
+                {
+                    await Task.Delay(LesePauseMs, token);
+                }
+                catch
+                {
+                    break;
+                }
             }
-            catch
-            {
-                return null;
-            }
+
+            nichtLesbar?.Add(datei);
+            return null;
         }
 
-        /// <summary>Echter Byte-Vergleich (Absicherung gegen Hash-Kollisionen).</summary>
-        private static async Task<bool> SindByteGleichAsync(string a, string b, CancellationToken token)
+        /// <summary>
+        /// Echter Byte-Vergleich (Absicherung gegen Hash-Kollisionen). Wie beim Hashen
+        /// wird bei gesperrter Datei nachgefasst und ein endgültiger Fehlschlag vermerkt.
+        /// </summary>
+        private static async Task<bool> SindByteGleichAsync(
+            string a, string b, ConcurrentBag<string>? nichtLesbar, CancellationToken token)
         {
-            try
+            for (int versuch = 1; versuch <= LeseVersuche; versuch++)
             {
-                using var stream = new FileStream(
-                    a, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024, useAsync: true);
+                token.ThrowIfCancellationRequested();
 
-                return await MieneServices.IsFileGleich2Async(stream, b, token);
+                try
+                {
+                    using var stream = new FileStream(
+                        a, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 1024 * 1024, useAsync: true);
+
+                    return await MieneServices.IsFileGleich2Async(stream, b, token);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (IOException) when (versuch < LeseVersuche)
+                {
+                    await Task.Delay(LesePauseMs, token);
+                }
+                catch (UnauthorizedAccessException) when (versuch < LeseVersuche)
+                {
+                    await Task.Delay(LesePauseMs, token);
+                }
+                catch
+                {
+                    break;
+                }
             }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch
-            {
-                return false;
-            }
+
+            nichtLesbar?.Add(b);
+            return false;
         }
 
         private static string NormalisiereOrdner(string ordner)
@@ -296,14 +414,74 @@ namespace TestImage.Bildersuche
         }
 
         /// <summary>
+        /// True, wenn im Ordner keine einzige Datei mehr liegt — auch nicht in
+        /// Unterordnern. Reine Ordnergerüste ohne Inhalt gelten damit als leer, denn
+        /// genau die bleiben nach einem Aufräumlauf zurück.
+        /// </summary>
+        internal static bool IstOrdnerLeer(string? ordner)
+        {
+            if (string.IsNullOrWhiteSpace(ordner) || !Directory.Exists(ordner))
+                return false;
+
+            try
+            {
+                return !Directory.EnumerateFiles(ordner, "*", SearchOption.AllDirectories).Any();
+            }
+            catch
+            {
+                return false;   // nicht lesbar → im Zweifel nichts anbieten
+            }
+        }
+
+        /// <summary>
+        /// Verschiebt einen Ordner samt leerer Unterstruktur in den Papierkorb.
+        /// Prüft zur Sicherheit noch einmal selbst, ob er wirklich leer ist — zwischen
+        /// Anzeige und Klick kann sich der Inhalt geändert haben.
+        /// </summary>
+        internal static bool OrdnerInDenPapierkorb(string ordner)
+        {
+            if (!IstOrdnerLeer(ordner))
+                return false;
+
+            try
+            {
+                Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(
+                    ordner,
+                    Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
+                    Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Verschiebt eine Datei in den Papierkorb (bewusst kein endgültiges Löschen).
+        /// Bei kurzzeitiger Sperre wird wiederholt, statt sofort aufzugeben.
         /// </summary>
         internal static void InDenPapierkorb(string datei)
         {
-            Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(
-                datei,
-                Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
-                Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+            for (int versuch = 1; ; versuch++)
+            {
+                try
+                {
+                    Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(
+                        datei,
+                        Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
+                        Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+                    return;
+                }
+                catch (IOException) when (versuch < LeseVersuche)
+                {
+                    Thread.Sleep(LesePauseMs);
+                }
+                catch (UnauthorizedAccessException) when (versuch < LeseVersuche)
+                {
+                    Thread.Sleep(LesePauseMs);
+                }
+            }
         }
     }
 }
