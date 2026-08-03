@@ -22,29 +22,11 @@
         <local:AufgabeViewModel />
     </Window.DataContext>
     <Window.InputBindings>
-        <!--  Bild nach rechts  -->
-        <KeyBinding
-            Key="D"
-            Command="{Binding CommandExecuteBildNachRechtsCommand, Mode=OneWay}"
-            Modifiers="Ctrl" />
-
-        <!--  Bild nach Links  -->
-        <KeyBinding
-            Key="A"
-            Command="{Binding CommandExecuteBildLinksCommand, Mode=OneWay}"
-            Modifiers="Ctrl" />
-
-        <!--  Bild nach Unten  -->
-        <KeyBinding
-            Key="S"
-            Command="{Binding CommandExecuteBildInsKeinFavVerzeichnisVerschiebenCommand}"
-            Modifiers="Ctrl" />
-
-        <!--  Bild nach Oben  -->
-        <KeyBinding
-            Key="W"
-            Command="{Binding CommandExecuteBildInsHauptVerzeichnisZuruckVerschiebenCommand, Mode=OneWay}"
-            Modifiers="Ctrl" />
+        <!--
+            Strg+D/A/S/W sind entfallen. Die Navigation und das Verschieben laufen über
+            die Pfeiltasten (Window_PreviewKeyDown), im Bildmodus zusätzlich über
+            Einzelbuchstaben – Übersicht dort mit F1.
+        -->
 
         <!--  Fenster minimieren  -->
         <KeyBinding Key="Space" Command="{Binding CommandExecuteFensterMinimierenCommand, Mode=OneWay}" />
@@ -363,7 +345,233 @@
             PressedBackground="#FFCACFFE" />-->
 
 
-        <!--  Filter Breich  -->
+        <!--
+            Tastenübersicht — liegt im Host, damit sie über beiden Ansichten erscheint:
+            in der Normalansicht über den Knopf, im Bildmodus über F1.
+        -->
+        <Border
+            x:Name="BRD_TastenHilfe"
+            Grid.Row="0"
+            Grid.RowSpan="3"
+            Padding="26,20"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Panel.ZIndex="250"
+            d:Visibility="Collapsed"
+            Background="#F21A1A1A"
+            BorderBrush="#55FFFFFF"
+            BorderThickness="1"
+            CornerRadius="10"
+            IsHitTestVisible="False"
+            Visibility="{Binding IsVollbildHilfeOffen, Converter={StaticResource CLconverterVisiblityBoolian}}">
+            <StackPanel x:Name="STP_TastenHilfe">
+                <TextBlock
+                    x:Name="TXT_HilfeUeberschrift"
+                    Margin="0,0,0,14"
+                    FontFamily="Segoe UI"
+                    FontSize="15"
+                    FontWeight="SemiBold"
+                    Foreground="White"
+                    Text="Tastensteuerung" />
+
+                <Grid x:Name="GRD_TastenListe">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition x:Name="COL_Taste" Width="Auto" />
+                        <ColumnDefinition x:Name="COL_Bedeutung" Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <!--  11 Zeilen: eine je Tastenkürzel  -->
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock
+                        x:Name="TXT_TasteLinksRechts"
+                        Grid.Row="0"
+                        Grid.Column="0"
+                        Margin="0,0,20,7"
+                        FontFamily="Consolas"
+                        FontSize="13"
+                        Foreground="#FFFFC46B"
+                        Text="← →" />
+                    <TextBlock
+                        Grid.Row="0"
+                        Grid.Column="1"
+                        Margin="0,0,0,7"
+                        FontSize="13"
+                        Foreground="#FFE6E6E6"
+                        Text="Vorheriges / nächstes Bild (verschobene werden übersprungen)" />
+
+                    <TextBlock
+                        Grid.Row="1"
+                        Grid.Column="0"
+                        Margin="0,0,20,7"
+                        FontFamily="Consolas"
+                        FontSize="13"
+                        Foreground="#FFFFC46B"
+                        Text="↓" />
+                    <TextBlock
+                        Grid.Row="1"
+                        Grid.Column="1"
+                        Margin="0,0,0,7"
+                        FontSize="13"
+                        Foreground="#FFE6E6E6"
+                        Text="Bild nach kein_Fav verschieben" />
+
+                    <TextBlock
+                        Grid.Row="2"
+                        Grid.Column="0"
+                        Margin="0,0,20,7"
+                        FontFamily="Consolas"
+                        FontSize="13"
+                        Foreground="#FFFFC46B"
+                        Text="Shift+↓" />
+                    <TextBlock
+                        Grid.Row="2"
+                        Grid.Column="1"
+                        Margin="0,0,0,7"
+                        FontSize="13"
+                        Foreground="#FFE6E6E6"
+                        Text="Bild in den Ordner „Besonders“" />
+
+                    <TextBlock
+                        Grid.Row="3"
+                        Grid.Column="0"
+                        Margin="0,0,20,7"
+                        FontFamily="Consolas"
+                        FontSize="13"
+                        Foreground="#FFFFC46B"
+                        Text="↑" />
+                    <TextBlock
+                        Grid.Row="3"
+                        Grid.Column="1"
+                        Margin="0,0,0,7"
+                        FontSize="13"
+                        Foreground="#FFE6E6E6"
+                        Text="Bild zurück ins Hauptverzeichnis, sonst letzte Verschiebung rückgängig" />
+
+                    <TextBlock
+                        Grid.Row="4"
+                        Grid.Column="0"
+                        Margin="0,0,20,7"
+                        FontFamily="Consolas"
+                        FontSize="13"
+                        Foreground="#FFFFC46B"
+                        Text="K" />
+                    <TextBlock
+                        Grid.Row="4"
+                        Grid.Column="1"
+                        Margin="0,0,0,7"
+                        FontSize="13"
+                        Foreground="#FFE6E6E6"
+                        Text="Bild in den KI-Fehler-Ordner   (nur Bildmodus)" />
+
+                    <TextBlock
+                        Grid.Row="5"
+                        Grid.Column="0"
+                        Margin="0,0,20,7"
+                        FontFamily="Consolas"
+                        FontSize="13"
+                        Foreground="#FFFFC46B"
+                        Text="S" />
+                    <TextBlock
+                        Grid.Row="5"
+                        Grid.Column="1"
+                        Margin="0,0,0,7"
+                        FontSize="13"
+                        Foreground="#FFE6E6E6"
+                        Text="Bildgrösse umschalten   (nur Bildmodus)" />
+
+                    <TextBlock
+                        Grid.Row="6"
+                        Grid.Column="0"
+                        Margin="0,0,20,7"
+                        FontFamily="Consolas"
+                        FontSize="13"
+                        Foreground="#FFFFC46B"
+                        Text="E" />
+                    <TextBlock
+                        Grid.Row="6"
+                        Grid.Column="1"
+                        Margin="0,0,0,7"
+                        FontSize="13"
+                        Foreground="#FFE6E6E6"
+                        Text="Datei im Explorer zeigen   (nur Bildmodus)" />
+
+                    <TextBlock
+                        Grid.Row="7"
+                        Grid.Column="0"
+                        Margin="0,0,20,7"
+                        FontFamily="Consolas"
+                        FontSize="13"
+                        Foreground="#FFFFC46B"
+                        Text="R" />
+                    <TextBlock
+                        Grid.Row="7"
+                        Grid.Column="1"
+                        Margin="0,0,0,7"
+                        FontSize="13"
+                        Foreground="#FFE6E6E6"
+                        Text="Ordner neu einlesen   (nur Bildmodus)" />
+
+                    <TextBlock
+                        Grid.Row="8"
+                        Grid.Column="0"
+                        Margin="0,0,20,7"
+                        FontFamily="Consolas"
+                        FontSize="13"
+                        Foreground="#FFFFC46B"
+                        Text="Strg+Z" />
+                    <TextBlock
+                        Grid.Row="8"
+                        Grid.Column="1"
+                        Margin="0,0,0,7"
+                        FontSize="13"
+                        Foreground="#FFE6E6E6"
+                        Text="Verschieben rückgängig" />
+
+                    <TextBlock
+                        Grid.Row="9"
+                        Grid.Column="0"
+                        Margin="0,0,20,7"
+                        FontFamily="Consolas"
+                        FontSize="13"
+                        Foreground="#FFFFC46B"
+                        Text="F11" />
+                    <TextBlock
+                        Grid.Row="9"
+                        Grid.Column="1"
+                        Margin="0,0,0,7"
+                        FontSize="13"
+                        Foreground="#FFE6E6E6"
+                        Text="Bildmodus verlassen" />
+
+                    <TextBlock
+                        Grid.Row="10"
+                        Grid.Column="0"
+                        Margin="0,0,20,0"
+                        FontFamily="Consolas"
+                        FontSize="13"
+                        Foreground="#FFFFC46B"
+                        Text="F1 / Esc" />
+                    <TextBlock
+                        Grid.Row="10"
+                        Grid.Column="1"
+                        FontSize="13"
+                        Foreground="#FFE6E6E6"
+                        Text="Übersicht schliessen (F1 nur im Bildmodus)" />
+                </Grid>
+            </StackPanel>
+        </Border>
         <VisualStateManager.VisualStateGroups>
             <VisualStateGroup x:Name="VisualStateGroup">
                 <VisualStateGroup.Transitions>

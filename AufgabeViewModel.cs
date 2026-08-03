@@ -53,6 +53,7 @@ namespace TestImage
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteSuchenGleichesBildByteVergleichCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteSuchenUngefährGleichesBildCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteBildInsKIFehlerVerschiebenCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteBildInsBesondersVerschiebenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteAlleBilderMiteinanderAufByteGleichheitPrüfenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteAlleBilderNeuEinlesenCommand))]
         public partial bool PrüfungLäuft { get; set; } = false;
@@ -134,6 +135,18 @@ namespace TestImage
 
         [ObservableProperty]
         private bool _IsImageMaximiert = false;
+
+        /// <summary>
+        /// Tastenübersicht im Bildmodus eingeblendet (F1 oder ?). Dort gibt es keine
+        /// sichtbaren Knöpfe – ohne diese Liste wären die Kürzel nicht auffindbar.
+        /// </summary>
+        [ObservableProperty]
+        private bool _isVollbildHilfeOffen;
+
+        /// <summary>Blendet die Tastenübersicht ein oder aus (Hinweisfeld und F1).</summary>
+        [RelayCommand]
+        private void CommandExecuteVollbildHilfeToggle()
+            => IsVollbildHilfeOffen = !IsVollbildHilfeOffen;
 
         [ObservableProperty]
         private bool _isWebcamAktiv;
@@ -2638,6 +2651,110 @@ namespace TestImage
 
             AufgabenView.Refresh();
 
+        }
+
+        #endregion
+
+        #region Command Bild ins Besonders-Verzeichnis verschieben
+
+        private bool CanExecuteBildInsBesondersVerschieben()
+        {
+            return SelectedBildchen != null && !PrüfungLäuft;
+        }
+
+        /// <summary>
+        /// Verschiebt das gewählte Bild in den Unterordner „Besonders" (Shift+↓).
+        /// Gegenstück zu kein_Fav (↓) und KI_Fehler (K), nur mit anderem Ziel.
+        /// </summary>
+        [RelayCommand(CanExecute = nameof(CanExecuteBildInsBesondersVerschieben))]
+        private async Task CommandExecuteBildInsBesondersVerschieben()
+        {
+            await VerschiebeAktuellesBildInUnterordnerAsync("Besonders");
+        }
+
+        /// <summary>
+        /// Verschiebt das gewählte Bild in einen Unterordner seines aktuellen Ordners
+        /// und zieht die Liste nach. Der Ordner wird bei Bedarf angelegt; existiert die
+        /// Datei am Ziel bereits, passiert nichts ausser einem Hinweis.
+        /// </summary>
+        private async Task VerschiebeAktuellesBildInUnterordnerAsync(string unterordner)
+        {
+            if (SelectedBildchen?.BName is not string source)
+            {
+                return;
+            }
+
+            string? baseDirectory = Path.GetDirectoryName(source);
+            if (string.IsNullOrEmpty(baseDirectory))
+            {
+                return;
+            }
+
+            string zielVerzeichnis = Path.Combine(baseDirectory, unterordner);
+            string zielDateiFullName = Path.Combine(zielVerzeichnis, Path.GetFileName(source));
+
+            PrüfungLäuft = true;
+            bool moveErfolgreich = false;
+
+            var sw = Stopwatch.StartNew();
+
+            try
+            {
+                if (!File.Exists(source))
+                {
+                    return;
+                }
+
+                if (!Directory.Exists(zielVerzeichnis))
+                {
+                    Directory.CreateDirectory(zielVerzeichnis);
+                }
+
+                if (File.Exists(zielDateiFullName))
+                {
+                    MessageBox.Show(
+                        "Die Datei existiert bereits im Zielverzeichnis:\n" + zielDateiFullName,
+                        "Datei vorhanden",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                    return;
+                }
+
+                await Task.Run(() => File.Move(source, zielDateiFullName));
+                CLconverterStringZuKleinemImage.InvalidateCache(source);
+                moveErfolgreich = true;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    "Fehler beim Verschieben der Datei:\n\n" + ex.Message,
+                    "Verschieben fehlgeschlagen",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+            finally
+            {
+                sw.Stop();
+                Debug.WriteLine($"Verschieben nach '{unterordner}': {sw.ElapsedMilliseconds} ms");
+                PrüfungLäuft = false;
+            }
+
+            if (!moveErfolgreich)
+            {
+                return;
+            }
+
+            var bildchen = OcAufgabens.FirstOrDefault(b => b.BName == source);
+            if (bildchen != null)
+            {
+                bildchen.BName = zielDateiFullName;
+                bildchen.BildFürLinks = true;
+
+                OnPropertyChanged(nameof(SelectedBildchen));
+                OnPropertyChanged(nameof(CountBildchenFürLinks));
+            }
+
+            AufgabenView.Refresh();
         }
 
         #endregion

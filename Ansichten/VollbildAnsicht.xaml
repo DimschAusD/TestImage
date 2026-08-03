@@ -15,8 +15,20 @@
     d:DesignWidth="800"
     mc:Ignorable="d">
 
-    <!--  Vollbildansicht (IsImageMaximiert = true): eigenes Bild, Klickzonen, Schwebe-Filmstrip, Hover-Zone, Drop-Overlay.  -->
-    <Grid x:Name="GRD_VollbildWurzel" Background="#FF111111" d:Background="LightGray">
+    <!--
+        Vollbildansicht (IsImageMaximiert = true): eigenes Bild, Klickzonen,
+        Schwebe-Filmstrip, Hover-Zone, Drop-Overlay.
+
+        MouseWheel zoomt (bubbling, damit der Filmstrip sein eigenes Rad-Verhalten
+        behält), Klick in die Bildmitte setzt zurück. Links und rechts liegen die
+        Navigationszonen — dort kommt der Klick gar nicht erst an.
+    -->
+    <Grid
+        x:Name="GRD_VollbildWurzel"
+        Background="#FF111111"
+        d:Background="LightGray"
+        MouseLeftButtonDown="Vollbild_ZoomZuruecksetzen"
+        MouseWheel="Vollbild_MouseWheel">
 
         <!--  Eigenes Vollbild-Image (Fit), Drop-fähig  -->
         <Image
@@ -27,11 +39,16 @@
             DragLeave="Vollbild_DragLeave"
             Drop="Vollbild_Drop"
             RenderOptions.BitmapScalingMode="HighQuality"
-            Source="{Binding DisplayImage}"
+            RenderTransformOrigin="0.5,0.5"
+            Source="{Binding DisplayImage, NotifyOnTargetUpdated=True}"
             d:Source="/Images/HeavyO.jpg"
-            Stretch="Uniform">
+            Stretch="Uniform"
+            TargetUpdated="Vollbild_BildGewechselt">
             <Image.RenderTransform>
-                <TranslateTransform x:Name="imgShakeTransform" />
+                <TransformGroup>
+                    <ScaleTransform x:Name="imgZoomTransform" ScaleX="1" ScaleY="1" />
+                    <TranslateTransform x:Name="imgShakeTransform" />
+                </TransformGroup>
             </Image.RenderTransform>
             <Image.Effect>
                 <DropShadowEffect
@@ -42,7 +59,16 @@
             </Image.Effect>
         </Image>
 
-        <!--  Klickzone links: vorheriges Bild  -->
+        <!--
+            Klickzonen links/rechts. Die Commands sind dieselben wie bei
+            RDBTN_BildNachLinks/-Rechts der Normalansicht — das Überspringen bereits
+            verschobener Bilder (BildFürLinks) steckt dort drin und gilt hier ebenso.
+
+            Neu ist die Sichtbarkeit: Der Pfeil taucht beim Überfahren der Zone auf und
+            wird blass, sobald in dieser Richtung nichts mehr kommt (CanExecute), genau
+            wie das ausgegraute Icon in der Normalansicht. Vorher war die Zone völlig
+            unsichtbar — man musste wissen, dass sie existiert.
+        -->
         <Button
             x:Name="BTN_VollbildLinks"
             Width="120"
@@ -53,10 +79,38 @@
             BorderThickness="0"
             Command="{Binding CommandExecuteBildLinksCommand}"
             Cursor="Arrow"
-            FocusVisualStyle="{x:Null}">
+            FocusVisualStyle="{x:Null}"
+            ToolTip="Vorheriges Bild (bereits verschobene werden übersprungen)">
             <Button.Template>
                 <ControlTemplate TargetType="{x:Type Button}">
-                    <Border Background="Transparent" />
+                    <Border x:Name="BRD_ZoneLinks" Background="Transparent">
+                        <Image
+                            x:Name="IMG_PfeilLinks"
+                            Width="48"
+                            Height="48"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            IsHitTestVisible="False"
+                            Opacity="0"
+                            RenderOptions.BitmapScalingMode="HighQuality"
+                            Source="/Images/PfeilNachLinks.png" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="IMG_PfeilLinks" Property="Opacity" Value="0.85" />
+                        </Trigger>
+                        <!--  Kein Bild mehr in dieser Richtung: nur schwach andeuten.  -->
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="IMG_PfeilLinks" Property="Opacity" Value="0" />
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsEnabled" Value="False" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="IMG_PfeilLinks" Property="Opacity" Value="0.2" />
+                        </MultiTrigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Button.Template>
         </Button>
@@ -72,10 +126,37 @@
             BorderThickness="0"
             Command="{Binding CommandExecuteBildNachRechtsCommand}"
             Cursor="Arrow"
-            FocusVisualStyle="{x:Null}">
+            FocusVisualStyle="{x:Null}"
+            ToolTip="Nächstes Bild (bereits verschobene werden übersprungen)">
             <Button.Template>
                 <ControlTemplate TargetType="{x:Type Button}">
-                    <Border Background="Transparent" />
+                    <Border x:Name="BRD_ZoneRechts" Background="Transparent">
+                        <Image
+                            x:Name="IMG_PfeilRechts"
+                            Width="48"
+                            Height="48"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            IsHitTestVisible="False"
+                            Opacity="0"
+                            RenderOptions.BitmapScalingMode="HighQuality"
+                            Source="/Images/PfeilNachRechts.png" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="IMG_PfeilRechts" Property="Opacity" Value="0.85" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="IMG_PfeilRechts" Property="Opacity" Value="0" />
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsEnabled" Value="False" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="IMG_PfeilRechts" Property="Opacity" Value="0.2" />
+                        </MultiTrigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Button.Template>
         </Button>
@@ -361,6 +442,43 @@
             VerticalAlignment="Bottom"
             Background="Transparent"
             IsHitTestVisible="True" />
+
+        <!--
+            Zoomstufe, oben links. Erscheint nur bei vergrössertem Bild und nennt
+            zugleich den Rückweg – sonst wüsste man nicht, wie man wieder herauskommt.
+        -->
+        <Border
+            x:Name="BRD_ZoomAnzeige"
+            Margin="16,12,0,0"
+            Padding="10,5"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Panel.ZIndex="230"
+            Background="#99000000"
+            BorderBrush="#33FFFFFF"
+            BorderThickness="1"
+            CornerRadius="6"
+            IsHitTestVisible="False"
+            Visibility="Collapsed">
+            <StackPanel x:Name="STP_ZoomAnzeige" Orientation="Horizontal">
+                <TextBlock
+                    x:Name="TXT_ZoomWert"
+                    VerticalAlignment="Center"
+                    FontFamily="Consolas"
+                    FontSize="13"
+                    FontWeight="Bold"
+                    Foreground="#FFFFC46B"
+                    Text="100 %" />
+                <TextBlock
+                    x:Name="TXT_ZoomHinweis"
+                    Margin="10,0,0,0"
+                    VerticalAlignment="Center"
+                    FontFamily="Segoe UI"
+                    FontSize="11"
+                    Foreground="#FFCCCCCC"
+                    Text="Klick setzt zurück" />
+            </StackPanel>
+        </Border>
 
         <!--  Drop-Overlay: sichtbar wenn Datei über das Bild gezogen wird  -->
         <Border

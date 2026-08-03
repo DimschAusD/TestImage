@@ -118,9 +118,73 @@ namespace TestImage
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteLeerenDublettenOrdnerLoeschenCommand))]
         private bool _dublettenOrdnerIstLeer;
 
+        /// <summary>
+        /// Anzahl der Dateien, die noch im Dubletten-Ordner liegen. −1 = unbekannt.
+        /// Macht sichtbar, warum der Ordner gegebenenfalls nicht als leer gilt.
+        /// </summary>
+        [ObservableProperty]
+        private int _dublettenOrdnerRestDateien = -1;
+
+        /// <summary>Text neben dem Entfernen-Knopf, wenn der Ordner noch Dateien enthält.</summary>
+        public string DublettenOrdnerRestText => DublettenOrdnerRestDateien switch
+        {
+            < 0 => string.Empty,
+            0 => string.Empty,
+            1 => "noch 1 Datei im Dubletten-Ordner",
+            _ => $"noch {DublettenOrdnerRestDateien} Dateien im Dubletten-Ordner"
+        };
+
+        partial void OnDublettenOrdnerRestDateienChanged(int value)
+            => OnPropertyChanged(nameof(DublettenOrdnerRestText));
+
+        /// <summary>
+        /// Nennt die ersten verbliebenen Dateien beim Namen. Ohne das rätselt man, warum
+        /// ein scheinbar leerer Ordner nicht als leer gilt — meist sind es versteckte
+        /// Dateien wie desktop.ini oder Thumbs.db.
+        /// </summary>
+        [ObservableProperty]
+        private string _dublettenOrdnerRestTooltip = string.Empty;
+
         /// <summary>Bestimmt neu, ob der Dubletten-Ordner leer ist.</summary>
         private void PruefeDublettenOrdnerLeer()
-            => DublettenOrdnerIstLeer = ByteDublettenService.IstOrdnerLeer(DublettenOrdner);
+        {
+            // Erst eine kleine Stichprobe: Für Anzeige und Tooltip reichen ein paar
+            // Namen, und bei riesigen Ordnern spart es das vollständige Durchzählen.
+            var probe = ByteDublettenService.ListeVerbleibendeDateien(DublettenOrdner, 12);
+
+            if (probe is null)
+            {
+                DublettenOrdnerRestDateien = -1;
+                DublettenOrdnerRestTooltip = string.Empty;
+                DublettenOrdnerIstLeer = false;
+                AktualisiereLeerHinweis();
+                return;
+            }
+
+            if (probe.Count == 0)
+            {
+                DublettenOrdnerRestDateien = 0;
+                DublettenOrdnerRestTooltip = string.Empty;
+                DublettenOrdnerIstLeer = true;
+                AktualisiereLeerHinweis();
+                return;
+            }
+
+            DublettenOrdnerIstLeer = false;
+            DublettenOrdnerRestDateien = ByteDublettenService.ZaehleVerbleibendeDateien(DublettenOrdner);
+
+            var namen = probe.Select(Path.GetFileName).Take(10);
+            DublettenOrdnerRestTooltip =
+                "Diese Dateien liegen noch im Ordner (Auszug):\n" + string.Join("\n", namen)
+                + "\n\nVersteckte Dateien wie desktop.ini oder Thumbs.db zählen mit – "
+                + "im Explorer sind sie oft ausgeblendet.";
+
+            AktualisiereLeerHinweis();
+        }
+
+        // Auch beim blossen Setzen des Pfades prüfen: Der Ordner kann längst leer sein,
+        // etwa nach einem Aufräumen ausserhalb der Anwendung.
+        partial void OnDublettenOrdnerChanged(string value) => PruefeDublettenOrdnerLeer();
 
         private bool CanExecuteLeerenDublettenOrdnerLoeschen()
             => !IsDublettenAufgabeLäuft && DublettenOrdnerIstLeer;
@@ -170,6 +234,44 @@ namespace TestImage
 
         /// <summary>Gefundene Duplikate.</summary>
         public ObservableCollection<ByteDublettenTreffer> ByteDublettenTreffer { get; } = new();
+
+        /// <summary>True, sobald einmal gesucht wurde. Unterscheidet „noch nicht gesucht" von „nichts gefunden".</summary>
+        [ObservableProperty]
+        private bool _dublettenSucheGelaufen;
+
+        /// <summary>
+        /// Hinweis in der leeren Trefferliste. Nennt den jeweils nächsten sinnvollen
+        /// Schritt statt pauschal „noch keine Duplikate" — das behauptete auch nach einer
+        /// erfolglosen Suche, es sei noch nichts geschehen.
+        /// </summary>
+        [ObservableProperty]
+        private string _dublettenLeerHinweis = "Dubletten-Ordner wählen oder hineinziehen";
+
+        /// <summary>Bestimmt den Hinweistext aus dem aktuellen Zustand.</summary>
+        private void AktualisiereLeerHinweis()
+        {
+            if (string.IsNullOrWhiteSpace(DublettenOrdner) || !Directory.Exists(DublettenOrdner))
+            {
+                DublettenLeerHinweis = "Dubletten-Ordner wählen oder hineinziehen";
+                return;
+            }
+
+            if (DublettenOrdnerRestDateien == 0)
+            {
+                DublettenLeerHinweis = "Im Dubletten-Ordner liegt keine Datei mehr";
+                return;
+            }
+
+            if (DublettenReferenzOrdner.Count == 0)
+            {
+                DublettenLeerHinweis = "Referenzordner hinzufügen – dagegen wird verglichen";
+                return;
+            }
+
+            DublettenLeerHinweis = DublettenSucheGelaufen
+                ? "Keine byte-gleichen Dateien im Referenzbestand gefunden"
+                : "Bereit – auf „Byte-Duplikate suchen“ klicken";
+        }
 
         [ObservableProperty]
         private bool _dublettenMitUnterordnern = true;
@@ -287,6 +389,8 @@ namespace TestImage
                     DublettenReferenzOrdner.Add(ordner);
             }
 
+            AktualisiereLeerHinweis();
+
             CommandExecuteByteDublettenSuchenCommand.NotifyCanExecuteChanged();
         }
 
@@ -301,6 +405,7 @@ namespace TestImage
 
             DublettenReferenzOrdner.Remove(AusgewaehlterReferenzOrdner);
             AusgewaehlterReferenzOrdner = null;
+            AktualisiereLeerHinweis();
             CommandExecuteByteDublettenSuchenCommand.NotifyCanExecuteChanged();
         }
 
@@ -389,6 +494,9 @@ namespace TestImage
             SetzeTreffer(Array.Empty<ByteDublettenTreffer>());
             DublettenFortschritt = 0;
             DublettenStatus = "Ordner wird gelesen …";
+
+            // Neuer Ordnerinhalt: Ein früheres Suchergebnis gilt nicht mehr.
+            DublettenSucheGelaufen = false;
 
             try
             {
@@ -479,6 +587,7 @@ namespace TestImage
 
             DublettenReferenzOrdner.Add(ordner);
             DublettenStatus = $"Referenzordner hinzugefügt: {ordner}";
+            AktualisiereLeerHinweis();
             CommandExecuteByteDublettenSuchenCommand.NotifyCanExecuteChanged();
         }
 
@@ -531,6 +640,10 @@ namespace TestImage
 
                 SetzeTreffer(treffer);
 
+                // Ab jetzt heisst „leere Liste" wirklich „nichts gefunden".
+                DublettenSucheGelaufen = true;
+                AktualisiereLeerHinweis();
+
                 // Gesperrte Dateien ausdrücklich nennen: Sie wurden nicht geprüft und
                 // könnten trotzdem Duplikate sein.
                 string zusatz = nichtLesbar.Count == 0
@@ -554,6 +667,10 @@ namespace TestImage
             {
                 DublettenRestzeit = string.Empty;
                 IsDublettenAufgabeLäuft = false;
+
+                // Stand des Ordners auffrischen – er kann sich seit dem Einlesen
+                // geändert haben, etwa durch Aufräumen ausserhalb der Anwendung.
+                PruefeDublettenOrdnerLeer();
             }
         }
 

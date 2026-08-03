@@ -148,7 +148,7 @@
                 <TextBlock
                     x:Name="TXT_KopfUntertitel"
                     Style="{StaticResource KartenUntertitel}"
-                    Text="Aus dem Dubletten-Ordner kommt alles in den Papierkorb, was byte-identisch auch in einem Referenzordner liegt. Der Referenzbestand bleibt unangetastet." />
+                    Text="Sucht im Dubletten-Ordner alle Dateien, die byte-identisch auch im Referenzbestand liegen. Gelöscht wird erst nach Auswahl und Rückfrage – und nur in den Papierkorb. Der Referenzbestand bleibt unangetastet." />
             </StackPanel>
 
             <Button
@@ -618,6 +618,22 @@
                                 Text="Leeren Ordner entfernen" />
                         </StackPanel>
                     </Button>
+
+                    <!--
+                        Steht anstelle des Entfernen-Knopfes, solange noch Dateien im
+                        Ordner liegen. Ohne diesen Hinweis wäre nicht erkennbar, warum
+                        der Knopf ausbleibt – gerade bei „nur Bilder" bleibt alles
+                        andere zwangsläufig zurück.
+                    -->
+                    <TextBlock
+                        x:Name="TXT_OrdnerRestHinweis"
+                        Margin="24,0,0,4"
+                        VerticalAlignment="Center"
+                        d:Text="noch 143 Dateien im Dubletten-Ordner"
+                        FontSize="11"
+                        Foreground="Gray"
+                        Text="{Binding DublettenOrdnerRestText}"
+                        ToolTip="{Binding DublettenOrdnerRestTooltip}" />
                 </WrapPanel>
             </Grid>
         </Border>
@@ -726,8 +742,7 @@
                             Cursor="Hand"
                             FontFamily="Segoe MDL2 Assets"
                             FontSize="10"
-                            Foreground="DarkRed"
-                            Style="{StaticResource ButtonSekundär}"
+                            Style="{StaticResource ButtonLöschen}"
                             ToolTip="Verschieben in den Papierkorb abbrechen"
                             Visibility="{Binding CommandExecuteMarkierteLoeschenCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}}" />
                     </Grid>
@@ -1036,9 +1051,10 @@
                                 x:Name="TXT_KeineTreffer"
                                 Margin="0,8,0,0"
                                 HorizontalAlignment="Center"
+                                d:Text="Keine byte-gleichen Dateien im Referenzbestand gefunden"
                                 FontSize="12"
                                 Foreground="Gray"
-                                Text="Noch keine Duplikate gefunden" />
+                                Text="{Binding DublettenLeerHinweis}" />
                         </StackPanel>
                     </Grid>
                 </Border>

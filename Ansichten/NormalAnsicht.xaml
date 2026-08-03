@@ -512,7 +512,7 @@
                 BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkDarkBrushKey}}"
                 Command="{Binding CommandExecuteBildNachRechtsCommand, Mode=OneWay}"
                 CornerRadius="8,8,8,8"
-                KeyTip="STRG+D"
+                KeyTip="→"
                 MouseOverBackground="#FFB7F393"
                 MouseOverBorderBrush="{DynamicResource {x:Static SystemColors.ActiveCaptionBrushKey}}"
                 PressedBackground="#FFCACFFE"
@@ -663,6 +663,25 @@
                                         Height="20"
                                         Source="/Images/KIFehler.png"
                                         Stretch="Uniform" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+
+                            <!--  Gegenstück zur Tastenkombination Shift+↓  -->
+                            <MenuItem
+                                x:Name="MNI_InsBesondersVerschieben"
+                                Command="{Binding CommandExecuteBildInsBesondersVerschiebenCommand, Mode=OneWay}"
+                                Header="Ins Besonders Verzeichnis Verschieben"
+                                InputGestureText="Shift+↓"
+                                ToolTip="Selectierte Datei wird ins 'Besonders' Verzeichnis verschoben">
+                                <MenuItem.Icon>
+                                    <TextBlock
+                                        x:Name="IC_BesondersMenue"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        FontFamily="Segoe MDL2 Assets"
+                                        FontSize="15"
+                                        Foreground="#FFD9A404"
+                                        Text="&#xE735;" />
                                 </MenuItem.Icon>
                             </MenuItem>
 
@@ -1175,6 +1194,31 @@
                     Command="{Binding CommandExecuteSuchenUngefährGleichesBildCancelCommand, Mode=OneWay}"
                     Content="X"
                     Foreground="Red" />
+
+                <!--
+                    Tastensteuerung: Die Übersicht liegt im Fenster (BRD_TastenHilfe) und
+                    gilt für beide Ansichten. Hier als sichtbarer Knopf, im Bildmodus über F1.
+                -->
+                <Button
+                    x:Name="BTN_TastenHilfe"
+                    Height="22"
+                    Margin="4,0,2,0"
+                    Padding="8,0"
+                    VerticalAlignment="Center"
+                    Command="{Binding CommandExecuteVollbildHilfeToggleCommand}"
+                    Cursor="Hand"
+                    ToolTip="Übersicht der Tastenkürzel anzeigen (im Bildmodus auch mit F1)" Width="34">
+                    <StackPanel x:Name="STP_TastenHilfeInhalt" Orientation="Horizontal" Width="23">
+                        <TextBlock
+                            x:Name="IC_TastenHilfe"
+                            Margin="0,0,2,0"
+                            VerticalAlignment="Center"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="16"
+                            Text="&#xE765;" Width="25" />
+                        
+                    </StackPanel>
+                </Button>
 
             </StackPanel>
         </Border>

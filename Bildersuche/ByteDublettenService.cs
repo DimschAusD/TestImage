@@ -130,7 +130,9 @@ namespace TestImage.Bildersuche
                 try { laenge = new FileInfo(datei).Length; }
                 catch { continue; }
 
-                if (laenge > 0 && basisNachGroesse.ContainsKey(laenge))
+                // Länge 0 ist zugelassen: Zwei leere Dateien sind byte-identisch.
+                // Für sie greift in Stufe 3 die zusätzliche Namensprüfung.
+                if (laenge >= 0 && basisNachGroesse.ContainsKey(laenge))
                     kandidaten.Add((datei, laenge));
             }
 
@@ -190,6 +192,18 @@ namespace TestImage.Bildersuche
                     {
                         string[] schnappschuss;
                         lock (basisListe) { schnappschuss = basisListe.ToArray(); }
+
+                        // Leere Dateien sind untereinander alle byte-identisch. Ohne
+                        // zusätzliche Bedingung gäbe eine einzige leere Datei im
+                        // Referenzbestand sämtliche leeren Dateien zum Löschen frei.
+                        // Deshalb muss hier der Dateiname übereinstimmen.
+                        if (kandidat.Groesse == 0)
+                        {
+                            string name = Path.GetFileName(kandidat.Datei);
+                            schnappschuss = schnappschuss
+                                .Where(b => string.Equals(Path.GetFileName(b), name, StringComparison.OrdinalIgnoreCase))
+                                .ToArray();
+                        }
 
                         foreach (var basisDatei in schnappschuss)
                         {
@@ -287,9 +301,9 @@ namespace TestImage.Bildersuche
                 try { laenge = new FileInfo(datei).Length; }
                 catch { continue; }
 
-                if (laenge == 0)
-                    continue;
-
+                // Leere Dateien werden mitgenommen — sie kommen in Projektordnern
+                // massenhaft vor (TemporaryGeneratedFile_*.cs und ähnliches) und
+                // hielten den Ordner sonst dauerhaft „nicht leer".
                 if (!map.TryGetValue(laenge, out var liste))
                 {
                     liste = new List<string>();
@@ -419,18 +433,71 @@ namespace TestImage.Bildersuche
         /// genau die bleiben nach einem Aufräumlauf zurück.
         /// </summary>
         internal static bool IstOrdnerLeer(string? ordner)
+            => ZaehleVerbleibendeDateien(ordner) == 0;
+
+        /// <summary>
+        /// Anzahl der Dateien, die noch im Ordner liegen — alle Typen, alle Unterordner.
+        /// −1, wenn der Ordner fehlt oder nicht lesbar ist.
+        ///
+        /// Wird gebraucht, um erklären zu können, warum ein Ordner nach dem Aufräumen
+        /// nicht als leer gilt: Übrig bleibt alles ohne Gegenstück im Referenzbestand,
+        /// bei „nur Bilder" zusätzlich sämtliche Nicht-Bilddateien.
+        /// </summary>
+        internal static int ZaehleVerbleibendeDateien(string? ordner)
+            => ListeVerbleibendeDateien(ordner, int.MaxValue)?.Count ?? -1;
+
+        /// <summary>
+        /// Sammelt die verbliebenen Dateien, höchstens <paramref name="hoechstens"/> Stück.
+        /// Null, wenn der Ordner fehlt.
+        ///
+        /// Bewusst Ordner für Ordner statt mit SearchOption.AllDirectories: Jener wirft
+        /// bei einem einzigen unzugänglichen Unterordner (etwa .vs in Projektordnern)
+        /// eine Ausnahme für den gesamten Durchlauf. Ein Ordner voller leerer Unterordner
+        /// galt dadurch fälschlich als „nicht leer" — hier wird nur der betroffene
+        /// Unterordner übersprungen.
+        ///
+        /// Versteckte und System-Dateien zählen mit: desktop.ini oder Thumbs.db sieht man
+        /// im Explorer meist nicht, sie liegen aber sehr wohl im Ordner.
+        /// </summary>
+        internal static List<string>? ListeVerbleibendeDateien(string? ordner, int hoechstens)
         {
             if (string.IsNullOrWhiteSpace(ordner) || !Directory.Exists(ordner))
-                return false;
+                return null;
 
-            try
+            var gefunden = new List<string>();
+            var offen = new Stack<string>();
+            offen.Push(ordner);
+
+            while (offen.Count > 0 && gefunden.Count < hoechstens)
             {
-                return !Directory.EnumerateFiles(ordner, "*", SearchOption.AllDirectories).Any();
+                string aktuell = offen.Pop();
+
+                try
+                {
+                    foreach (var datei in Directory.EnumerateFiles(aktuell))
+                    {
+                        gefunden.Add(datei);
+                        if (gefunden.Count >= hoechstens)
+                            break;
+                    }
+                }
+                catch
+                {
+                    // Dieser Ordner ist nicht lesbar – die übrigen trotzdem prüfen.
+                }
+
+                try
+                {
+                    foreach (var unter in Directory.EnumerateDirectories(aktuell))
+                        offen.Push(unter);
+                }
+                catch
+                {
+                    // dito
+                }
             }
-            catch
-            {
-                return false;   // nicht lesbar → im Zweifel nichts anbieten
-            }
+
+            return gefunden;
         }
 
         /// <summary>

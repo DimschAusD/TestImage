@@ -48,6 +48,15 @@ namespace TestImage
         {
             var vm = DataContext as AufgabeViewModel;
 
+            // Esc schliesst die Tastenübersicht – in beiden Ansichten, denn geöffnet
+            // werden kann sie auch über den Knopf in der Normalansicht.
+            if (e.Key == Key.Escape && vm?.IsVollbildHilfeOffen == true)
+            {
+                vm.IsVollbildHilfeOffen = false;
+                e.Handled = true;
+                return;
+            }
+
             // Pfeiltasten: Bild navigieren (vor ListBox-Scroll abfangen)
             if (e.Key == Key.Left && Keyboard.Modifiers == ModifierKeys.None)
             {
@@ -71,6 +80,15 @@ namespace TestImage
                     vm.CommandExecuteBildInsKeinFavVerzeichnisVerschiebenCommand.Execute(null);
                 e.Handled = true;
             }
+
+            // Shift+↓ → Bild in den Ordner „Besonders".
+            // Nicht in Eingabefeldern: dort markiert Shift+↓ Text.
+            else if (e.Key == Key.Down && Keyboard.Modifiers == ModifierKeys.Shift && !IstTextEingabeAktiv())
+            {
+                if (vm?.CommandExecuteBildInsBesondersVerschiebenCommand.CanExecute(null) == true)
+                    vm.CommandExecuteBildInsBesondersVerschiebenCommand.Execute(null);
+                e.Handled = true;
+            }
             else if (e.Key == Key.Up && Keyboard.Modifiers == ModifierKeys.None)
             {
                 // Aktuelles Bild zurück → sonst letzte Verschiebung rückgängig
@@ -81,20 +99,86 @@ namespace TestImage
                 e.Handled = true;
             }
 
-            // Ctrl+A → Bild nach links (statt SelectAll)
-            else if (e.Key == Key.A && Keyboard.Modifiers == ModifierKeys.Control)
-            {
-                if (vm?.CommandExecuteBildLinksCommand.CanExecute(null) == true)
-                    vm.CommandExecuteBildLinksCommand.Execute(null);
-                e.Handled = true;
-            }
-
             // Ctrl+Z → Verschieben rückgängig (statt Undo)
             else if (e.Key == Key.Z && Keyboard.Modifiers == ModifierKeys.Control)
             {
                 if (vm?.CommandExecuteVerschiebenZurückCommand.CanExecute(null) == true)
                     vm.CommandExecuteVerschiebenZurückCommand.Execute(null);
                 e.Handled = true;
+            }
+
+            // F1 / ? → Tastenübersicht. Eigener Zweig, weil „?" auf deutscher Tastatur
+            // Shift+ß ist und an der Prüfung auf „kein Modifier" scheitern würde.
+            else if (vm?.IsImageMaximiert == true
+                     && (e.Key == Key.F1 || e.Key == Key.OemQuestion)
+                     && (Keyboard.Modifiers == ModifierKeys.None || Keyboard.Modifiers == ModifierKeys.Shift))
+            {
+                vm.IsVollbildHilfeOffen = !vm.IsVollbildHilfeOffen;
+                e.Handled = true;
+            }
+
+            // Einzelbuchstaben nur im Bildmodus: Dort gibt es keine Eingabefelder.
+            // In der Normalansicht würden sie das Tippen in Suchfeld und Filter stören.
+            else if (vm?.IsImageMaximiert == true && Keyboard.Modifiers == ModifierKeys.None)
+            {
+                BehandleVollbildTaste(vm, e);
+            }
+        }
+
+        /// <summary>
+        /// True, wenn der Tastaturfokus in einem Eingabefeld liegt. Dort haben
+        /// Tastenkombinationen wie Shift+Pfeil ihre eigene Bedeutung (Text markieren)
+        /// und dürfen nicht abgefangen werden.
+        /// </summary>
+        private static bool IstTextEingabeAktiv()
+            => Keyboard.FocusedElement is System.Windows.Controls.TextBox
+                or System.Windows.Controls.PasswordBox
+                or System.Windows.Controls.ComboBox;
+
+        /// <summary>
+        /// Tastenkürzel für den Bildmodus. Sie bilden die Knöpfe nach, die in der
+        /// Normalansicht sichtbar sind — im Vollbild soll nichts die Ansicht verdecken.
+        /// </summary>
+        private void BehandleVollbildTaste(AufgabeViewModel vm, KeyEventArgs e)
+        {
+            switch (e.Key)
+            {
+                // K → Bild in den KI-Fehler-Ordner
+                case Key.K:
+                    if (vm.CommandExecuteBildInsKIFehlerVerschiebenCommand.CanExecute(null))
+                        vm.CommandExecuteBildInsKIFehlerVerschiebenCommand.Execute(null);
+                    e.Handled = true;
+                    break;
+
+                // S → Bildgrösse/Stretch umschalten
+                case Key.S:
+                    if (vm.CommandExecuteBildStretchAnpassenCommand.CanExecute(null))
+                        vm.CommandExecuteBildStretchAnpassenCommand.Execute(null);
+                    e.Handled = true;
+                    break;
+
+                // E → Datei im Explorer zeigen
+                case Key.E:
+                    if (vm.CommandExecuteDateiImExplorerÖffnenCommand.CanExecute(null))
+                        vm.CommandExecuteDateiImExplorerÖffnenCommand.Execute(null);
+                    e.Handled = true;
+                    break;
+
+                // R → Ordner neu einlesen
+                case Key.R:
+                    if (vm.CommandExecuteAlleBilderNeuEinlesenCommand.CanExecute(null))
+                        vm.CommandExecuteAlleBilderNeuEinlesenCommand.Execute(null);
+                    e.Handled = true;
+                    break;
+
+                // Esc → erst die Hilfe schliessen, sonst den Bildmodus verlassen
+                case Key.Escape:
+                    if (vm.IsVollbildHilfeOffen)
+                        vm.IsVollbildHilfeOffen = false;
+                    else if (vm.CommandExecuteImageMaximierenToggleCommand.CanExecute(null))
+                        vm.CommandExecuteImageMaximierenToggleCommand.Execute(null);
+                    e.Handled = true;
+                    break;
             }
         }
     }
