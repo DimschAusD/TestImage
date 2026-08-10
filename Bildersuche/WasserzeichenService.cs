@@ -19,6 +19,9 @@ namespace TestImage.Bildersuche
         /// <summary>True, wenn die Übereinstimmung über der Schwelle liegt.</summary>
         public bool HatSichtbares { get; set; }
 
+        /// <summary>Name des Musters, das am besten passte. Leer, wenn keines passte.</summary>
+        public string MaskenName { get; set; } = string.Empty;
+
         /// <summary>Gefundene Metadaten-Markierungen (Autor, Copyright, XMP, C2PA …).</summary>
         public List<string> MetadatenHinweise { get; set; } = new();
 
@@ -32,7 +35,10 @@ namespace TestImage.Bildersuche
             var teile = new List<string>();
 
             if (HatSichtbares)
-                teile.Add($"Sichtbares Wasserzeichen erkannt ({Aehnlichkeit * 100f:F0} % Übereinstimmung)");
+            {
+                string muster = string.IsNullOrWhiteSpace(MaskenName) ? "Wasserzeichen" : MaskenName;
+                teile.Add($"Sichtbares Wasserzeichen erkannt – Muster „{muster}“ ({Aehnlichkeit * 100f:F0} % Übereinstimmung)");
+            }
 
             teile.AddRange(MetadatenHinweise);
 
@@ -51,8 +57,15 @@ namespace TestImage.Bildersuche
         /// <summary>Befunddatei je Bildordner.</summary>
         internal const string CacheDateiName = ".bildwasserzeichen.json";
 
-        /// <summary>Gelernte Maske, gilt anwendungsweit (nicht je Ordner).</summary>
-        internal const string MaskenDateiName = "wasserzeichen.maske.json";
+        /// <summary>
+        /// Sammlung der gelernten Muster, gilt anwendungsweit (nicht je Ordner).
+        /// Mehrzahl, weil ein Anbieter durchaus mehrere Zeichentypen verwendet —
+        /// DeviantArt etwa mindestens drei.
+        /// </summary>
+        internal const string MaskenDateiName = "wasserzeichen.masken.json";
+
+        /// <summary>Einzelmaske der ersten Fassung. Wird beim ersten Laden übernommen.</summary>
+        internal const string MaskenDateiNameAlt = "wasserzeichen.maske.json";
 
         /// <summary>
         /// Ab dieser Korrelation gilt ein Wasserzeichen als erkannt.
@@ -63,45 +76,60 @@ namespace TestImage.Bildersuche
         /// </summary>
         internal const float Schwelle = 0.10f;
 
-        private static WasserzeichenMaske? _maske;
-        private static bool _maskeGeladen;
+        private static List<WasserzeichenMaske>? _masken;
 
         internal static string MaskenPfad =>
             Path.Combine(AppDomain.CurrentDomain.BaseDirectory, MaskenDateiName);
 
-        /// <summary>Gelernte Maske vorhanden? Ohne sie ist nur die Metadatenprüfung möglich.</summary>
-        internal static bool MaskeVorhanden => HoleMaske() is not null;
+        private static string MaskenPfadAlt =>
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, MaskenDateiNameAlt);
 
-        /// <summary>Anzahl der Bilder, aus denen die aktive Maske gelernt wurde.</summary>
-        internal static int MaskenGrundmenge => HoleMaske()?.Grundmenge ?? 0;
+        /// <summary>Alle gelernten Muster. Ohne mindestens eines greift nur die Metadatenprüfung.</summary>
+        internal static IReadOnlyList<WasserzeichenMaske> Masken => HoleMasken();
 
-        private static WasserzeichenMaske? HoleMaske()
+        /// <summary>Mindestens ein Muster vorhanden?</summary>
+        internal static bool MaskeVorhanden => HoleMasken().Count > 0;
+
+        /// <summary>Summe der Bilder, aus denen die Muster gelernt wurden.</summary>
+        internal static int MaskenGrundmenge => HoleMasken().Sum(m => m.Grundmenge);
+
+        private static List<WasserzeichenMaske> HoleMasken()
         {
-            if (!_maskeGeladen)
+            if (_masken is null)
             {
-                _maske = WasserzeichenMaske.Laden(MaskenPfad);
-                _maskeGeladen = true;
+                _masken = LadeMasken();
+
+                // Einzelmaske der ersten Fassung übernehmen, damit ein bereits
+                // gelerntes Muster beim Umstieg nicht verlorengeht.
+                if (_masken.Count == 0 && File.Exists(MaskenPfadAlt))
+                {
+                    var alt = WasserzeichenMaske.Laden(MaskenPfadAlt);
+                    if (alt is not null)
+                    {
+                        alt.Name = string.IsNullOrWhiteSpace(alt.Name) ? "Muster 1" : alt.Name;
+                        _masken.Add(alt);
+                        SpeichereMasken(_masken);
+                    }
+                }
             }
 
-            return _maske;
+            return _masken;
         }
 
-        /// <summary>Erzwingt das Neuladen, nachdem eine Maske gelernt wurde.</summary>
-        internal static void MaskeVergessen()
-        {
-            _maske = null;
-            _maskeGeladen = false;
-        }
+        /// <summary>Erzwingt das Neuladen, nachdem sich die Muster geändert haben.</summary>
+        internal static void MaskeVergessen() => _masken = null;
 
-        #region Maske lernen
+        #region Muster lernen und verwalten
 
         /// <summary>
-        /// Lernt die Maske aus einem Ordner, in dem <b>alle</b> Bilder dasselbe
-        /// Wasserzeichen tragen, und legt sie neben der Anwendung ab.
+        /// Lernt ein Muster aus einem Ordner, in dem <b>alle</b> Bilder denselben
+        /// Zeichentyp tragen, und legt es unter <paramref name="name"/> in der Sammlung
+        /// ab. Ein gleichnamiges Muster wird ersetzt — nochmal lernen heisst auffrischen.
         /// </summary>
         /// <returns>Anzahl der verwendeten Bilder, 0 bei Misserfolg.</returns>
         internal static async Task<int> LerneMaskeAsync(
             string ordner,
+            string name,
             IProgress<(int Erledigt, int Gesamt)>? fortschritt,
             CancellationToken token)
         {
@@ -112,16 +140,74 @@ namespace TestImage.Bildersuche
             if (dateien.Count < 5)
                 return 0;
 
-            return await Task.Run(() =>
-            {
-                var maske = WasserzeichenMaske.Lerne(dateien, fortschritt, token);
-                if (maske is null)
-                    return 0;
+            var maske = await Task.Run(
+                () => WasserzeichenMaske.Lerne(dateien, fortschritt, token), token).ConfigureAwait(false);
 
-                maske.Speichern(MaskenPfad);
-                MaskeVergessen();
-                return maske.Grundmenge;
-            }, token).ConfigureAwait(false);
+            if (maske is null)
+                return 0;
+
+            maske.Name = string.IsNullOrWhiteSpace(name) ? "Muster" : name.Trim();
+
+            var alle = HoleMasken();
+            alle.RemoveAll(m => string.Equals(m.Name, maske.Name, StringComparison.OrdinalIgnoreCase));
+            alle.Add(maske);
+
+            SpeichereMasken(alle);
+            return maske.Grundmenge;
+        }
+
+        /// <summary>Entfernt ein Muster aus der Sammlung.</summary>
+        internal static bool EntferneMaske(string name)
+        {
+            var alle = HoleMasken();
+            if (alle.RemoveAll(m => string.Equals(m.Name, name, StringComparison.OrdinalIgnoreCase)) == 0)
+                return false;
+
+            SpeichereMasken(alle);
+            return true;
+        }
+
+        private static List<WasserzeichenMaske> LadeMasken()
+        {
+            var liste = new List<WasserzeichenMaske>();
+
+            try
+            {
+                if (!File.Exists(MaskenPfad))
+                    return liste;
+
+                using var fs = File.OpenRead(MaskenPfad);
+                var daten = JsonSerializer.Deserialize<List<WasserzeichenMaske.MaskenDatei>>(fs);
+
+                if (daten is null)
+                    return liste;
+
+                foreach (var d in daten)
+                {
+                    var maske = WasserzeichenMaske.AusDatensatz(d);
+                    if (maske is not null)
+                        liste.Add(maske);
+                }
+            }
+            catch
+            {
+                // beschädigte Datei → wie „noch nichts gelernt" behandeln
+            }
+
+            return liste;
+        }
+
+        private static void SpeichereMasken(List<WasserzeichenMaske> masken)
+        {
+            try
+            {
+                using var fs = File.Create(MaskenPfad);
+                JsonSerializer.Serialize(fs, masken.Select(m => m.AlsDatensatz()).ToList());
+            }
+            catch
+            {
+                // schreibgeschützter Programmordner – dann bleibt es bei dieser Sitzung
+            }
         }
 
         #endregion
@@ -146,7 +232,7 @@ namespace TestImage.Bildersuche
             if (dateien.Count == 0)
                 return ergebnis;
 
-            var maske = HoleMaske();
+            var masken = HoleMasken();
 
             await Task.Run(() =>
             {
@@ -154,7 +240,7 @@ namespace TestImage.Bildersuche
                 {
                     token.ThrowIfCancellationRequested();
 
-                    var befund = PruefeDatei(dateien[i], maske);
+                    var befund = PruefeDatei(dateien[i], masken);
                     ergebnis[befund.Pfad] = befund;
 
                     fortschritt?.Report((i + 1, dateien.Count));
@@ -165,16 +251,31 @@ namespace TestImage.Bildersuche
             return ergebnis;
         }
 
-        /// <summary>Einzelnes Bild prüfen (sichtbares Wasserzeichen + Metadaten).</summary>
-        internal static WasserzeichenBefund PruefeDatei(string pfad, WasserzeichenMaske? maske)
+        /// <summary>
+        /// Einzelnes Bild prüfen (sichtbares Wasserzeichen + Metadaten). Es gewinnt das
+        /// Muster mit der höchsten Übereinstimmung — die Zeichentypen schliessen sich
+        /// gegenseitig aus, ein Bild trägt nur einen davon.
+        /// </summary>
+        internal static WasserzeichenBefund PruefeDatei(string pfad, IReadOnlyList<WasserzeichenMaske> masken)
         {
             var befund = new WasserzeichenBefund { Pfad = pfad };
 
-            if (maske is not null)
+            float beste = 0f;
+            string besterName = string.Empty;
+
+            foreach (var maske in masken)
             {
-                befund.Aehnlichkeit = maske.Pruefe(pfad);
-                befund.HatSichtbares = befund.Aehnlichkeit >= Schwelle;
+                float wert = maske.Pruefe(pfad);
+                if (wert > beste)
+                {
+                    beste = wert;
+                    besterName = maske.Name;
+                }
             }
+
+            befund.Aehnlichkeit = beste;
+            befund.HatSichtbares = beste >= Schwelle;
+            befund.MaskenName = befund.HatSichtbares ? besterName : string.Empty;
 
             befund.MetadatenHinweise = MetadatenPruefer.Pruefe(pfad).ToList();
             return befund;

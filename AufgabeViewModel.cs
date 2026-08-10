@@ -131,9 +131,6 @@ namespace TestImage
 
 
         [ObservableProperty]
-        private bool _IsObenMinimiert = true;
-
-        [ObservableProperty]
         private bool _IsImageMaximiert = false;
 
         /// <summary>
@@ -1398,6 +1395,9 @@ namespace TestImage
                 var kl = await Task.Run(() => MieneServices.CreateBitmap(path, 100));
                 ProgressValue = 1;
 
+                // Farbsignatur aus dem Vorschaubild – nicht aus dem grossen Bild.
+                BildFarbsignatur = await Task.Run(() => Bildersuche.Farbsignatur.Erstelle(kl));
+
                 SWkleinesBild = stopwatch.Elapsed.TotalMilliseconds.ToString("F3") + " ms";
 
                 await Application.Current.Dispatcher.InvokeAsync(() =>
@@ -1489,6 +1489,9 @@ namespace TestImage
                 // 1. Stufe: Kleines Vorschaubild laden (сто Pixel)
                 var kl = await Task.Run(() => MieneServices.CreateBitmap(SelectedBildchen.BName, 100));
                 ProgressValue = 1;
+
+                // Farbsignatur aus dem Vorschaubild – nicht aus dem grossen Bild.
+                BildFarbsignatur = await Task.Run(() => Bildersuche.Farbsignatur.Erstelle(kl));
 
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
@@ -3030,27 +3033,6 @@ namespace TestImage
         }
         #endregion
 
-        #region Command Oben Minimieren
-        private static bool CanExecuteObenMinimieren() { return true; }
-
-        [RelayCommand(CanExecute = nameof(CanExecuteObenMinimieren))]
-        private void CommandExecuteObenMinimieren()
-        {
-
-
-            // in abhängigkeit vom zustand IsObenMinimiert
-            // immer ins gegenteile wechseln
-            if (IsObenMinimiert)
-            {
-                IsObenMinimiert = false;
-            }
-            else
-            {
-                IsObenMinimiert = true;
-            }
-        }
-        #endregion
-
         #region Bildersuche (Index-Leiste & Filter-Popover)
 
         /// <summary>Analysiert das gewählte Bild per CLIP (erkennt Begriffe).</summary>
@@ -3584,6 +3566,9 @@ namespace TestImage
             SucheVorschlagRest = string.Empty;
         }
 
+        /// <summary>Hinweis während des Modellstarts – als Konstante, damit er sicher wiedererkannt wird.</summary>
+        private const string ClipLadeHinweis = "Lade KI-Modell … (einmalig beim ersten Mal, dauert einen Moment)";
+
         /// <summary>Stellt sicher, dass CLIP geladen ist; zeigt dabei das Lade-Symbol.</summary>
         private async Task StelleClipBereitAsync()
         {
@@ -3595,12 +3580,26 @@ namespace TestImage
             // Der einmalige Modellstart dauert spürbar. Der Hinweis geht zusätzlich in
             // die Statuszeile unter den Buttons – STP_ClipLaedt sitzt weiter unten im
             // Panel und wird übersehen, wenn der Blick auf dem geklickten Knopf liegt.
-            // Die aufrufenden Commands setzen danach ihren eigenen Text.
             ClipLaedt = true;
-            SucheStatus = "Lade KI-Modell … (einmalig beim ersten Mal, dauert einen Moment)";
+            SucheStatus = ClipLadeHinweis;
             try
             { await _bildAnalyse.StelleSicherGeladenAsync(); }
-            finally { ClipLaedt = false; }
+            finally
+            {
+                ClipLaedt = false;
+
+                // Den eigenen Hinweis wieder zurücknehmen.
+                //
+                // Vorher stand hier die Annahme, die aufrufenden Commands setzten danach
+                // ihren eigenen Text. Das trifft nur auf einen von sechs Aufrufern zu –
+                // bei allen anderen blieb „Lade KI-Modell …" oben stehen, während das
+                // Lade-Symbol darunter längst verschwunden war.
+                //
+                // Der Vergleich stellt sicher, dass nur der eigene Text weggeräumt wird:
+                // Hat inzwischen jemand anders etwas gesetzt, bleibt das stehen.
+                if (SucheStatus == ClipLadeHinweis)
+                    SucheStatus = string.Empty;
+            }
         }
 
         /// <summary>Anzahl der indexierten Bilder, z. B. „1140 Bilder im Index".</summary>

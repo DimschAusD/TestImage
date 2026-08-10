@@ -25,7 +25,7 @@
         <!--
             Strg+D/A/S/W sind entfallen. Die Navigation und das Verschieben laufen über
             die Pfeiltasten (Window_PreviewKeyDown), im Bildmodus zusätzlich über
-            Einzelbuchstaben – Übersicht dort mit F1.
+            Einzelbuchstaben – Übersicht in beiden Ansichten mit F1.
         -->
 
         <!--  Fenster minimieren  -->

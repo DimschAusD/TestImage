@@ -3,6 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:bs="clr-namespace:TestImage.Bildersuche"
     xmlns:local="clr-namespace:TestImage"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:sys="clr-namespace:System;assembly=mscorlib"
@@ -1098,162 +1099,336 @@
                         Foreground="#FF555555"
                         IsChecked="{Binding BegriffeAufDeutsch, Mode=TwoWay}" />
 
-                    <!--
-                        Wasserzeichen-Muster lernen: einmalig aus einem Ordner, in dem alle
-                        Bilder denselben Aufdruck tragen. Danach prüft jedes Indexieren
-                        automatisch mit. Ohne Muster greift nur die Metadaten-Prüfung.
-                    -->
-                    <Grid x:Name="GRD_WasserzeichenLernen" Margin="0,14,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition x:Name="COL_WzButton" Width="Auto" />
-                            <ColumnDefinition x:Name="COL_WzAbbrechen" Width="Auto" />
-                            <ColumnDefinition x:Name="COL_WzStatus" Width="*" />
-                        </Grid.ColumnDefinitions>
-
-                        <Button
-                            x:Name="BTN_WasserzeichenMaskeLernen"
-                            Grid.Column="0"
-                            Padding="8,2"
-                            VerticalAlignment="Center"
-                            Command="{Binding CommandExecuteWasserzeichenMaskeLernenCommand}"
-                            Cursor="Hand"
-                            Style="{StaticResource OutlineButtonStyle}"
-                            ToolTip="Muster aus einem Beispielordner lernen – alle Bilder darin müssen dasselbe Wasserzeichen tragen (mindestens 5).">
-                            <StackPanel x:Name="STP_WzLernenInhalt" Orientation="Horizontal">
-                                <TextBlock
-                                    x:Name="IC_WzLernen"
-                                    Margin="0,0,6,0"
-                                    VerticalAlignment="Center"
-                                    FontFamily="Segoe MDL2 Assets"
-                                    FontSize="12"
-                                    Text="&#xE72E;" />
-                                <TextBlock x:Name="TXT_WzLernen" Text="Wasserzeichen-Muster lernen" />
-                            </StackPanel>
-                        </Button>
-
-                        <Button
-                            x:Name="BTN_WasserzeichenLernenAbbrechen"
-                            Grid.Column="1"
-                            Margin="6,0,0,0"
-                            Padding="6,2"
-                            VerticalAlignment="Center"
-                            d:Visibility="Visible"
-                            Command="{Binding CommandExecuteWasserzeichenMaskeLernenCancelCommand}"
-                            Content="&#xE711;"
-                            Cursor="Hand"
-                            FontFamily="Segoe MDL2 Assets"
-                            FontSize="10"
-                            Style="{StaticResource OutlineButtonStyle}"
-                            ToolTip="Lernen abbrechen"
-                            Visibility="{Binding CommandExecuteWasserzeichenMaskeLernenCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}}" />
-
-                        <TextBlock
-                            x:Name="TXT_WasserzeichenStatus"
-                            Grid.Column="2"
-                            Margin="10,0,0,0"
-                            VerticalAlignment="Center"
-                            d:Text="Muster aus 32 Bildern gelernt."
-                            FontFamily="Segoe UI"
-                            FontSize="11"
-                            Foreground="Gray"
-                            Text="{Binding WasserzeichenStatus}"
-                            TextTrimming="CharacterEllipsis" />
-                    </Grid>
-
-                    <!--  Trennlinie  -->
+                    <!--  Alles zum Wasserzeichen in einer Karte: Lernen, Zustand, gelernte Muster.  -->
                     <Border
-                        x:Name="BRD_Trennlinie"
-                        Height="1"
-                        Margin="0,16,0,14"
-                        Background="#FFEAEAEA" />
+                        x:Name="BRD_WasserzeichenKarte"
+                        Margin="0,14,0,0"
+                        Padding="12,10,12,12"
+                        Background="White"
+                        BorderBrush="#FFCBD5E1"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                        <StackPanel x:Name="STP_WasserzeichenKarte" Orientation="Vertical">
 
-                    <!--  Werkzeug-Buttons  -->
-                    <StackPanel x:Name="STP_WerkzeugButtons" Orientation="Horizontal">
-                        <Button
-                            x:Name="BTN_Uebersicht"
-                            Margin="0,0,10,0"
-                            Command="{Binding CommandExecuteUebersichtCommand}"
-                            Style="{StaticResource OutlineButtonStyle}"
-                            ToolTip="Tag-Übersicht anzeigen">
-                            <StackPanel x:Name="STP_UebersichtInhalt" Orientation="Horizontal">
-                                <TextBlock
-                                    x:Name="TXT_UebersichtIcon"
-                                    Margin="0,1,7,0"
+                            <TextBlock
+                                x:Name="TXT_WasserzeichenTitel"
+                                FontFamily="Segoe UI"
+                                FontSize="13"
+                                FontWeight="SemiBold"
+                                Foreground="#FF1F2937"
+                                Text="Wasserzeichen" />
+
+                            <TextBlock
+                                x:Name="TXT_WasserzeichenUntertitel"
+                                Margin="0,2,0,0"
+                                FontFamily="Segoe UI"
+                                FontSize="11"
+                                Foreground="Gray"
+                                Text="Muster einmalig aus einem Beispielordner lernen – danach prüft jedes Indexieren mit."
+                                TextWrapping="Wrap" />
+
+                            <!--  Solange nichts gelernt ist, bleibt die Erkennung auf Metadaten beschränkt.  -->
+                            <TextBlock
+                                x:Name="TXT_WasserzeichenKeinMuster"
+                                Margin="0,6,0,0"
+                                d:Visibility="Collapsed"
+                                FontFamily="Segoe UI"
+                                FontSize="11"
+                                Foreground="#FFB45309"
+                                Text="Noch kein Muster gelernt – es wird nur nach Metadaten gesucht."
+                                TextWrapping="Wrap"
+                                Visibility="{Binding WasserzeichenMaskeVorhanden, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}" />
+
+                            <Grid x:Name="GRD_WasserzeichenLernen" Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition x:Name="COL_WzButton" Width="Auto" />
+                                    <ColumnDefinition x:Name="COL_WzAbbrechen" Width="Auto" />
+                                    <ColumnDefinition x:Name="COL_WzStatus" Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <Button
+                                    x:Name="BTN_WasserzeichenMaskeLernen"
+                                    Grid.Column="0"
+                                    Padding="8,2"
+                                    VerticalAlignment="Center"
+                                    Command="{Binding CommandExecuteWasserzeichenMaskeLernenCommand}"
+                                    Cursor="Hand"
+                                    Style="{StaticResource OutlineButtonStyle}"
+                                    ToolTip="Muster aus einem Beispielordner lernen – alle Bilder darin müssen dasselbe Wasserzeichen tragen (mindestens 5).">
+                                    <StackPanel x:Name="STP_WzLernenInhalt" Orientation="Horizontal">
+                                        <TextBlock
+                                            x:Name="IC_WzLernen"
+                                            Margin="0,0,6,0"
+                                            VerticalAlignment="Center"
+                                            FontFamily="Segoe MDL2 Assets"
+                                            FontSize="12"
+                                            Text="&#xE72E;" />
+                                        <TextBlock x:Name="TXT_WzLernen" Text="Wasserzeichen-Muster lernen" />
+                                    </StackPanel>
+                                </Button>
+
+                                <Button
+                                    x:Name="BTN_WasserzeichenLernenAbbrechen"
+                                    Grid.Column="1"
+                                    Margin="6,0,0,0"
+                                    Padding="6,2"
+                                    VerticalAlignment="Center"
+                                    d:Visibility="Visible"
+                                    Command="{Binding CommandExecuteWasserzeichenMaskeLernenCancelCommand}"
+                                    Content="&#xE711;"
+                                    Cursor="Hand"
                                     FontFamily="Segoe MDL2 Assets"
-                                    FontSize="13"
-                                    Text="&#xE9D9;" />
-                                <TextBlock x:Name="TXT_UebersichtLabel" Text="Übersicht" />
-                            </StackPanel>
-                        </Button>
-                        <Button
-                            x:Name="BTN_Dubletten"
-                            Margin="0,0,10,0"
-                            Command="{Binding CommandExecuteDublettenCommand}"
-                            Style="{StaticResource OutlineButtonStyle}"
-                            ToolTip="Dubletten finden (fast identische Bilder im Ordner)">
-                            <StackPanel x:Name="STP_DublettenInhalt" Orientation="Horizontal">
+                                    FontSize="10"
+                                    Style="{StaticResource OutlineButtonStyle}"
+                                    ToolTip="Lernen abbrechen"
+                                    Visibility="{Binding CommandExecuteWasserzeichenMaskeLernenCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}}" />
+
                                 <TextBlock
-                                    x:Name="TXT_DublettenIcon"
-                                    Margin="0,1,7,0"
-                                    FontFamily="Segoe MDL2 Assets"
-                                    FontSize="13"
-                                    Text="&#xE8C8;" />
-                                <TextBlock x:Name="TXT_DublettenLabel" Text="Dubletten" />
+                                    x:Name="TXT_WasserzeichenStatus"
+                                    Grid.Column="2"
+                                    Margin="10,0,0,0"
+                                    VerticalAlignment="Center"
+                                    d:Text="Muster aus 32 Bildern gelernt."
+                                    FontFamily="Segoe UI"
+                                    FontSize="11"
+                                    Foreground="Gray"
+                                    Text="{Binding WasserzeichenStatus}"
+                                    TextTrimming="CharacterEllipsis" />
+                            </Grid>
+
+                            <!--
+                                Gelernte Muster. Mehrere sind der Normalfall — ein Anbieter
+                                verwendet oft verschiedene Zeichentypen, und jeder braucht ein
+                                eigenes Muster. Der Ordnername wird beim Lernen zum Musternamen.
+                            -->
+                            <ItemsControl
+                                x:Name="IC_WasserzeichenMuster"
+                                Margin="0,8,0,0"
+                                ItemsSource="{Binding WasserzeichenMuster}">
+                                <d:ItemsControl.ItemsSource>
+                                    <x:Array Type="{x:Type bs:WasserzeichenMusterEintrag}">
+                                        <bs:WasserzeichenMusterEintrag
+                                            Grundmenge="32"
+                                            MusterName="DeviantArt-Logo"
+                                            StabilProzent="74" />
+                                        <bs:WasserzeichenMusterEintrag
+                                            Grundmenge="11"
+                                            MusterName="DeviantArt-Balken"
+                                            StabilProzent="58" />
+                                    </x:Array>
+                                </d:ItemsControl.ItemsSource>
+
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border
+                                            x:Name="BRD_MusterZeile"
+                                            Margin="0,0,0,4"
+                                            Padding="8,4"
+                                            Background="White"
+                                            BorderBrush="#FFCBD5E1"
+                                            BorderThickness="1"
+                                            CornerRadius="6">
+
+                                            <!--  ToolTip mit grosser Musteransicht statt nur Text  -->
+                                            <Border.ToolTip>
+                                                <ToolTip x:Name="TTP_Muster">
+                                                    <StackPanel x:Name="STP_MusterTooltip" Orientation="Vertical">
+                                                        <Border
+                                                            x:Name="BRD_MusterGross"
+                                                            Width="128"
+                                                            Height="128"
+                                                            Margin="0,0,0,6"
+                                                            HorizontalAlignment="Left"
+                                                            BorderBrush="#FFCBD5E1"
+                                                            BorderThickness="1">
+                                                            <!--
+                                                                NearestNeighbor beim Vergrössern: Das Muster ist 96 Punkte
+                                                                breit, weichgezeichnet verschmiert gerade die feine Struktur,
+                                                                auf die es hier ankommt.
+                                                            -->
+                                                            <Image
+                                                                x:Name="IMG_MusterGross"
+                                                                RenderOptions.BitmapScalingMode="NearestNeighbor"
+                                                                Source="{Binding Vorschau}"
+                                                                Stretch="Uniform"
+                                                                d:Source="/Images/HeavyO.jpg" />
+                                                        </Border>
+                                                        <TextBlock
+                                                            x:Name="TXT_MusterTooltip"
+                                                            MaxWidth="260"
+                                                            FontFamily="Segoe UI"
+                                                            FontSize="11"
+                                                            Text="{Binding Tooltip}"
+                                                            TextWrapping="Wrap" />
+                                                    </StackPanel>
+                                                </ToolTip>
+                                            </Border.ToolTip>
+
+                                            <Grid x:Name="GRD_MusterZeile">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition x:Name="COL_MusterIcon" Width="Auto" />
+                                                    <ColumnDefinition x:Name="COL_MusterName" Width="*" />
+                                                    <ColumnDefinition x:Name="COL_MusterInfo" Width="Auto" />
+                                                    <ColumnDefinition x:Name="COL_MusterEntfernen" Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <!--
+                                                    Das gelernte Muster selbst statt eines Sinnbilds: In jeder Zeile
+                                                    stünde sonst dasselbe Zeichen, das nichts unterscheidet.
+                                                -->
+                                                <Border
+                                                    x:Name="BRD_MusterKlein"
+                                                    Grid.Column="0"
+                                                    Width="24"
+                                                    Height="24"
+                                                    Margin="0,0,8,0"
+                                                    VerticalAlignment="Center"
+                                                    BorderBrush="#FFCBD5E1"
+                                                    BorderThickness="1">
+                                                    <Image
+                                                        x:Name="IMG_MusterKlein"
+                                                        RenderOptions.BitmapScalingMode="HighQuality"
+                                                        Source="{Binding Vorschau}"
+                                                        Stretch="Uniform"
+                                                        d:Source="/Images/HeavyO.jpg" />
+                                                </Border>
+
+                                                <TextBlock
+                                                    x:Name="TXT_MusterName"
+                                                    Grid.Column="1"
+                                                    VerticalAlignment="Center"
+                                                    FontFamily="Segoe UI"
+                                                    FontSize="12"
+                                                    FontWeight="SemiBold"
+                                                    Foreground="#FF1F2937"
+                                                    Text="{Binding MusterName}"
+                                                    TextTrimming="CharacterEllipsis" />
+
+                                                <TextBlock
+                                                    x:Name="TXT_MusterInfo"
+                                                    Grid.Column="2"
+                                                    Margin="10,0,6,0"
+                                                    VerticalAlignment="Center"
+                                                    FontFamily="Segoe UI"
+                                                    FontSize="11"
+                                                    Foreground="Gray"
+                                                    Text="{Binding Beschreibung}" />
+
+                                                <Button
+                                                    x:Name="BTN_MusterEntfernen"
+                                                    Grid.Column="3"
+                                                    Padding="6,1"
+                                                    VerticalAlignment="Center"
+                                                    Command="{Binding DataContext.CommandExecuteWasserzeichenMusterEntfernenCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding MusterName}"
+                                                    Content="&#xE711;"
+                                                    Cursor="Hand"
+                                                    FontFamily="Segoe MDL2 Assets"
+                                                    FontSize="10"
+                                                    Style="{StaticResource OutlineButtonStyle}"
+                                                    ToolTip="Dieses Muster entfernen" />
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
                             </StackPanel>
-                        </Button>
-                        <Button
-                            x:Name="BTN_QueryBild"
-                            Command="{Binding CommandExecuteQueryBildCommand}"
-                            IsEnabled="False"
-                            Style="{StaticResource OutlineButtonStyle}"
-                            ToolTip="Query-Bild wählen und Ähnliche suchen">
-                            <StackPanel x:Name="STP_QueryBildInhalt" Orientation="Horizontal">
-                                <TextBlock
-                                    x:Name="TXT_QueryBildIcon"
-                                    Margin="0,1,7,0"
-                                    FontFamily="Segoe MDL2 Assets"
-                                    FontSize="13"
-                                    Text="&#xE8B9;" />
-                                <TextBlock x:Name="TXT_QueryBildLabel" Text="Query-Bild" />
-                            </StackPanel>
-                        </Button>
+                        </Border>
+
+                        <!--  Trennlinie  -->
+                        <Border
+                            x:Name="BRD_Trennlinie"
+                            Height="1"
+                            Margin="0,16,0,14"
+                            Background="#FFEAEAEA" />
+
+                        <!--  Werkzeug-Buttons  -->
+                        <StackPanel x:Name="STP_WerkzeugButtons" Orientation="Horizontal">
+                            <Button
+                                x:Name="BTN_Uebersicht"
+                                Margin="0,0,10,0"
+                                Command="{Binding CommandExecuteUebersichtCommand}"
+                                Style="{StaticResource OutlineButtonStyle}"
+                                ToolTip="Tag-Übersicht anzeigen">
+                                <StackPanel x:Name="STP_UebersichtInhalt" Orientation="Horizontal">
+                                    <TextBlock
+                                        x:Name="TXT_UebersichtIcon"
+                                        Margin="0,1,7,0"
+                                        FontFamily="Segoe MDL2 Assets"
+                                        FontSize="13"
+                                        Text="&#xE9D9;" />
+                                    <TextBlock x:Name="TXT_UebersichtLabel" Text="Übersicht" />
+                                </StackPanel>
+                            </Button>
+                            <Button
+                                x:Name="BTN_Dubletten"
+                                Margin="0,0,10,0"
+                                Command="{Binding CommandExecuteDublettenCommand}"
+                                Style="{StaticResource OutlineButtonStyle}"
+                                ToolTip="Dubletten finden (fast identische Bilder im Ordner)">
+                                <StackPanel x:Name="STP_DublettenInhalt" Orientation="Horizontal">
+                                    <TextBlock
+                                        x:Name="TXT_DublettenIcon"
+                                        Margin="0,1,7,0"
+                                        FontFamily="Segoe MDL2 Assets"
+                                        FontSize="13"
+                                        Text="&#xE8C8;" />
+                                    <TextBlock x:Name="TXT_DublettenLabel" Text="Dubletten" />
+                                </StackPanel>
+                            </Button>
+                            <Button
+                                x:Name="BTN_QueryBild"
+                                Command="{Binding CommandExecuteQueryBildCommand}"
+                                IsEnabled="False"
+                                Style="{StaticResource OutlineButtonStyle}"
+                                ToolTip="Query-Bild wählen und Ähnliche suchen">
+                                <StackPanel x:Name="STP_QueryBildInhalt" Orientation="Horizontal">
+                                    <TextBlock
+                                        x:Name="TXT_QueryBildIcon"
+                                        Margin="0,1,7,0"
+                                        FontFamily="Segoe MDL2 Assets"
+                                        FontSize="13"
+                                        Text="&#xE8B9;" />
+                                    <TextBlock x:Name="TXT_QueryBildLabel" Text="Query-Bild" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+
                     </StackPanel>
+                </Border>
 
-                </StackPanel>
-            </Border>
-
-            <!--  CLIP lädt: Warte-Symbol (dreht sich)  -->
-            <StackPanel
-                x:Name="STP_ClipLaedt"
-                Margin="2,10,2,0"
-                Orientation="Horizontal"
-                Visibility="{Binding ClipLaedt, Converter={StaticResource CLconverterVisiblityBoolian}}">
-                <TextBlock
-                    x:Name="TXT_ClipSpinner"
-                    VerticalAlignment="Center"
-                    FontFamily="Segoe MDL2 Assets"
-                    FontSize="16"
-                    Foreground="#FF5C6BC0"
-                    RenderTransformOrigin="0.5,0.5"
-                    Text="&#xE72C;">
-                    <TextBlock.RenderTransform>
-                        <RotateTransform Angle="0" />
-                    </TextBlock.RenderTransform>
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding ClipLaedt}" Value="True">
-                                    <DataTrigger.EnterActions>
-                                        <BeginStoryboard x:Name="SB_ClipSpin">
-                                            <Storyboard>
-                                                <DoubleAnimation
-                                                    RepeatBehavior="Forever"
-                                                    Storyboard.TargetProperty="(RenderTransform).(RotateTransform.Angle)"
-                                                    From="0"
-                                                    To="360"
-                                                    Duration="0:0:0.9" />
-                                            </Storyboard>
-                                        </BeginStoryboard>
+                <!--  CLIP lädt: Warte-Symbol (dreht sich)  -->
+                <StackPanel
+                    x:Name="STP_ClipLaedt"
+                    Margin="2,10,2,0"
+                    Orientation="Horizontal"
+                    Visibility="{Binding ClipLaedt, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                    <TextBlock
+                        x:Name="TXT_ClipSpinner"
+                        VerticalAlignment="Center"
+                        FontFamily="Segoe MDL2 Assets"
+                        FontSize="16"
+                        Foreground="#FF5C6BC0"
+                        RenderTransformOrigin="0.5,0.5"
+                        Text="&#xE72C;">
+                        <TextBlock.RenderTransform>
+                            <RotateTransform Angle="0" />
+                        </TextBlock.RenderTransform>
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ClipLaedt}" Value="True">
+                                        <DataTrigger.EnterActions>
+                                            <BeginStoryboard x:Name="SB_ClipSpin">
+                                                <Storyboard>
+                                                    <DoubleAnimation
+                                                        RepeatBehavior="Forever"
+                                                        Storyboard.TargetProperty="(RenderTransform).(RotateTransform.Angle)"
+                                                        From="0"
+                                                        To="360"
+                                                        Duration="0:0:0.9" />
+                                                </Storyboard>
+                                            </BeginStoryboard>
                                     </DataTrigger.EnterActions>
                                     <DataTrigger.ExitActions>
                                         <StopStoryboard BeginStoryboardName="SB_ClipSpin" />

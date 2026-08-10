@@ -81,59 +81,220 @@ namespace TestImage
             }
         }
 
+        /// <summary>Dauer des eigentlichen Zentrierens.</summary>
+        private const int RollDauerMs = 480;
+
+        /// <summary>
+        /// Dauer der Nachkorrektur. Kurz, weil dabei meist nur wenige Pixel fehlen –
+        /// und wenn doch mehr, will man nicht noch einmal eine halbe Sekunde zusehen.
+        /// </summary>
+        private const int NachziehDauerMs = 90;
+
+        /// <summary>Ab dieser Abweichung in Pixeln gilt die Mitte als nicht getroffen.</summary>
+        private const double MittenToleranz = 1.5;
+
+        /// <summary>
+        /// Wie oft auf den Behälter des Elements gewartet wird. Bei weiten Sprüngen
+        /// braucht die Virtualisierung mehrere Layoutdurchläufe, bis er da ist.
+        /// </summary>
+        private const int MaxVersuche = 6;
+
+        /// <summary>Nachmessungen bei kurzer Strecke – dort ist meist nichts zu korrigieren.</summary>
+        private const int NahsprungKorrekturen = 1;
+
+        /// <summary>
+        /// Nachmessungen nach einem weiten Sprung. Mehr, weil sich Behälter, Ausdehnung
+        /// und der ScrollIntoView-Auftrag dort erst über mehrere Durchläufe einpendeln.
+        /// </summary>
+        private const int WeitsprungKorrekturen = 3;
+
         private static void OnSelectionChangedCenter(object? sender, SelectionChangedEventArgs e)
         {
             if (sender is not ListBox lb) return;
-            if (lb.SelectedItem == null) return;
 
-            // Erst sicherstellen, dass das Element geladen/realisiert ist
-            lb.ScrollIntoView(lb.SelectedItem);
+            ZentriereAusgewaehltes(lb);
+        }
 
-            // Verzögert ausführen, damit Virtualisierung & Layout abgeschlossen sind
-            lb.Dispatcher.BeginInvoke(() =>
+        /// <summary>
+        /// Bringt das ausgewählte Element in die Mitte des sichtbaren Bereichs.
+        /// </summary>
+        private static void ZentriereAusgewaehltes(ListBox lb)
+        {
+            if (lb?.SelectedItem == null) return;
+
+            // Unsichtbare Leiste in Ruhe lassen.
+            //
+            // Es gibt zwei Miniaturleisten auf derselben AufgabenView, eine in der
+            // Normal- und eine in der Vollbildansicht. Immer nur eine davon ist sichtbar,
+            // beide bekommen aber über IsSynchronizedWithCurrentItem jede Auswahländerung
+            // mit. Zentrieren kann die eingeklappte ohnehin nichts – sie hat weder
+            // Sichtfenster noch erzeugte Behälter. Sie würde dabei aber Layoutarbeit
+            // anstossen, und zwar genau während die sichtbare Leiste noch rollt.
+            //
+            // Beim Sichtbarwerden ruft die Vollbildansicht CenterNow auf, das Zentrieren
+            // wird also nicht verschluckt, sondern nur auf den richtigen Zeitpunkt gelegt.
+            if (!lb.IsVisible) return;
+
+            // ScrollIntoView NUR, wenn der Behälter fehlt – das Element also gar nicht
+            // im Sichtfenster liegt und sonst nicht messbar wäre.
+            //
+            // Bei einem bereits erzeugten Element wäre der Aufruf nicht nur überflüssig,
+            // sondern schädlich: ScrollIntoView legt bei virtualisierten Listen einen
+            // Auftrag an, der das Element „gerade eben sichtbar" schieben will und über
+            // mehrere Layoutdurchläufe hinweg nachfasst. Ist das Element vollständig
+            // sichtbar, ist der Auftrag sofort erfüllt und tut nichts. Ist es aber – wie
+            // das erste und das letzte der Reihe – nur teilweise sichtbar, rechnet der
+            // Auftrag immer wieder einen Rest aus und zieht gegen unsere Rollbewegung
+            // zurück an den Rand. Genau das sieht wie ein Wackler aus, und genau deshalb
+            // trifft es nur die beiden äusseren Elemente und keines der mittleren.
+            bool weitsprung = lb.ItemContainerGenerator.ContainerFromItem(lb.SelectedItem) is null;
+            if (weitsprung)
+                lb.ScrollIntoView(lb.SelectedItem);
+
+            // Weiter Sprung wird gesetzt, nicht gerollt.
+            //
+            // Fehlt der Behälter, liegt das Ziel ausserhalb – etwa beim Sprung aus der
+            // Kachelliste. Dann arbeitet der ScrollIntoView-Auftrag noch über mehrere
+            // Layoutdurchläufe, und eine halbe Sekunde Animation läuft die ganze Zeit
+            // dagegen an. Ausserdem ist eine Rollbewegung über tausend Bilder hinweg
+            // nicht zu verfolgen; sie sieht nur zäh aus. Deshalb dort direkt setzen und
+            // dafür öfter nachkorrigieren, bis sich der Auftrag beruhigt hat.
+            lb.Dispatcher.BeginInvoke(
+                () => RolleZurMitte(
+                    lb,
+                    lb.SelectedItem,
+                    weitsprung ? 0 : RollDauerMs,
+                    weitsprung ? WeitsprungKorrekturen : NahsprungKorrekturen,
+                    versuch: 0),
+                DispatcherPriority.Background);
+        }
+
+        /// <summary>
+        /// Rollt das Element mittig und misst nach dem Rollen noch einmal nach.
+        ///
+        /// Das Nachmessen ist nötig, weil die Liste virtualisiert mit Pixel-Einheiten
+        /// arbeitet: <c>ExtentWidth</c> ist dann keine gemessene Grösse, sondern eine
+        /// Hochrechnung aus den bereits erzeugten Elementen. Während des Rollens kommen
+        /// neue Elemente dazu, WPF korrigiert die Hochrechnung – und der vorher
+        /// berechnete Zielwert bedeutet hinterher etwas anderes. Beim ersten Durchgang
+        /// durch einen Listenabschnitt landet man deshalb neben der Mitte, beim zweiten
+        /// stimmt es. Statt diese Verschiebung vorherzusagen, wird am Ende schlicht die
+        /// dann gültige Lage gemessen und der Rest korrigiert.
+        /// </summary>
+        /// <param name="ausgewaehlt">
+        /// Das Element, um das es ging. Hat sich die Auswahl inzwischen geändert, wird
+        /// nicht mehr nachgezogen – sonst kämpfte die Korrektur gegen den neuen Lauf.
+        /// </param>
+        /// <param name="dauerMs">Dauer der Rollbewegung; 0 setzt den Versatz ohne Animation.</param>
+        /// <param name="restKorrekturen">Wie oft danach noch nachgemessen werden darf.</param>
+        /// <param name="versuch">
+        /// Laufender Versuch, solange der Behälter noch fehlt. Siehe <see cref="MaxVersuche"/>.
+        /// </param>
+        private static void RolleZurMitte(
+            ListBox lb, object ausgewaehlt, int dauerMs, int restKorrekturen, int versuch)
+        {
+            if (!lb.IsVisible) return;
+            if (!ReferenceEquals(lb.SelectedItem, ausgewaehlt)) return;
+
+            var sv = FindVisualChild<ScrollViewer>(lb);
+            if (sv == null || sv.ViewportWidth <= 0) return;
+
+            if (lb.ItemContainerGenerator.ContainerFromItem(ausgewaehlt) is not FrameworkElement container)
             {
-                var sv = FindVisualChild<ScrollViewer>(lb);
-                if (sv == null) return;
-
-                var container = lb.ItemContainerGenerator.ContainerFromItem(lb.SelectedItem) as FrameworkElement;
-                if (container == null)
+                // Behälter noch nicht erzeugt. Das ist der Normalfall beim Sprung zu einem
+                // weit entfernten Bild – etwa aus der Schnell-Liste heraus: ScrollIntoView
+                // erzeugt den Behälter nicht sofort, sondern über mehrere Layoutdurchläufe.
+                //
+                // Deshalb mehrfach nachfassen. Ein einzelner zweiter Versuch reicht bei
+                // weiten Sprüngen nicht, und mit UpdateLayout einen vollständigen
+                // Layoutdurchlauf zu erzwingen ist keine Lösung: Der trifft den ganzen
+                // Fensterbaum und bringt laufende Rollbewegungen anderswo aus dem Tritt.
+                if (versuch < MaxVersuche)
                 {
-                    lb.UpdateLayout();
-                    container = lb.ItemContainerGenerator.ContainerFromItem(lb.SelectedItem) as FrameworkElement;
-                    if (container == null) return;
+                    lb.Dispatcher.BeginInvoke(
+                        () => RolleZurMitte(lb, ausgewaehlt, dauerMs, restKorrekturen, versuch + 1),
+                        DispatcherPriority.ContextIdle);
                 }
 
-                try
+                return;
+            }
+
+            try
+            {
+                double ziel = BerechneMittenVersatz(sv, container);
+
+                // Schon mittig – dann weder rollen noch nachziehen.
+                if (Math.Abs(ziel - sv.HorizontalOffset) < MittenToleranz)
+                    return;
+
+                if (dauerMs <= 0)
                 {
-                    // Position des Items relativ zum ScrollViewer berechnen
-                    double itemCenter = container
-                        .TransformToAncestor(sv)
-                        .Transform(new Point(container.ActualWidth / 2.0, 0))
-                        .X;
-
-                    // Ziel-Offset: Item in die Mitte des sichtbaren Bereichs
-                    double targetOffset = sv.HorizontalOffset + itemCenter - (sv.ViewportWidth / 2.0);
-
-                    // Begrenzen
-                    targetOffset = Math.Max(0, Math.Min(targetOffset, sv.ExtentWidth - sv.ViewportWidth));
-
-                    // Animiert scrollen
-                    var animation = new DoubleAnimation
-                    {
-                        From = sv.HorizontalOffset,
-                        To = targetOffset,
-                        Duration = TimeSpan.FromMilliseconds(480),
-                        EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
-                    };
-
-                    AnimatableScrollOffset.SetOffset(sv, sv.HorizontalOffset);
-                    sv.BeginAnimation(AnimatableScrollOffset.OffsetProperty, animation);
+                    SetzeVersatz(sv, ziel);
+                    PlaneKorrektur(lb, ausgewaehlt, 0, restKorrekturen);
+                    return;
                 }
-                catch
+
+                var animation = new DoubleAnimation
                 {
-                    // TransformToAncestor kann fehlschlagen wenn Baum nicht bereit
-                }
-            }, DispatcherPriority.Background);
+                    From = sv.HorizontalOffset,
+                    To = ziel,
+                    Duration = TimeSpan.FromMilliseconds(dauerMs),
+                    EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+                };
+
+                animation.Completed += (_, _) =>
+                    PlaneKorrektur(lb, ausgewaehlt, NachziehDauerMs, restKorrekturen);
+
+                AnimatableScrollOffset.SetOffset(sv, sv.HorizontalOffset);
+                sv.BeginAnimation(AnimatableScrollOffset.OffsetProperty, animation);
+            }
+            catch
+            {
+                // TransformToAncestor kann fehlschlagen wenn Baum nicht bereit
+            }
+        }
+
+        /// <summary>
+        /// Meldet einen weiteren Messdurchgang an. Der Vorrat ist begrenzt, damit sich
+        /// die Korrektur nicht endlos selbst nachjustiert.
+        /// </summary>
+        private static void PlaneKorrektur(ListBox lb, object ausgewaehlt, int dauerMs, int restKorrekturen)
+        {
+            if (restKorrekturen <= 0) return;
+
+            lb.Dispatcher.BeginInvoke(
+                () => RolleZurMitte(lb, ausgewaehlt, dauerMs, restKorrekturen - 1, versuch: MaxVersuche),
+                DispatcherPriority.ContextIdle);
+        }
+
+        /// <summary>
+        /// Setzt den Versatz ohne Animation.
+        ///
+        /// Der Umweg über die Hilfseigenschaft ist nötig, weil eine zuvor gelaufene
+        /// Animation den Wert festhält. Erst den Grundwert auf den Istwert setzen, dann
+        /// die Animation entfernen – sonst spränge sie beim Entfernen auf ihren alten
+        /// Grundwert zurück –, und erst danach das Ziel setzen.
+        /// </summary>
+        private static void SetzeVersatz(ScrollViewer sv, double ziel)
+        {
+            AnimatableScrollOffset.SetOffset(sv, sv.HorizontalOffset);
+            sv.BeginAnimation(AnimatableScrollOffset.OffsetProperty, null);
+            AnimatableScrollOffset.SetOffset(sv, ziel);
+        }
+
+        /// <summary>Versatz, bei dem das Element mittig im sichtbaren Bereich steht.</summary>
+        private static double BerechneMittenVersatz(ScrollViewer sv, FrameworkElement container)
+        {
+            // TransformToAncestor liefert die Lage im sichtbaren Bereich, nicht im
+            // Gesamtinhalt – der aktuelle Versatz muss daher dazugerechnet werden.
+            double itemCenter = container
+                .TransformToAncestor(sv)
+                .Transform(new Point(container.ActualWidth / 2.0, 0))
+                .X;
+
+            double ziel = sv.HorizontalOffset + itemCenter - (sv.ViewportWidth / 2.0);
+
+            return Math.Max(0, Math.Min(ziel, sv.ExtentWidth - sv.ViewportWidth));
         }
 
         #endregion
@@ -168,45 +329,12 @@ namespace TestImage
 
         #region CenterNow (manuell aufrufbar)
 
-        public static void CenterNow(ListBox lb)
-        {
-            if (lb?.SelectedItem == null) return;
-            // Simuliert exakt denselben Ablauf wie OnSelectionChangedCenter
-            lb.ScrollIntoView(lb.SelectedItem);
-            lb.Dispatcher.BeginInvoke(() =>
-            {
-                var sv = FindVisualChild<ScrollViewer>(lb);
-                if (sv == null) return;
-
-                var container = lb.ItemContainerGenerator.ContainerFromItem(lb.SelectedItem) as FrameworkElement;
-                if (container == null)
-                {
-                    lb.UpdateLayout();
-                    container = lb.ItemContainerGenerator.ContainerFromItem(lb.SelectedItem) as FrameworkElement;
-                    if (container == null) return;
-                }
-                try
-                {
-                    double itemCenter = container
-                        .TransformToAncestor(sv)
-                        .Transform(new Point(container.ActualWidth / 2.0, 0))
-                        .X;
-                    double targetOffset = sv.HorizontalOffset + itemCenter - (sv.ViewportWidth / 2.0);
-                    targetOffset = Math.Max(0, Math.Min(targetOffset, sv.ExtentWidth - sv.ViewportWidth));
-
-                    var animation = new DoubleAnimation
-                    {
-                        From = sv.HorizontalOffset,
-                        To = targetOffset,
-                        Duration = TimeSpan.FromMilliseconds(480),
-                        EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
-                    };
-                    AnimatableScrollOffset.SetOffset(sv, sv.HorizontalOffset);
-                    sv.BeginAnimation(AnimatableScrollOffset.OffsetProperty, animation);
-                }
-                catch { }
-            }, DispatcherPriority.Background);
-        }
+        /// <summary>
+        /// Zentriert von Hand. Läuft über denselben Weg wie das Ereignis, damit es
+        /// nur eine Fassung dieser Rechnung gibt – vorher stand sie zweimal da, und
+        /// eine Korrektur an einer Stelle wäre an der anderen wirkungslos geblieben.
+        /// </summary>
+        public static void CenterNow(ListBox lb) => ZentriereAusgewaehltes(lb);
 
         #endregion
 

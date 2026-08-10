@@ -27,8 +27,7 @@
             Height="90"
             Margin="45,0,45,160"
             VerticalAlignment="Bottom"
-            Orientation="Vertical"
-            Visibility="{Binding IsObenMinimiert, Converter={StaticResource CLconverterVisiblityBoolian}}">
+            Orientation="Vertical">
             <StackPanel Orientation="Horizontal">
 
                 <!--  Erste Zeile: Position + Gesamt  -->
@@ -118,8 +117,7 @@
             SelectedItem="{Binding SelectedBildchen, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
             VirtualizingPanel.IsVirtualizing="True"
             VirtualizingPanel.ScrollUnit="Pixel"
-            VirtualizingPanel.VirtualizationMode="Recycling"
-            Visibility="{Binding IsObenMinimiert, Converter={StaticResource CLconverterVisiblityBoolian}}">
+            VirtualizingPanel.VirtualizationMode="Recycling">
 
             <!--  Hintergrundfarbe per Style, damit DataTrigger greifen kann  -->
             <ListBox.Style>
@@ -420,7 +418,7 @@
                         RenderOptions.BitmapScalingMode="HighQuality"
                         RenderOptions.EdgeMode="Aliased"
                         SizeChanged="imgCurrent_SizeChanged"
-                        Source="{Binding DisplayImage}"
+                        Source="{Binding AnzeigeBild}"
                         Stretch="{Binding ImageStretch}"
                         UseLayoutRounding="False">
                         <Image.RenderTransform>
@@ -495,6 +493,137 @@
             MouseOverBorderBrush="Transparent"
             PressedBackground="{DynamicResource {x:Static SystemColors.ControlBrushKey}}" />-->
 
+
+        <!--
+            Konturansicht: Kantenbild statt Originalbild im grossen Bild, Schwelle am
+            Regler. Rechts oben, weil links die Werkzeugleiste und unten die Statusleisten
+            sitzen; darunter beginnt erst bei 137 px die rechte Klickfläche zum Blättern.
+        -->
+        <Border
+            x:Name="BRD_KonturKarte"
+            Grid.Row="1"
+            Margin="0,10,93,0"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Top"
+            d:Padding="12,10,12,12"
+            Background="White"
+            BorderBrush="#FFCBD5E1"
+            BorderThickness="1"
+            CornerRadius="8"
+            Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}">
+
+            <!--
+                Ruhezustand: nur der Symbolknopf, damit die Karte möglichst wenig vom
+                Bild verdeckt. Erst beim Einschalten kommen Regler und Kästchen dazu –
+                Breite und Innenmass wachsen dann mit. Keine feste Breite, sonst wäre
+                die Karte auch im Ruhezustand so breit wie aufgeklappt.
+            -->
+            <Border.Style>
+                <Style TargetType="{x:Type Border}">
+                    <Setter Property="Padding" Value="5" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding ZeigeKontur}" Value="True">
+                            <Setter Property="Padding" Value="12,10,12,12" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+
+            <StackPanel x:Name="STP_KonturKarte" Orientation="Vertical">
+
+                <ToggleButton
+                    x:Name="TGL_KonturAnzeigen"
+                    Height="26"
+                    Padding="6,0"
+                    Cursor="Hand"
+                    FontSize="12"
+                    FontWeight="SemiBold"
+                    IsChecked="{Binding ZeigeKontur, Mode=TwoWay}"
+                    SnapsToDevicePixels="True"
+                    ToolTip="Statt des Bildes sein Kantenbild anzeigen (Sobel). Macht auch schwache Aufdrucke sichtbar.">
+                    <StackPanel x:Name="STP_KonturSchalter" Orientation="Horizontal">
+                        <TextBlock
+                            x:Name="IC_KonturSchalter"
+                            VerticalAlignment="Center"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="12"
+                            Text="&#xE9A9;" />
+
+                        <!--  Beschriftung erst im aufgeklappten Zustand – spart im Ruhezustand die halbe Breite  -->
+                        <TextBlock
+                            x:Name="TXT_KonturSchalter"
+                            Margin="6,0,0,0"
+                            VerticalAlignment="Center"
+                            d:Visibility="Visible"
+                            Text="Kontur"
+                            Visibility="{Binding ZeigeKontur, Converter={StaticResource CLconverterVisiblityBoolian}}" />
+                    </StackPanel>
+                </ToggleButton>
+
+                <!--  Reglerbereich nur zeigen, wenn die Kontur auch an ist  -->
+                <StackPanel
+                    x:Name="STP_KonturEinstellungen"
+                    Width="188"
+                    Margin="0,10,0,0"
+                    d:Visibility="Visible"
+                    Orientation="Vertical"
+                    Visibility="{Binding ZeigeKontur, Converter={StaticResource CLconverterVisiblityBoolian}}">
+
+                    <Grid x:Name="GRD_KonturSchwelleKopf">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition x:Name="COL_KonturSchwelleLabel" Width="*" />
+                            <ColumnDefinition x:Name="COL_KonturSchwelleWert" Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock
+                            x:Name="TXT_KonturSchwelleLabel"
+                            Grid.Column="0"
+                            VerticalAlignment="Center"
+                            FontSize="11"
+                            Foreground="Gray"
+                            Text="Schwelle" />
+
+                        <TextBlock
+                            x:Name="TXT_KonturSchwelleWert"
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            FontSize="11"
+                            FontWeight="SemiBold"
+                            Foreground="#FF1F2937"
+                            Text="{Binding KonturSchwelle, StringFormat=\{0:F0\}}" />
+                    </Grid>
+
+                    <Slider
+                        x:Name="SLD_KonturSchwelle"
+                        Margin="0,2,0,0"
+                        IsSnapToTickEnabled="True"
+                        Maximum="255"
+                        Minimum="0"
+                        TickFrequency="1"
+                        ToolTip="Niedrig = viele Kanten, hoch = nur kräftige Kanten. Vorgabe 90."
+                        Value="{Binding KonturSchwelle, Mode=TwoWay}" />
+
+                    <CheckBox
+                        x:Name="CHK_KonturWeichzeichnen"
+                        Margin="0,6,0,0"
+                        VerticalContentAlignment="Center"
+                        Content="Weichzeichnen"
+                        FontSize="11"
+                        Foreground="#FF555555"
+                        IsChecked="{Binding KonturWeichzeichnen, Mode=TwoWay}"
+                        ToolTip="Vorher glätten – weniger Rauschkanten, dafür weichere Konturen." />
+
+                    <!--  Anzeige, dass gerechnet wird; bei grossen Bildern dauert es kurz  -->
+                    <ProgressBar
+                        x:Name="PGB_KonturLäuft"
+                        Height="3"
+                        Margin="0,8,0,0"
+                        d:Visibility="Visible"
+                        IsIndeterminate="True"
+                        Visibility="{Binding KonturLäuft, Converter={StaticResource CLconverterVisiblityBoolian}}" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
 
         <Grid
             Grid.Row="1"
@@ -840,8 +969,9 @@
                 d:LayoutOverrides="Height" />
 
         </StackPanel>
+        <!--  Schaltet die Prüfungen ein, deren Ergebnis STP_PrüfAmpel darunter anzeigt  -->
         <CheckBox
-            x:Name="checkBox"
+            x:Name="CHK_BildPrüfen"
             Grid.Row="1"
             Width="58"
             Height="16"
@@ -850,8 +980,15 @@
             VerticalAlignment="Top"
             Content="Prüfen"
             IsChecked="{Binding SollBildGeprüftWerden}"
+            ToolTip="Bilder beim Anzeigen auf Schäden prüfen – Ergebnis in der Ampel darunter"
             Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}" />
+        <!--
+            Prüf-Ampel: sechs Felder zum Bildzustand, je Feld eine Prüfung aus dem
+            ViewModel. Grün = in Ordnung, Rot = auffällig, Grau = noch nicht geprüft
+            (der Zustand bei null). Darunter der Fortschritt des Bildladens.
+        -->
         <StackPanel
+            x:Name="STP_PrüfAmpel"
             Grid.Row="1"
             Width="52"
             Height="126"
@@ -861,6 +998,7 @@
             Orientation="Vertical"
             Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}">
             <Border
+                x:Name="BRD_PrüfAmpel"
                 Height="auto"
                 Padding="2,2,2,2"
                 BorderBrush="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"
@@ -868,79 +1006,91 @@
                 CornerRadius="2,2,2,2">
 
                 <StackPanel
+                    x:Name="STP_PrüfAmpelInhalt"
                     Width="auto"
                     Height="auto"
                     Orientation="Vertical">
-                    <StackPanel Orientation="Horizontal">
+                    <StackPanel x:Name="STP_PrüfZeile1" Orientation="Horizontal">
                         <Border
-                            x:Name="llg1"
+                            x:Name="BRD_AmpelDateiBeschädigt"
                             Width="20"
                             Height="20"
                             Margin="1,1,1,1"
                             Padding="2,2,2,2"
+                            d:Background="GreenYellow"
                             Background="{Binding IsBildDateiBeschädigt, Converter={StaticResource CLconverterBrushesBoolianG1}}"
                             BorderBrush="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"
                             BorderThickness="2"
-                            ToolTip="IsBildDateiBeschädigt" />
+                            ToolTip="Datei beschädigt (IsBildDateiBeschädigt)" />
                         <Border
-                            x:Name="llg2"
+                            x:Name="BRD_AmpelHeaderPasst"
                             Width="20"
                             Height="20"
                             Margin="1,1,1,1"
                             Padding="2,2,2,2"
+                            d:Background="GreenYellow"
                             Background="{Binding IsHeaderPassendZurErweiterung, Converter={StaticResource CLconverterBrushesBoolianG2}}"
                             BorderBrush="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"
                             BorderThickness="2"
-                            ToolTip="IsHeaderPassendZurErweiterung" />
+                            ToolTip="Dateikopf passt zur Endung (IsHeaderPassendZurErweiterung)" />
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal">
+                    <StackPanel x:Name="STP_PrüfZeile2" Orientation="Horizontal">
                         <Border
-                            x:Name="llg3"
+                            x:Name="BRD_AmpelFrameImBild"
                             Width="20"
                             Height="20"
                             Margin="1,1,1,1"
                             Padding="2,2,2,2"
+                            d:Background="GreenYellow"
                             Background="{Binding IsFrameImBildDrin, Converter={StaticResource CLconverterBrushesBoolianG2}}"
                             BorderBrush="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"
                             BorderThickness="2"
-                            ToolTip="IsFrameImBildDrin" />
+                            ToolTip="Rahmen im Bild erkannt (IsFrameImBildDrin)" />
                         <Border
-                            x:Name="llg4"
+                            x:Name="BRD_AmpelDownloadDefekt"
                             Width="20"
                             Height="20"
                             Margin="1,1,1,1"
                             Padding="2,2,2,2"
+                            d:Background="GreenYellow"
                             Background="{Binding IsBildDownloadCorrupted, Converter={StaticResource CLconverterBrushesBoolianG1}}"
                             BorderBrush="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"
                             BorderThickness="2"
-                            ToolTip="IsBildDownloadCorrupted" />
+                            ToolTip="Download unvollständig (IsBildDownloadCorrupted)" />
                     </StackPanel>
 
-                    <StackPanel Orientation="Horizontal">
+                    <StackPanel x:Name="STP_PrüfZeile3" Orientation="Horizontal">
                         <Border
-                            x:Name="ll5"
+                            x:Name="BRD_AmpelNullDatei"
                             Width="20"
                             Height="20"
                             Margin="1,1,1,1"
                             Padding="2,2,2,2"
+                            d:Background="GreenYellow"
                             Background="{Binding IsBildNullDatei, Converter={StaticResource CLconverterBrushesBoolianG5}}"
                             BorderBrush="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"
                             BorderThickness="2"
-                            ToolTip="IsBildNullDatei" />
+                            ToolTip="Datei ist 0 Byte gross (IsBildNullDatei)" />
+
+                        <!--  Kein Ja/Nein-Zustand: zeigt nur das erkannte Format im ToolTip  -->
                         <Border
-                            x:Name="ll6"
+                            x:Name="BRD_AmpelFormat"
                             Width="20"
                             Height="20"
                             Margin="1,1,1,1"
                             Padding="2,2,2,2"
+                            d:Background="Gainsboro"
                             Background="Transparent"
                             BorderBrush="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"
                             BorderThickness="2"
+                            d:ToolTip="jpeg"
                             ToolTip="{Binding ErkanntesFormat}" />
                     </StackPanel>
                     <ProgressBar
+                        x:Name="PGB_BildLadenStufen"
                         Width="40"
                         Height="10"
+                        d:Value="4"
                         d:Visibility="Visible"
                         Maximum="6"
                         Visibility="{Binding CommandExecuteKleinesBildGrossesBildLadenCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}, Mode=OneWay}"
@@ -950,24 +1100,8 @@
 
                 </StackPanel>
             </Border>
-            <StackPanel Orientation="Horizontal">
-                <Border
-                    x:Name="BRD_KleineBild"
-                    Width="20"
-                    Height="20"
-                    Margin="1,1,1,1"
-                    Background="#66F4EAEA"
-                    BorderBrush="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"
-                    BorderThickness="2"
-                    ToolTip="{Binding SWkleinesBild}">
-                    <Image
-                        Width="16"
-                        Height="16"
-                        RenderOptions.BitmapScalingMode="HighQuality"
-                        Source="{Binding DisplayImage}"
-                        Stretch="Uniform" />
-
-                </Border>
+            <!--  Ladestufen: kleines Vorschaubild, grosses Bild, Kantenbild – ToolTip zeigt je die Zeit  -->
+            <StackPanel x:Name="STP_Ladestufen" Orientation="Horizontal">
                 <Border
                     x:Name="BRD_GrossesBild"
                     Width="28"
@@ -978,10 +1112,31 @@
                     BorderThickness="2"
                     ToolTip="{Binding SWgrossesBild}">
                     <Image
+                        x:Name="IMG_GrosseVorschau"
                         Width="24"
                         Height="16"
                         RenderOptions.BitmapScalingMode="HighQuality"
                         Source="{Binding DisplayImage}"
+                        Stretch="Uniform" />
+                </Border>
+
+                <!--  Drittes Kästchen wie die beiden davor, nur eben das Kantenbild  -->
+                <Border
+                    x:Name="BRD_KonturBild"
+                    Width="28"
+                    Height="20"
+                    Margin="1,1,1,1"
+                    Background="#66F4EAEA"
+                    BorderBrush="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"
+                    BorderThickness="2"
+                    ToolTip="{Binding SWkonturBild}"
+                    Visibility="{Binding ZeigeKontur, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                    <Image
+                        x:Name="IMG_KonturVorschau"
+                        Width="24"
+                        Height="16"
+                        RenderOptions.BitmapScalingMode="HighQuality"
+                        Source="{Binding KonturImage}"
                         Stretch="Uniform" />
                 </Border>
             </StackPanel>
@@ -1000,34 +1155,25 @@
                 SmallImageSource="/Images/Scallieren.png" />
 
         </StackPanel>
+        <!--
+            Farbsignatur des Bildes: bandweise Mittelwerte von oben nach unten. Der
+            Verlauf kommt fertig aus dem ViewModel (BildFarbsignatur), berechnet auf dem
+            100-px-Vorschaubild. Ohne Bild bleibt die Fläche leer, der Rahmen zeigt den
+            Streifen trotzdem an.
+        -->
         <Rectangle
-            Grid.Row="1"
-            Width="10"
-            Height="72"
-            Margin="10,0,0,62"
-            HorizontalAlignment="Left"
-            VerticalAlignment="Bottom"
-            Stroke="Black"
-            Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}">
-            <Rectangle.Fill>
-                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                    <GradientStop Offset="0.0" Color="Yellow" />
-                    <GradientStop Offset="0.25" Color="Red" />
-                    <GradientStop Offset="0.75" Color="Blue" />
-                    <GradientStop Offset="1.0" Color="LimeGreen" />
-                </LinearGradientBrush>
-            </Rectangle.Fill>
-        </Rectangle>
-        <Rectangle
+            x:Name="LLL"
             Grid.Row="1"
             Width="10"
             Height="72"
             Margin="25,0,0,62"
             HorizontalAlignment="Left"
             VerticalAlignment="Bottom"
+            Fill="{Binding BildFarbsignatur}"
             Stroke="Black"
+            ToolTip="Farbsignatur: Durchschnittsfarbe des Bildes, von oben nach unten in Bändern"
             Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}">
-            <Rectangle.Fill>
+            <d:Rectangle.Fill>
                 <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
                     <GradientStop Color="#FFE7F926" />
                     <GradientStop Offset="0.083" Color="#FFF18CD5" />
@@ -1035,7 +1181,7 @@
                     <GradientStop Offset="0.953" Color="#FFF44EC8" />
                     <GradientStop Offset="0.993" Color="#FFF4EA4E" />
                 </LinearGradientBrush>
-            </Rectangle.Fill>
+            </d:Rectangle.Fill>
         </Rectangle>
         <Border
             Grid.Row="1"
@@ -1197,28 +1343,8 @@
 
                 <!--
                     Tastensteuerung: Die Übersicht liegt im Fenster (BRD_TastenHilfe) und
-                    gilt für beide Ansichten. Hier als sichtbarer Knopf, im Bildmodus über F1.
+                    gilt für beide Ansichten. Hier als sichtbarer Knopf, überall auch über F1.
                 -->
-                <Button
-                    x:Name="BTN_TastenHilfe"
-                    Height="22"
-                    Margin="4,0,2,0"
-                    Padding="8,0"
-                    VerticalAlignment="Center"
-                    Command="{Binding CommandExecuteVollbildHilfeToggleCommand}"
-                    Cursor="Hand"
-                    ToolTip="Übersicht der Tastenkürzel anzeigen (im Bildmodus auch mit F1)" Width="34">
-                    <StackPanel x:Name="STP_TastenHilfeInhalt" Orientation="Horizontal" Width="23">
-                        <TextBlock
-                            x:Name="IC_TastenHilfe"
-                            Margin="0,0,2,0"
-                            VerticalAlignment="Center"
-                            FontFamily="Segoe MDL2 Assets"
-                            FontSize="16"
-                            Text="&#xE765;" Width="25" />
-                        
-                    </StackPanel>
-                </Button>
 
             </StackPanel>
         </Border>
@@ -1278,22 +1404,9 @@
             </StackPanel>
         </Grid>
         <!--  Visibility="{Binding PrüfungLäuft, Converter={StaticResource CLconverterVisiblityBoolian}, Mode=OneWay}"  -->
-        <ScrollViewer
-            Grid.Row="2"
-            Width="8"
-            Height="8"
-            Margin="0,10,10,0"
-            HorizontalAlignment="Right"
-            VerticalAlignment="Top"
-            Background="{Binding SelectedBildchen.BildFürLinks, Converter={StaticResource CLconverterColorBoolianMasterHintergrund}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-            HorizontalScrollBarVisibility="{Binding MyHorizontalScrollBarVisibility}"
-            VerticalScrollBarVisibility="{Binding MyHorizontalScrollBarVisibility}"
-            Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}">
-            <!--  Platzhalter: Content wird dynamisch gesetzt  -->
-            <ContentControl Content="{Binding DisplayImage}" />
-
-        </ScrollViewer>
+        <!--  Kopfleiste links: Ablagefeld, Fensterknöpfe und Einstieg in die Bildersuche  -->
         <StackPanel
+            x:Name="STP_KopfleisteLinks"
             Margin="10,0,0,0"
             HorizontalAlignment="Left"
             VerticalAlignment="Center"
@@ -1309,54 +1422,6 @@
                 Background="#FFCEE067"
                 Content="{Binding LabelDropContent}"
                 ToolTip="{Binding Version}" />
-            <Button
-                x:Name="BTN_ObenMinimize1"
-                Width="28"
-                Height="28"
-                Margin="4,0,0,0"
-                Command="{Binding CommandExecuteObenMinimierenCommand, Mode=OneWay}"
-                Cursor="Hand"
-                ToolTip="Oberen Bereich ein-/ausblenden">
-                <Button.Style>
-                    <Style TargetType="{x:Type Button}">
-                        <Setter Property="Background" Value="#FF5C6BC0" />
-                        <Setter Property="Foreground" Value="#FFFFFFFF" />
-                        <Setter Property="BorderThickness" Value="0" />
-                        <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
-                        <Setter Property="FontSize" Value="13" />
-                        <Setter Property="Content" Value="&#xE70E;" />
-                        <Setter Property="Template">
-                            <Setter.Value>
-                                <ControlTemplate TargetType="{x:Type Button}">
-                                    <Border Background="{TemplateBinding Background}" CornerRadius="5">
-                                        <Grid>
-                                            <Border
-                                                x:Name="overlay"
-                                                Background="Transparent"
-                                                CornerRadius="5" />
-                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        </Grid>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="overlay" Property="Background" Value="#33000000" />
-                                        </Trigger>
-                                        <Trigger Property="IsPressed" Value="True">
-                                            <Setter TargetName="overlay" Property="Background" Value="#55000000" />
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Setter.Value>
-                        </Setter>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsObenMinimiert}" Value="True">
-                                <Setter Property="Background" Value="#FFEF6C00" />
-                                <Setter Property="Content" Value="&#xE70D;" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Button.Style>
-            </Button>
             <Button
                 x:Name="BTN_BilderAktualisieren"
                 Width="28"
@@ -1473,7 +1538,7 @@
                 PopupAnimation="Fade"
                 StaysOpen="False"
                 VerticalOffset="6">
-                <bildersuche:IndexSuchPanel Margin="12" />
+                <bildersuche:IndexSuchPanel x:Name="PNL_IndexSuche" Margin="12" />
             </Popup>
 
         </StackPanel>
@@ -1494,22 +1559,27 @@
             x:Name="BTN_BildListe"
             Grid.Row="2"
             Height="24"
-            Margin="29,95,0,0"
+            Margin="12,102,0,0"
             Padding="8,0"
             HorizontalAlignment="Left"
             VerticalAlignment="Top"
             Command="{Binding CommandExecuteBildListeToggleCommand}"
             Cursor="Hand"
-            ToolTip="Alle Bilder als Liste – schnell zu einem Bild springen"
+            ToolTip="Alle Bilder als Kacheln – schnell zu einem Bild springen"
             Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}">
-            <StackPanel Orientation="Horizontal">
+            <StackPanel x:Name="STP_BildListeInhalt" Orientation="Horizontal">
+                <!--  ECA5 = Tiles. Vorher E8FD (List) – das Panel zeigt aber ein Kachelraster.  -->
                 <TextBlock
+                    x:Name="IC_BildListe"
                     Margin="0,0,5,0"
                     VerticalAlignment="Center"
                     FontFamily="Segoe MDL2 Assets"
                     FontSize="12"
-                    Text="&#xE8FD;" />
-                <TextBlock VerticalAlignment="Center" Text="Liste" />
+                    Text="&#xECA5;" />
+                <TextBlock
+                    x:Name="TXT_BildListe"
+                    VerticalAlignment="Center"
+                    Text="Kacheln" />
             </StackPanel>
         </Button>
 

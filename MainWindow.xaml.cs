@@ -107,13 +107,23 @@ namespace TestImage
                 e.Handled = true;
             }
 
-            // F1 / ? → Tastenübersicht. Eigener Zweig, weil „?" auf deutscher Tastatur
-            // Shift+ß ist und an der Prüfung auf „kein Modifier" scheitern würde.
+            // F1 → Tastenübersicht, in beiden Ansichten. Dasselbe wie BTN_TastenHilfe
+            // in der Normalansicht, nur eben über die Taste. F1 darf auch im Suchfeld
+            // greifen: Es steht für kein Schriftzeichen und stört das Tippen nicht.
+            else if (e.Key == Key.F1 && vm is not null)
+            {
+                vm.CommandExecuteVollbildHilfeToggleCommand.Execute(null);
+                e.Handled = true;
+            }
+
+            // „?" nur im Bildmodus. Dort gibt es keine Eingabefelder; in der
+            // Normalansicht würde die Taste sonst das Tippen von „?" verschlucken.
+            // Eigene Modifier-Prüfung, weil „?" auf deutscher Tastatur Shift+ß ist.
             else if (vm?.IsImageMaximiert == true
-                     && (e.Key == Key.F1 || e.Key == Key.OemQuestion)
+                     && e.Key == Key.OemQuestion
                      && (Keyboard.Modifiers == ModifierKeys.None || Keyboard.Modifiers == ModifierKeys.Shift))
             {
-                vm.IsVollbildHilfeOffen = !vm.IsVollbildHilfeOffen;
+                vm.CommandExecuteVollbildHilfeToggleCommand.Execute(null);
                 e.Handled = true;
             }
 
