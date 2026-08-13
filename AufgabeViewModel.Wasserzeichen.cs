@@ -34,6 +34,18 @@ namespace TestImage
         private bool _wasserzeichenAufgabeLäuft;
 
         /// <summary>
+        /// Karte aufgeklappt. Gleiche Mechanik wie <c>IsIndexPopoverOffen</c> bei den
+        /// Einstellungen: ein Knopf oben schaltet um, die Karte hängt an dieser Eigenschaft.
+        /// </summary>
+        [ObservableProperty]
+        private bool _isWasserzeichenOffen;
+
+        /// <summary>Klappt die Wasserzeichen-Karte auf und zu.</summary>
+        [RelayCommand]
+        private void CommandExecuteWasserzeichenToggle()
+            => IsWasserzeichenOffen = !IsWasserzeichenOffen;
+
+        /// <summary>
         /// Gelernte Muster für die Anzeige. Mehrere sind der Normalfall: DeviantArt
         /// allein verwendet mindestens drei Zeichentypen, und jeder braucht ein eigenes
         /// Muster.
@@ -96,8 +108,13 @@ namespace TestImage
 
             try
             {
+                // Restzeit über dieselben Helfer wie die Dubletten-Suche – gleiche
+                // Rechnung, gleiche Formulierung („noch ca. …"), keine zweite Fassung.
+                var uhr = System.Diagnostics.Stopwatch.StartNew();
+
                 var fortschritt = new Progress<(int Erledigt, int Gesamt)>(p =>
-                    WasserzeichenStatus = $"Lerne Muster „{name}“ … {p.Erledigt}/{p.Gesamt}");
+                    WasserzeichenStatus = $"Lerne Muster „{name}“ … {p.Erledigt}/{p.Gesamt}"
+                                          + RestzeitZusatz(uhr.Elapsed, p.Erledigt, p.Gesamt));
 
                 int anzahl = await WasserzeichenService.LerneMaskeAsync(dlg.FolderName, name, fortschritt, token);
 

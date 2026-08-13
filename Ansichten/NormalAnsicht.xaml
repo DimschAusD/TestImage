@@ -100,6 +100,120 @@
                 </ListBox.ItemContainerStyle>
             </ListBox>
         </StackPanel>
+        <!--
+            Übersicht: Bilder je Zeitraum. Die Einheit wechselt selbsttätig — zwölf
+            Monate, solange alles in einem Jahr liegt, sonst Jahre. Liegt direkt über
+            der Miniaturleiste und ist genauso breit.
+        -->
+        <Border
+            x:Name="BRD_Zeitleiste"
+            Grid.Row="2"
+            Margin="93,0,25,152"
+            Padding="8,4,8,5"
+            VerticalAlignment="Bottom"
+            Background="White"
+            BorderBrush="#FFCBD5E1"
+            BorderThickness="1"
+            CornerRadius="6"
+            d:Visibility="Visible"
+            Visibility="{Binding ZeitleisteVorhanden, Converter={StaticResource CLconverterVisiblityBoolian}}">
+            <Grid x:Name="GRD_Zeitleiste">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition x:Name="COL_ZeitleisteEinheit" Width="Auto" />
+                    <ColumnDefinition x:Name="COL_ZeitleisteFelder" Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock
+                    x:Name="TXT_ZeitleisteEinheit"
+                    Grid.Column="0"
+                    Margin="0,0,10,0"
+                    VerticalAlignment="Center"
+                    d:Text="Jahre"
+                    FontFamily="Segoe UI"
+                    FontSize="11"
+                    Foreground="Gray"
+                    Text="{Binding ZeitleisteEinheit}" />
+
+                <ItemsControl
+                    x:Name="IC_Zeitleiste"
+                    Grid.Column="1"
+                    ItemsSource="{Binding Zeitleiste}">
+                    <d:ItemsControl.ItemsSource>
+                        <x:Array Type="{x:Type bildersuche:ZeitAbschnitt}">
+                            <bildersuche:ZeitAbschnitt
+                                Anzahl="45"
+                                Beschriftung="2018"
+                                Deckkraft="0.13" />
+                            <bildersuche:ZeitAbschnitt
+                                Anzahl="120"
+                                Beschriftung="2019"
+                                Deckkraft="0.24" />
+                            <bildersuche:ZeitAbschnitt
+                                Anzahl="88"
+                                Beschriftung="2020"
+                                Deckkraft="0.19" />
+                            <bildersuche:ZeitAbschnitt
+                                Anzahl="200"
+                                Beschriftung="2021"
+                                Deckkraft="0.35" />
+                            <bildersuche:ZeitAbschnitt
+                                Anzahl="15"
+                                Beschriftung="2022"
+                                Deckkraft="0.08" />
+                            <bildersuche:ZeitAbschnitt
+                                Anzahl="301"
+                                Beschriftung="2023"
+                                Deckkraft="0.50" />
+                        </x:Array>
+                    </d:ItemsControl.ItemsSource>
+
+                    <!--  Gleich breite Felder – funktioniert für zwölf Monate wie für n Jahre  -->
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Rows="1" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid x:Name="GRD_ZeitFeld" ToolTip="{Binding Tooltip}">
+                                <!--
+                                    Deckkraft kommt fertig aus dem ViewModel, damit hier kein
+                                    Konverter nötig ist. Volle Deckkraft ist bewusst nicht
+                                    vorgesehen — die Beschriftung muss lesbar bleiben.
+                                -->
+                                <Rectangle
+                                    x:Name="RCT_ZeitFeldFuellung"
+                                    Margin="1,0"
+                                    Fill="#FF64748B"
+                                    Opacity="{Binding Deckkraft}"
+                                    RadiusX="3"
+                                    RadiusY="3" />
+
+                                <StackPanel x:Name="STP_ZeitFeld" Orientation="Vertical">
+                                    <TextBlock
+                                        x:Name="TXT_ZeitFeldName"
+                                        HorizontalAlignment="Center"
+                                        FontFamily="Segoe UI"
+                                        FontSize="10"
+                                        Foreground="Gray"
+                                        Text="{Binding Beschriftung}" />
+                                    <TextBlock
+                                        x:Name="TXT_ZeitFeldAnzahl"
+                                        HorizontalAlignment="Center"
+                                        FontFamily="Segoe UI"
+                                        FontSize="11"
+                                        FontWeight="SemiBold"
+                                        Foreground="#FF1F2937"
+                                        Text="{Binding Anzahl}" />
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Grid>
+        </Border>
+
         <ListBox
             x:Name="Listbox_MiniaturBilder"
             Grid.Row="2"

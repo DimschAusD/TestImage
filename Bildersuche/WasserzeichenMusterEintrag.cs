@@ -31,7 +31,8 @@ namespace TestImage.Bildersuche
         /// </summary>
         public ImageSource? Vorschau { get; set; }
 
-        public string Beschreibung => $"{Grundmenge} Bilder · {StabilProzent} % stabil";
+        /// <summary>Knapp gehalten – die Liste kann lang werden, das Wort „stabil" steht im Tooltip.</summary>
+        public string Beschreibung => $"{Grundmenge} Bilder · {StabilProzent} %";
 
         public string Tooltip =>
             $"Aus {Grundmenge} Bildern gelernt.\n" +

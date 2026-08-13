@@ -126,15 +126,25 @@ namespace TestImage.Ansichten
         /// Wird vom Host (MainWindow) im Bildmodus aufgerufen.
         /// </summary>
         public void ShakeImage(bool nachRechts)
+            => Wackeln(TranslateTransform.XProperty, nachRechts ? 1 : -1);
+
+        /// <summary>
+        /// Senkrechtes Wackeln – Rückmeldung, wenn das Verschieben nach unten gerade
+        /// nicht geht. Gleiche Bewegung wie waagerecht, nur auf der anderen Achse.
+        /// </summary>
+        public void ShakeImageSenkrecht(bool nachUnten)
+            => Wackeln(TranslateTransform.YProperty, nachUnten ? 1 : -1);
+
+        private void Wackeln(DependencyProperty achse, double richtung)
         {
-            double d = nachRechts ? 1 : -1;
+            double d = richtung;
             var anim = new DoubleAnimationUsingKeyFrames();
             anim.KeyFrames.Add(new EasingDoubleKeyFrame(d * 14, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(55))));
             anim.KeyFrames.Add(new EasingDoubleKeyFrame(d * -10, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(120))));
             anim.KeyFrames.Add(new EasingDoubleKeyFrame(d * 7, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(185))));
             anim.KeyFrames.Add(new EasingDoubleKeyFrame(d * -4, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(245))));
             anim.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(300))));
-            imgShakeTransform.BeginAnimation(TranslateTransform.XProperty, anim);
+            imgShakeTransform.BeginAnimation(achse, anim);
         }
     }
 }

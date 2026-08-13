@@ -78,6 +78,8 @@ namespace TestImage
             {
                 if (vm?.CommandExecuteBildInsKeinFavVerzeichnisVerschiebenCommand.CanExecute(null) == true)
                     vm.CommandExecuteBildInsKeinFavVerzeichnisVerschiebenCommand.Execute(null);
+                else
+                    WackleNachUnten(vm);   // geht gerade nicht – kurz wackeln statt stumm bleiben
                 e.Handled = true;
             }
 
@@ -133,6 +135,20 @@ namespace TestImage
             {
                 BehandleVollbildTaste(vm, e);
             }
+        }
+
+        /// <summary>
+        /// Lässt das gerade sichtbare Bild kurz nach unten wackeln. Das waagerechte
+        /// Wackeln am Listenende gibt es nur im Bildmodus, weil dort auch nur dessen
+        /// Bild zu sehen ist – nach unten wird aber in beiden Ansichten verschoben,
+        /// also muss die Rückmeldung auch in beiden ankommen.
+        /// </summary>
+        private void WackleNachUnten(AufgabeViewModel? vm)
+        {
+            if (vm?.IsImageMaximiert == true)
+                VIEW_Vollbild.ShakeImageSenkrecht(nachUnten: true);
+            else
+                VIEW_Normal.ShakeImageSenkrecht(nachUnten: true);
         }
 
         /// <summary>

@@ -610,15 +610,58 @@ namespace TestImage
                 LabelDropContent = Path.GetFileName(fullDateiName);
                 DropDateiName = fullDateiName;
 
+                // Das abgelegte Bild sofort zeigen, bevor der Ordner durchlaufen wird.
+                //
+                // Sonst steht die Bildfläche vom Leeren der Liste bis zum Ende des
+                // Einlesens leer da. Das ist kein Platzhalter: Es ist genau das Bild, das
+                // gleich ausgewählt wird – nur in der 100-Pixel-Stufe, die die Ladestrecke
+                // ohnehin als erstes erzeugt. Kurz darauf ersetzt sie es durch das grosse.
+                //
+                // Fehler hier bewusst still: Ist die Datei unlesbar, meldet das die
+                // reguläre Ladestrecke gleich danach.
+                try
+                {
+                    DisplayImage = await Task.Run(() => MieneServices.CreateBitmap(fullDateiName, 100));
+                }
+                catch
+                {
+                    // Vorschau ist nur Beiwerk – das Einlesen läuft trotzdem weiter.
+                }
+
                 ocAufgabens.Clear();
                 OnPropertyChanged(nameof(CountBildchenFürLinks));
 
                 // Über die interface Files einlesen
                 var cl = new Files.CLdateienEnlesen();
-                var dateies = cl.DateienEinlesenAsync(Path.GetDirectoryName(fullDateiName), false);
+
+                // Erst im Hintergrund sammeln, dann wie gehabt einfügen.
+                //
+                // Directory.EnumerateFiles liefert träge – die Platte wird erst beim
+                // Durchlaufen gelesen. Ohne Task.Run lag diese Arbeit im UI-Faden, und bei
+                // tausenden Dateien auf einer langsamen Platte stand die Oberfläche
+                // sekundenlang. Ein Task.Yield hilft dagegen nicht: Es verlagert nichts,
+                // sondern stellt die Fortsetzung nur zurück in die Dispatcher-Warteschlange.
+                //
+                // Bewusst nur dieser eine Eingriff: Die Schleife darunter bleibt Zeile für
+                // Zeile die alte. Sie fügt weiter einzeln in die laufende Ansicht ein, und
+                // damit bleibt auch erhalten, dass beim ersten Bild das aktuelle Element
+                // gesetzt wird – daran hängt die Anzeige.
+                string ordner = Path.GetDirectoryName(fullDateiName)!;
+
+                var dateies = await Task.Run(async () =>
+                {
+                    var liste = new System.Collections.Generic.List<string>();
+
+                    await foreach (var datei in cl.DateienEinlesenAsync(ordner, false))
+                    {
+                        liste.Add(datei);
+                    }
+
+                    return liste;
+                });
 
                 int index = 0;
-                await foreach (var datei in dateies)
+                foreach (var datei in dateies)
                 {
                     await Task.Yield();
                     //Debug.WriteLine(datei);
@@ -677,6 +720,9 @@ namespace TestImage
 
                 // Bereits gespeicherte Wasserzeichen-Befunde übernehmen (Badges).
                 LadeWasserzeichenBefunde(Path.GetDirectoryName(fullDateiName));
+
+                // Übersichtsleiste (Bilder je Zeitraum) im Hintergrund neu aufbauen.
+                AktualisiereZeitleiste();
             }
 
 
@@ -3110,7 +3156,6 @@ namespace TestImage
 
 
         [ObservableProperty]
-        [NotifyCanExecuteChangedFor(nameof(CommandExecuteSerieSucheCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteErweiterteSerieSucheCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteDublettenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteSchemaAehnlichCommand))]
@@ -3602,6 +3647,36 @@ namespace TestImage
             }
         }
 
+        /// <summary>
+        /// Messzeile zum letzten Indexlauf: wie viel Zeit ins Laden von der Platte ging
+        /// und wie viel ins Rechnen. Grundlage für die Frage, ob sich ein Überlappen von
+        /// Laden und Rechnen lohnt — auf einer langsamen Platte sieht das anders aus als
+        /// auf einer schnellen M.2.
+        ///
+        /// Leer, wenn nichts neu verarbeitet wurde (alle Bilder standen schon im Index).
+        /// </summary>
+        private string IndexMessung()
+        {
+            int bilder = _bildAnalyse.LetzteVerarbeiteteBilder;
+            if (bilder <= 0)
+            {
+                return string.Empty;
+            }
+
+            double gesamt = _bildAnalyse.LetzteIndexDauer.TotalSeconds;
+            double laden = _bildAnalyse.LetzteLadeDauer.TotalSeconds;
+            double proBildMs = gesamt / bilder * 1000.0;
+            double proSek = gesamt > 0.001 ? bilder / gesamt : 0;
+
+            // „Laden" ist über alle Fäden aufsummiert und deshalb nicht mit der
+            // Gesamtzeit verrechenbar – bei acht gleichzeitigen Bildern kann es
+            // grösser sein als die Wanduhrzeit. Darum als eigener Wert ausgewiesen,
+            // nicht als Anteil.
+            return $"  |  Messung: {bilder} neu · {_bildAnalyse.LetzteParallelitaet} gleichzeitig · "
+                 + $"gesamt {gesamt:F1} s · {proBildMs:F0} ms/Bild · {proSek:F1} Bilder/s · "
+                 + $"Laden {laden:F1} s (Summe aller Fäden)";
+        }
+
         /// <summary>Anzahl der indexierten Bilder, z. B. „1140 Bilder im Index".</summary>
         [ObservableProperty]
         private string _indexAnzahlText = "0 Bilder im Index";
@@ -3983,17 +4058,35 @@ namespace TestImage
                 // Metadaten-Markierungen). Eigener Fortschritt, damit die zweite Phase
                 // nicht wie ein Hänger nach „100 %" aussieht.
                 IndexFortschritt = 0;
+
+                // Eigene Uhr für diese Phase. Die Uhr des Indexierens läuft seit dem
+                // Start weiter; mit ihr gerechnet käme eine viel zu hohe Restzeit heraus,
+                // weil die verstrichene Zeit das Indexieren enthält, die Stückzahl aber
+                // nur die geprüften Bilder.
+                var wzUhr = System.Diagnostics.Stopwatch.StartNew();
+
                 var wzFortschritt = new Progress<(int Erledigt, int Gesamt)>(p =>
                 {
                     IndexFortschritt = p.Gesamt > 0 ? 100.0 * p.Erledigt / p.Gesamt : 0;
-                    IndexFortschrittText = $"Prüfe Wasserzeichen {p.Erledigt}/{p.Gesamt}…";
+
+                    int restSek = 0;
+                    if (p.Erledigt > 0 && p.Gesamt > 0)
+                    {
+                        double proSek = p.Erledigt / Math.Max(wzUhr.Elapsed.TotalSeconds, 0.001);
+                        restSek = (int)Math.Ceiling((p.Gesamt - p.Erledigt) / Math.Max(proSek, 0.001));
+                    }
+
+                    string restText = FormatiereRestzeit(restSek);
+                    IndexFortschrittText = restText.Length > 0
+                        ? $"Prüfe Wasserzeichen {p.Erledigt}/{p.Gesamt} – noch ~{restText}"
+                        : $"Prüfe Wasserzeichen {p.Erledigt}/{p.Gesamt}…";
                 });
 
                 await PruefeWasserzeichenAsync(ordner, wzFortschritt, token);
 
                 IndexFortschritt = 100;
                 IndexFortschrittText =
-                    $"Fertig: {anzahl} Bilder indexiert. {WasserzeichenStatus}";
+                    $"Fertig: {anzahl} Bilder indexiert. {WasserzeichenStatus}{IndexMessung()}";
                 AktualisiereFilterOptionen();
                 PruefeAktuellerOrdnerIndiziert();   // Index existiert jetzt → „Schema-ähnlich" freischalten
 
@@ -4170,19 +4263,78 @@ namespace TestImage
 
             // Nur die Treffer-Bilder in der Liste behalten (Reihenfolge = Ähnlichkeit).
             // Wiederherstellen über „Alle Bilder neu einlesen".
-            var nachPfad = ocAufgabens
-                .Where(b => b.BName != null)
-                .ToDictionary(b => b.BName, System.StringComparer.OrdinalIgnoreCase);
+            //
+            // Bewusst kein ToDictionary: Das wirft eine ArgumentException, sobald derselbe
+            // Pfad zweimal in der Liste steht. Ein doppelter Eintrag ist zwar ein Fehler
+            // an anderer Stelle, darf hier aber nicht zum Absturz führen — der erste
+            // gewinnt, der zweite wird übergangen.
+            var nachPfad = new System.Collections.Generic.Dictionary<string, MeinBildchen>(
+                StringComparer.OrdinalIgnoreCase);
 
-            var behalten = SuchErgebnisse
-                .Select(e => nachPfad.TryGetValue(e.Path, out var b) ? b : null)
-                .Where(b => b != null)
-                .ToList();
+            foreach (var b in ocAufgabens)
+            {
+                if (string.IsNullOrWhiteSpace(b.BName))
+                {
+                    continue;
+                }
+
+                if (!nachPfad.ContainsKey(b.BName))
+                {
+                    nachPfad[b.BName] = b;
+                }
+            }
+
+            var behalten = new System.Collections.Generic.List<MeinBildchen>(SuchErgebnisse.Count);
+
+            // Zusätzlich gegen Doppelungen sichern: Zwei Treffer können nach dem Abbilden
+            // auf die Liste denselben Pfad tragen. Ohne diese Prüfung landeten sie beide
+            // in ocAufgabens – und beim nächsten Übernehmen wäre der Pfad dann doppelt.
+            var schonDrin = new System.Collections.Generic.HashSet<string>(
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (var treffer in SuchErgebnisse)
+            {
+                if (string.IsNullOrWhiteSpace(treffer.Path) || !schonDrin.Add(treffer.Path))
+                {
+                    continue;
+                }
+
+                if (nachPfad.TryGetValue(treffer.Path, out var vorhanden))
+                {
+                    // Schon geladen: Eintrag mitsamt seinen Markierungen übernehmen.
+                    behalten.Add(vorhanden);
+                }
+                else if (File.Exists(treffer.Path))
+                {
+                    // Treffer aus einem anderen Ordner. Der Index umfasst mehrere Ordner,
+                    // ocAufgabens aber immer nur den gerade geladenen — solche Treffer
+                    // fielen hier bisher stillschweigend heraus, und genau deshalb kamen
+                    // nicht alle Bilder in der Liste an. Für sie wird ein Eintrag angelegt.
+                    behalten.Add(new MeinBildchen { BName = treffer.Path, BildFürLinks = false });
+                }
+
+                // Datei existiert nicht mehr (Index veraltet) → auslassen.
+            }
+
+            if (behalten.Count == 0)
+            {
+                return;
+            }
+
+            // Filter und Sortierung abschalten. Die übernommene Liste IST bereits das
+            // Ergebnis, in der Reihenfolge der Ähnlichkeit — bestes Bild zuerst.
+            //
+            // Der Filter würde sie wieder auseinanderreissen, und die natürliche
+            // Sortierung würde sie nach Dateinamen umstellen und damit die Rangfolge
+            // vernichten. Beides wird beim Neu-Einlesen zurückgesetzt, die
+            // Explorer-Reihenfolge im Normalbetrieb bleibt also erhalten.
+            AufgabenView.Filter = null;
+            AufgabenView.CustomSort = null;
 
             ocAufgabens.Clear();
             foreach (var b in behalten)
             {
-                ocAufgabens.Add(b!);
+                ocAufgabens.Add(b);
             }
 
             if (ocAufgabens.Count > 0)
@@ -4581,7 +4733,6 @@ namespace TestImage
         /// </summary>
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteSchemaAehnlichCommand))]
-        [NotifyCanExecuteChangedFor(nameof(CommandExecuteSerieSucheCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteErweiterteSerieSucheCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteDublettenCommand))]
         private bool _aktuellerOrdnerIndiziert;
@@ -4659,6 +4810,9 @@ namespace TestImage
                 var treffer = await _bildAnalyse.SucheNachSerieAsync(
                     ordner, bildPfad, topN: 200, minSim: SchemaKandidatenFloor, token,
                     kalibrierKomponenten: SchemaKalibrierungAktiv ? SchemaKalibrierungKomponenten : -1);
+
+                treffer = AufListeAbbilden(treffer);
+
                 if (treffer.Count <= 1)
                 {
                     ErgebnisseSindSchemaAehnlich = true;
@@ -4689,6 +4843,113 @@ namespace TestImage
         /// (Fortschritt + Restzeit in der Statuszeile). Die Anzeige selbst übernimmt
         /// danach <see cref="RenderSchemaAehnlich"/> nach dem Slider-Wert.
         /// </summary>
+        /// <summary>
+        /// Baut einen Vorauslader für Trefferminiaturen.
+        ///
+        /// Der zurückgegebene Aufruf liefert die Miniaturen **in der Reihenfolge der
+        /// Trefferliste**, dekodiert aber bis zu <see cref="Environment.ProcessorCount"/>
+        /// Bilder im Voraus. Damit bleibt die Anzeige fortlaufend und sortiert, während
+        /// die Kerne ausgelastet werden.
+        ///
+        /// Absichtlich kein <c>Parallel.ForEach</c>: Das würde die Reihenfolge aufgeben,
+        /// und genau die ist hier die Zusage an den Nutzer — bestes Bild zuerst.
+        /// </summary>
+        private Func<Task<ImageSource?>> ErzeugeVorauslader(
+            System.Collections.Generic.IReadOnlyList<(string Path, float Score)> treffer,
+            CancellationToken token)
+        {
+            int fenster = Math.Max(1, Environment.ProcessorCount);
+            var laufend = new System.Collections.Generic.Queue<Task<ImageSource?>>(fenster);
+            int naechster = 0;
+
+            void Nachfuellen()
+            {
+                while (laufend.Count < fenster && naechster < treffer.Count)
+                {
+                    string pfad = treffer[naechster++].Path;
+                    laufend.Enqueue(Task.Run(() => LadeThumb(pfad), token));
+                }
+            }
+
+            Nachfuellen();
+
+            return async () =>
+            {
+                if (laufend.Count == 0)
+                {
+                    return null;
+                }
+
+                var fertig = laufend.Dequeue();
+                Nachfuellen();   // Lücke sofort wieder auffüllen, damit nie ein Kern leerläuft
+                return await fertig;
+            };
+        }
+
+        /// <summary>
+        /// Bildet Index-Treffer auf die aktuelle Bildliste ab.
+        ///
+        /// Der Index kennt die Pfade vom Zeitpunkt des Indexierens. Diese App verschiebt
+        /// Bilder aber – nach <c>kein_Fav</c> etwa –, und dabei bleibt der Eintrag in
+        /// <c>ocAufgabens</c> erhalten, bekommt jedoch den neuen Pfad. Index und Liste
+        /// laufen also mit jedem Verschieben weiter auseinander.
+        ///
+        /// Deshalb hier drei Fälle:
+        /// 1. Pfad steht so in der Liste → unverändert übernehmen.
+        /// 2. Pfad nicht, aber der Dateiname → das Bild wurde verschoben; der Treffer
+        ///    bekommt den aktuellen Pfad und bleibt damit anklickbar.
+        /// 3. Weder noch → die Datei ist fort. Weglassen; sie erschien bisher als
+        ///    schwarzes, leeres Kästchen in den Ergebnissen.
+        /// </summary>
+        private System.Collections.Generic.IReadOnlyList<(string Path, float Score)> AufListeAbbilden(
+            System.Collections.Generic.IReadOnlyList<(string Path, float Score)> treffer)
+        {
+            var nachPfad = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var nachName = new System.Collections.Generic.Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var bild in ocAufgabens)
+            {
+                if (string.IsNullOrWhiteSpace(bild.BName))
+                {
+                    continue;
+                }
+
+                nachPfad.Add(bild.BName);
+
+                string name = Path.GetFileName(bild.BName);
+                if (!nachName.ContainsKey(name))
+                {
+                    nachName[name] = bild.BName;
+                }
+            }
+
+            var ergebnis = new System.Collections.Generic.List<(string Path, float Score)>(treffer.Count);
+
+            // Das Abbilden kann zwei Treffer auf denselben Pfad führen – etwa wenn der
+            // Index sowohl den alten Pfad als auch den in kein_Fav kennt. Der bessere
+            // Wert steht wegen der Sortierung zuerst, der zweite wird übergangen.
+            var schonDrin = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var t in treffer)
+            {
+                if (nachPfad.Contains(t.Path))
+                {
+                    if (schonDrin.Add(t.Path))
+                    {
+                        ergebnis.Add(t);
+                    }
+                }
+                else if (nachName.TryGetValue(Path.GetFileName(t.Path), out string? neuerPfad)
+                         && File.Exists(neuerPfad)
+                         && schonDrin.Add(neuerPfad))
+                {
+                    ergebnis.Add((neuerPfad, t.Score));
+                }
+            }
+
+            return ergebnis;
+        }
+
         private async Task LadeSchemaKandidatenAsync(
             System.Collections.Generic.IReadOnlyList<(string Path, float Score)> treffer, CancellationToken token)
         {
@@ -4708,11 +4969,22 @@ namespace TestImage
             int angezeigt = 0;
             var uhr = System.Diagnostics.Stopwatch.StartNew();
 
+            // Vorausladen mit fester Fenstergrösse.
+            //
+            // Bisher wurde je Bild ein Task gestartet und sofort abgewartet – also
+            // nacheinander, ein Kern. Jetzt laufen bis zu ProcessorCount Dekodierungen
+            // gleichzeitig, abgewartet wird aber weiterhin streng der Reihe nach.
+            //
+            // Die Reihenfolge ist hier kein Schönheitsfehler, sondern die Zusage: Der
+            // Kandidatensatz ist absteigend sortiert, die besten Treffer sollen zuerst
+            // erscheinen. Ein einfaches Parallel.ForEach würde sie durcheinanderwürfeln.
+            var vorauslader = ErzeugeVorauslader(treffer, token);
+
             for (int i = 0; i < gesamt; i++)
             {
                 token.ThrowIfCancellationRequested();
                 var t = treffer[i];
-                var thumb = await Task.Run(() => LadeThumb(t.Path), token);
+                var thumb = await vorauslader();
 
                 var erg = new SuchErgebnis
                 {
@@ -4790,67 +5062,6 @@ namespace TestImage
                 : $"{gezeigt} schema-ähnliche Bilder (≥ {SchemaAehnlichkeitProzent:F0} %, niedrigster {niedrigster * 100f:F0} %{luecke}).{modus}";
 
             CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
-        }
-
-        private bool CanExecuteSerieSuche()
-        {
-            return SelectedBildchen != null
-                && !string.IsNullOrEmpty(SelectedBildchen.BName)
-                && AktuellerOrdnerIndiziert   // ohne Index liefert SucheNachSerieAsync nichts
-                && !SerieSucheLaeuft;
-        }
-
-        [RelayCommand(CanExecute = nameof(CanExecuteSerieSuche), IncludeCancelCommand = true)]
-        private async Task CommandExecuteSerieSuche(CancellationToken token)
-        {
-            string? bildPfad = SelectedBildchen?.BName;
-            if (string.IsNullOrEmpty(bildPfad))
-            {
-                return;
-            }
-
-            string? ordner = Path.GetDirectoryName(bildPfad);
-            if (string.IsNullOrEmpty(ordner))
-            {
-                return;
-            }
-
-            SuchErgebnisse.Clear();
-            LeereTrefferCache();
-            CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
-            ErgebnisseSindSchemaAehnlich = false;   // andere Suche → Schema-Slider ausblenden
-            SucheStatus = $"Suche Serie für '{Path.GetFileName(bildPfad)}'…";
-            SerieFortschritt = 0;
-            SerieIndeterminate = true;   // Marquee: Suche läuft, Dauer unbekannt
-            SerieSucheLaeuft = true;
-
-            try
-            {
-                await StelleClipBereitAsync();
-
-                var treffer = await _bildAnalyse.SucheNachSerieAsync(
-                    ordner, bildPfad, topN: 80, minSim: 0.85f, token);
-                if (treffer.Count <= 1)
-                {
-                    SucheStatus = "Keine Serie gefunden – Bild hat keine visuell ähnlichen Nachbarn.";
-                    return;
-                }
-
-                _letzteFrage = "Serie: " + Path.GetFileName(bildPfad);
-                await ZeigeSerieTrefferAsync(treffer, token);
-
-                SucheStatus = $"{treffer.Count} Bilder in Serie (≥ 85 % Ähnlichkeit).";
-                CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
-            }
-            catch (OperationCanceledException)
-            {
-                SucheStatus = "Seriensuche abgebrochen.";
-            }
-            catch (Exception ex)
-            {
-                SucheStatus = "Fehler bei Seriensuche: " + ex.Message;
-            }
-            finally { SerieSucheLaeuft = false; }
         }
 
         private bool CanExecuteErweiterteSerieSuche()
@@ -4947,11 +5158,16 @@ namespace TestImage
             int gesamt = treffer.Count;
             var uhr = System.Diagnostics.Stopwatch.StartNew();
 
+            // Vorausladen wie bei den Schema-Kandidaten: mehrere Dekodierungen
+            // gleichzeitig, abgewartet der Reihe nach – die Sortierung nach Ähnlichkeit
+            // bleibt erhalten.
+            var vorauslader = ErzeugeVorauslader(treffer, token);
+
             for (int i = 0; i < gesamt; i++)
             {
                 token.ThrowIfCancellationRequested();
                 var t = treffer[i];
-                var thumb = await Task.Run(() => LadeThumb(t.Path), token);
+                var thumb = await vorauslader();
 
                 var erg = new SuchErgebnis
                 {
@@ -5008,8 +5224,38 @@ namespace TestImage
             {
                 PrüfungLäuft = true;
 
+                // Filter und Sortierung wieder scharf schalten. „In Liste übernehmen"
+                // hatte beide abgeschaltet, damit die Trefferliste in ihrer Rangfolge
+                // stehen bleibt. Ab hier gilt wieder die Explorer-Reihenfolge.
+                //
+                // Beim Filter zuweisen statt +=, sonst hinge das Prädikat nach jedem
+                // Einlesen ein weiteres Mal daran.
+                AufgabenView.Filter = PersonViewSource_Filter;
+                AufgabenView.CustomSort = new NaturalStringComparer();
+
+                // Vom zuletzt gewählten Bild ausgehen, nicht vom ursprünglich abgelegten.
+                //
+                // OnFileDrop zeigt den übergebenen Pfad sofort an und wählt ihn danach
+                // aus. Mit DropDateiName sähe man beim Aktualisieren also kurz das alte
+                // Drop-Bild aufblitzen und erst danach das Bild, bei dem man steht.
+                //
+                // Nur, wenn die Datei noch existiert und im selben Ordner liegt: Ein
+                // bereits nach kein_Fav verschobenes Bild würde sonst den Unterordner
+                // einlesen statt den eigentlichen.
+                string startPfad = DropDateiName;
+
+                if (!string.IsNullOrEmpty(zuvorGewaehlt)
+                    && File.Exists(zuvorGewaehlt)
+                    && string.Equals(
+                        Path.GetDirectoryName(zuvorGewaehlt),
+                        Path.GetDirectoryName(DropDateiName),
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    startPfad = zuvorGewaehlt;
+                }
+
                 // OnFileDrop(string[] filepaths) neu initialisieren, um die Bilder neu einzulesen
-                var dateien = new string[] { DropDateiName };
+                var dateien = new string[] { startPfad };
 
                 // Derselbe Ordner wird neu eingelesen – Trefferliste bleibt gültig.
                 await OnFileDrop(dateien, verwerfeSuchtreffer: false);
@@ -5022,14 +5268,22 @@ namespace TestImage
             // Zuletzt gewähltes Bild wieder auswählen. OnFileDrop legt neue MeinBildchen-
             // Instanzen an, daher über den Pfad (BName) suchen statt über die Referenz.
             // Das Setzen von SelectedBildchen aktualisiert Anzeige und zentriert die Miniatur.
-            if (!string.IsNullOrEmpty(zuvorGewaehlt))
-            {
-                var wieder = OcAufgabens.FirstOrDefault(
+            var wieder = string.IsNullOrEmpty(zuvorGewaehlt)
+                ? null
+                : OcAufgabens.FirstOrDefault(
                     b => string.Equals(b.BName, zuvorGewaehlt, StringComparison.OrdinalIgnoreCase));
-                if (wieder != null)
-                {
-                    SelectedBildchen = wieder;
-                }
+
+            if (wieder != null)
+            {
+                SelectedBildchen = wieder;
+            }
+            else if (OcAufgabens.Count > 0)
+            {
+                // Das zuletzt gewählte Bild ist nicht mehr da – etwa weil es gerade
+                // verschoben wurde. Dann auf das erste Bild gehen, statt die Auswahl
+                // stehen zu lassen: Sie zeigte sonst auf einen Eintrag, den es in der
+                // neu eingelesenen Liste nicht mehr gibt.
+                AufgabenView.MoveCurrentToFirst();
             }
         }
 

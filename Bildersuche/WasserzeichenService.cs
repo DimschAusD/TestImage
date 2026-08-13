@@ -234,18 +234,38 @@ namespace TestImage.Bildersuche
 
             var masken = HoleMasken();
 
+            // Wie beim Indexieren mehrere Bilder gleichzeitig: Jedes Bild wird für sich
+            // geladen und gerechnet, es gibt keine gemeinsamen Zwischenstände. Der Aufwand
+            // liegt im Dekodieren und in der Korrelation, beides skaliert über die Kerne.
+            int grad = Math.Max(1, Environment.ProcessorCount);
+            var gesammelt = new System.Collections.Concurrent.ConcurrentDictionary<string, WasserzeichenBefund>(
+                StringComparer.OrdinalIgnoreCase);
+
+            int erledigt = 0;
+
             await Task.Run(() =>
             {
-                for (int i = 0; i < dateien.Count; i++)
-                {
-                    token.ThrowIfCancellationRequested();
+                Parallel.ForEach(
+                    dateien,
+                    new ParallelOptions { MaxDegreeOfParallelism = grad },
+                    datei =>
+                    {
+                        // Abbruch ohne Ausnahme, damit die bereits geprüften Bilder
+                        // erhalten bleiben – wie beim Indexieren.
+                        if (token.IsCancellationRequested)
+                            return;
 
-                    var befund = PruefeDatei(dateien[i], masken);
-                    ergebnis[befund.Pfad] = befund;
+                        var befund = PruefeDatei(datei, masken);
+                        gesammelt[befund.Pfad] = befund;
 
-                    fortschritt?.Report((i + 1, dateien.Count));
-                }
+                        fortschritt?.Report((Interlocked.Increment(ref erledigt), dateien.Count));
+                    });
             }, token).ConfigureAwait(false);
+
+            token.ThrowIfCancellationRequested();
+
+            foreach (var paar in gesammelt)
+                ergebnis[paar.Key] = paar.Value;
 
             Speichere(ordner, ergebnis);
             return ergebnis;
@@ -263,13 +283,23 @@ namespace TestImage.Bildersuche
             float beste = 0f;
             string besterName = string.Empty;
 
-            foreach (var maske in masken)
+            // Die Datei einmal dekodieren und alle Muster gegen dasselbe Bild prüfen.
+            //
+            // Vorher rief jede Maske Pruefe(pfad) auf, und das lud die Datei jedes Mal
+            // neu — bei drei Mustern also dreimal dekodieren je Bild. Das ist beim
+            // Umbau auf mehrere Muster hineingerutscht.
+            var bild = LadeBild(pfad);
+
+            if (bild is not null)
             {
-                float wert = maske.Pruefe(pfad);
-                if (wert > beste)
+                foreach (var maske in masken)
                 {
-                    beste = wert;
-                    besterName = maske.Name;
+                    float wert = maske.Pruefe(bild);
+                    if (wert > beste)
+                    {
+                        beste = wert;
+                        besterName = maske.Name;
+                    }
                 }
             }
 
@@ -279,6 +309,28 @@ namespace TestImage.Bildersuche
 
             befund.MetadatenHinweise = MetadatenPruefer.Pruefe(pfad).ToList();
             return befund;
+        }
+
+        /// <summary>
+        /// Lädt das Bild einmal, eingefroren, damit es über Fadengrenzen hinweg benutzt
+        /// werden darf. <c>null</c>, wenn die Datei nicht lesbar ist.
+        /// </summary>
+        private static System.Windows.Media.Imaging.BitmapSource? LadeBild(string pfad)
+        {
+            try
+            {
+                var bmp = new System.Windows.Media.Imaging.BitmapImage();
+                bmp.BeginInit();
+                bmp.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                bmp.UriSource = new Uri(pfad);
+                bmp.EndInit();
+                bmp.Freeze();
+                return bmp;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         #endregion

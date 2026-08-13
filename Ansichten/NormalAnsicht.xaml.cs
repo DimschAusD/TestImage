@@ -29,6 +29,19 @@ namespace TestImage.Ansichten
                 if (DataContext is AufgabeViewModel vm)
                     vm.PropertyChanged += OnVmPropertyChanged;
             };
+
+            // Beim Zurückkehren aus dem Bildmodus das aktuelle Bild wieder zentrieren.
+            //
+            // Solange diese Ansicht eingeklappt ist, überspringt das Zentrier-Verhalten
+            // jede Auswahländerung — die unsichtbare Leiste hat weder Sichtfenster noch
+            // erzeugte Behälter. Im Vollbild kann man aber blättern und Bilder
+            // verschieben; die Leiste steht danach irgendwo. Ohne diesen Aufruf bliebe
+            // sie dort stehen. Die Vollbildansicht macht es umgekehrt genauso.
+            Listbox_MiniaturBilder.IsVisibleChanged += (_, e) =>
+            {
+                if (e.NewValue is true)
+                    HorizontalListBoxBehavior.CenterNow(Listbox_MiniaturBilder);
+            };
         }
 
         /// <summary>
@@ -52,6 +65,23 @@ namespace TestImage.Ansichten
         {
             if (e.PropertyName == nameof(AufgabeViewModel.DisplayImage))
                 EinblendenBild();
+        }
+
+        /// <summary>
+        /// Senkrechtes Wackeln des Bildes – Rückmeldung, wenn das Verschieben nach unten
+        /// gerade nicht geht. Gleiche Bewegung wie das waagerechte Wackeln der
+        /// Vollbildansicht; der Transform dafür sitzt bereits auf <c>imgCurrent</c>.
+        /// </summary>
+        public void ShakeImageSenkrecht(bool nachUnten)
+        {
+            double d = nachUnten ? 1 : -1;
+            var anim = new DoubleAnimationUsingKeyFrames();
+            anim.KeyFrames.Add(new EasingDoubleKeyFrame(d * 14, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(55))));
+            anim.KeyFrames.Add(new EasingDoubleKeyFrame(d * -10, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(120))));
+            anim.KeyFrames.Add(new EasingDoubleKeyFrame(d * 7, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(185))));
+            anim.KeyFrames.Add(new EasingDoubleKeyFrame(d * -4, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(245))));
+            anim.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(300))));
+            imgShakeTransform.BeginAnimation(TranslateTransform.YProperty, anim);
         }
 
         /// <summary>Blendet das aktuelle Bild bei jedem Bildwechsel sanft ein.</summary>
