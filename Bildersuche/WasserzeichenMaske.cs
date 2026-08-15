@@ -9,6 +9,34 @@ using System.Windows.Media.Imaging;
 
 namespace TestImage.Bildersuche
 {
+    /// <summary>
+    /// Stelle im Bild, an der das Zeichen sitzt.
+    ///
+    /// Ein Muster ist nicht nur eine Pixelverteilung, sondern auch ein Ort: Das
+    /// DeviantArt-Zeichen liegt mittig, ein Patreon-Schriftzug dagegen oben rechts. Ohne
+    /// diese Angabe würde die Prüfung an der falschen Stelle suchen und nichts finden.
+    ///
+    /// <b>Reihenfolge nicht ändern</b> — die Werte werden als Zahl gespeichert, und die
+    /// Auswahlliste in der Oberfläche hängt am selben Index.
+    /// </summary>
+    public enum WasserzeichenBereich
+    {
+        Mitte = 0,
+        ObenLinks = 1,
+        ObenRechts = 2,
+        UntenLinks = 3,
+        UntenRechts = 4,
+
+        /// <summary>
+        /// Nur beim Lernen zulässig: alle Stellen durchprobieren und die mit dem
+        /// deutlichsten Muster behalten. Am Ende steht in der Maske immer eine der
+        /// konkreten Stellen — sonst müsste die Prüfung fünf Ausschnitte je Bild rechnen.
+        ///
+        /// Bewusst hinten angehängt: Die Zahlen stehen so in gespeicherten Mustern.
+        /// </summary>
+        Alle = 5
+    }
+
     /// <summary>Vorverarbeitung, mit der Muster und Prüfbild aufbereitet werden.</summary>
     public enum WasserzeichenVorverarbeitung
     {
@@ -75,6 +103,33 @@ namespace TestImage.Bildersuche
         public WasserzeichenVorverarbeitung Modus { get; }
 
         /// <summary>
+        /// Stelle im Bild, an der dieses Muster gelernt wurde. Beim Prüfen wird derselbe
+        /// Ausschnitt genommen — sonst sucht die Prüfung an der falschen Stelle.
+        /// </summary>
+        public WasserzeichenBereich Bereich { get; set; } = WasserzeichenBereich.Mitte;
+
+        /// <summary>
+        /// Eigene Erkennungsschwelle dieses Musters, beim Lernen eingemessen.
+        /// 0 heisst „nicht gesetzt" — dann gilt der allgemeine Wert.
+        ///
+        /// Nötig, weil der erreichbare Wert davon abhängt, wie viel von der Ausschnitts-
+        /// fläche das Zeichen füllt: Ein bildfüllendes Zeichen erreicht ein Vielfaches
+        /// dessen, was ein Banner in der Ecke erreicht, das rund 7 % der Fläche belegt.
+        /// Eine gemeinsame Schwelle für beide kann nur falsch sein.
+        /// </summary>
+        public float Schwelle { get; set; }
+
+        /// <summary>Bezeichnung des Bereichs für die Anzeige.</summary>
+        public string BereichName => Bereich switch
+        {
+            WasserzeichenBereich.ObenLinks => "oben links",
+            WasserzeichenBereich.ObenRechts => "oben rechts",
+            WasserzeichenBereich.UntenLinks => "unten links",
+            WasserzeichenBereich.UntenRechts => "unten rechts",
+            _ => "Mitte"
+        };
+
+        /// <summary>
         /// Anteil der Pixel, die über die Beispielbilder stabil geblieben sind.
         /// Niedrige Werte heissen: Die Beispiele hatten wenig gemeinsam — das Muster
         /// taugt dann wenig.
@@ -86,6 +141,36 @@ namespace TestImage.Bildersuche
                 double summe = 0;
                 for (int i = 0; i < _gewicht.Length; i++) summe += _gewicht[i];
                 return summe / _gewicht.Length;
+            }
+        }
+
+        /// <summary>
+        /// Wie deutlich das Muster ist: Streuung des gewichteten Musters.
+        ///
+        /// Damit lässt sich die richtige Stelle finden, wenn man sie nicht kennt. Eine
+        /// leere oder gleichmässig dunkle Ecke mittelt sich zu einer flachen Fläche und
+        /// bekommt hier fast null — auch wenn dort viele Bildpunkte „stabil" waren.
+        /// Der <see cref="StabilerAnteil"/> allein taugt dafür also nicht.
+        /// </summary>
+        public double MusterStaerke
+        {
+            get
+            {
+                int n = _muster.Length;
+                if (n == 0) return 0;
+
+                double mittel = 0;
+                for (int i = 0; i < n; i++) mittel += _muster[i] * _gewicht[i];
+                mittel /= n;
+
+                double quadrate = 0;
+                for (int i = 0; i < n; i++)
+                {
+                    double d = _muster[i] * _gewicht[i] - mittel;
+                    quadrate += d * d;
+                }
+
+                return Math.Sqrt(quadrate / n);
             }
         }
 
@@ -107,24 +192,57 @@ namespace TestImage.Bildersuche
             IEnumerable<string> dateien,
             IProgress<(int Erledigt, int Gesamt)>? fortschritt = null,
             CancellationToken token = default,
-            WasserzeichenVorverarbeitung modus = WasserzeichenVorverarbeitung.Hochpass)
+            WasserzeichenVorverarbeitung modus = WasserzeichenVorverarbeitung.Hochpass,
+            WasserzeichenBereich bereich = WasserzeichenBereich.Mitte)
         {
             var liste = new List<string>(dateien);
             if (liste.Count < 5)
                 return null;   // zu wenige Beispiele, das Muster bliebe verrauscht
 
-            var summe = new double[Kante * Kante];
-            var summeQuadrat = new double[Kante * Kante];
-            int gezaehlt = 0;
+            // Merkmalsfelder einmal berechnen und behalten. Bei 96×96 sind das rund
+            // 37 KB je Bild – ein guter Tausch gegen weitere Dekodierdurchläufe, denn
+            // darauf bauen auch das Einmessen der Schwelle und das Aufteilen in zwei
+            // Muster auf.
+            var felder = new List<float[]>(liste.Count);
 
             for (int i = 0; i < liste.Count; i++)
             {
                 token.ThrowIfCancellationRequested();
 
-                var feld = LadeMerkmalsfeld(liste[i], modus);
-                if (feld is null)
-                    continue;
+                var feld = LadeMerkmalsfeld(liste[i], modus, bereich);
+                if (feld is not null)
+                    felder.Add(feld);
 
+                fortschritt?.Report((i + 1, liste.Count));
+            }
+
+            return LerneAusFeldern(felder, modus, bereich);
+        }
+
+        /// <summary>Merkmalsfeld eines Bildes – für Aufrufer, die mehrfach damit rechnen wollen.</summary>
+        internal static float[]? Merkmalsfeld(
+            string pfad, WasserzeichenVorverarbeitung modus, WasserzeichenBereich bereich)
+            => LadeMerkmalsfeld(pfad, modus, bereich);
+
+        /// <summary>Prüft ein bereits berechnetes Merkmalsfeld – ohne erneutes Laden.</summary>
+        internal float Pruefe(float[] feld) => Korrelation(feld);
+
+        /// <summary>
+        /// Der eigentliche Lernschritt auf fertigen Merkmalsfeldern. Getrennt vom Laden,
+        /// damit dieselben Felder mehrfach verwendet werden können — etwa beim Aufteilen
+        /// eines Ordners in zwei Muster.
+        /// </summary>
+        internal static WasserzeichenMaske? LerneAusFeldern(
+            IReadOnlyList<float[]> felder,
+            WasserzeichenVorverarbeitung modus,
+            WasserzeichenBereich bereich)
+        {
+            var summe = new double[Kante * Kante];
+            var summeQuadrat = new double[Kante * Kante];
+            int gezaehlt = 0;
+
+            foreach (var feld in felder)
+            {
                 for (int p = 0; p < summe.Length; p++)
                 {
                     summe[p] += feld[p];
@@ -132,7 +250,6 @@ namespace TestImage.Bildersuche
                 }
 
                 gezaehlt++;
-                fortschritt?.Report((i + 1, liste.Count));
             }
 
             if (gezaehlt < 5)
@@ -151,7 +268,52 @@ namespace TestImage.Bildersuche
             }
 
             ZentriereAufMittelwert(muster);
-            return new WasserzeichenMaske(muster, BerechneGewichte(varianz), gezaehlt, modus);
+
+            var maske = new WasserzeichenMaske(muster, BerechneGewichte(varianz), gezaehlt, modus)
+            {
+                Bereich = bereich
+            };
+
+            maske.Schwelle = MesseSchwelle(maske, felder);
+            return maske;
+        }
+
+        /// <summary>
+        /// Untergrenze der Schwelle. Unmarkierte Bilder lagen bei der Einmessung zwischen
+        /// −0,071 und 0,050 — darunter fischt jede Schwelle im Rauschen, egal wie schwach
+        /// das Zeichen ist.
+        /// </summary>
+        private const float SchwelleUntergrenze = 0.06f;
+
+        /// <summary>Sicherheitsabstand nach unten: Unbekannte Bilder liegen oft etwas tiefer als die Beispiele.</summary>
+        private const float SchwelleAbschlag = 0.75f;
+
+        /// <summary>
+        /// Misst die Schwelle dieses Musters an seinen eigenen Beispielen.
+        ///
+        /// Beim Lernen weiss man etwas, das später fehlt: Alle Beispiele tragen das
+        /// Zeichen. Also verrät ihre Verteilung, welche Werte dieses Zeichen überhaupt
+        /// erreicht — bildfüllend deutlich mehr als ein Banner in der Ecke.
+        ///
+        /// Genommen wird das zehnte Perzentil, damit ein einzelner Ausreisser die
+        /// Schwelle nicht verdirbt.
+        /// </summary>
+        private static float MesseSchwelle(WasserzeichenMaske maske, IReadOnlyList<float[]> felder)
+        {
+            if (felder.Count == 0)
+                return 0f;   // 0 heisst „nicht gesetzt" – dann gilt der allgemeine Wert
+
+            var werte = new List<float>(felder.Count);
+            foreach (var feld in felder)
+                werte.Add(maske.Korrelation(feld));
+
+            werte.Sort();
+
+            int index = (int)(werte.Count * 0.10);
+            if (index >= werte.Count) index = werte.Count - 1;
+
+            float schwelle = werte[index] * SchwelleAbschlag;
+            return Math.Clamp(schwelle, SchwelleUntergrenze, 0.9f);
         }
 
         /// <summary>
@@ -190,14 +352,14 @@ namespace TestImage.Bildersuche
         /// </summary>
         public float Pruefe(string bildPfad)
         {
-            var feld = LadeMerkmalsfeld(bildPfad, Modus);
+            var feld = LadeMerkmalsfeld(bildPfad, Modus, Bereich);
             return feld is null ? 0f : Korrelation(feld);
         }
 
         /// <summary>Wie <see cref="Pruefe(string)"/>, aber für ein bereits geladenes Bild.</summary>
         public float Pruefe(BitmapSource bild)
         {
-            var feld = MacheMerkmalsfeld(bild, Modus);
+            var feld = MacheMerkmalsfeld(bild, Modus, Bereich);
             return feld is null ? 0f : Korrelation(feld);
         }
 
@@ -245,7 +407,8 @@ namespace TestImage.Bildersuche
 
         #region Bildaufbereitung
 
-        private static float[]? LadeMerkmalsfeld(string pfad, WasserzeichenVorverarbeitung modus)
+        private static float[]? LadeMerkmalsfeld(
+            string pfad, WasserzeichenVorverarbeitung modus, WasserzeichenBereich bereich)
         {
             try
             {
@@ -256,7 +419,7 @@ namespace TestImage.Bildersuche
                 bmp.EndInit();
                 bmp.Freeze();
 
-                return MacheMerkmalsfeld(bmp, modus);
+                return MacheMerkmalsfeld(bmp, modus, bereich);
             }
             catch
             {
@@ -264,8 +427,9 @@ namespace TestImage.Bildersuche
             }
         }
 
-        /// <summary>Mittelausschnitt schneiden, auf Arbeitsgrösse bringen, Filter anwenden.</summary>
-        private static float[]? MacheMerkmalsfeld(BitmapSource quelle, WasserzeichenVorverarbeitung modus)
+        /// <summary>Ausschnitt schneiden, auf Arbeitsgrösse bringen, Filter anwenden.</summary>
+        private static float[]? MacheMerkmalsfeld(
+            BitmapSource quelle, WasserzeichenVorverarbeitung modus, WasserzeichenBereich bereich)
         {
             try
             {
@@ -274,8 +438,20 @@ namespace TestImage.Bildersuche
                 if (s < 8)
                     return null;
 
-                int x = (quelle.PixelWidth - s) / 2;
-                int y = (quelle.PixelHeight - s) / 2;
+                // Der Ausschnitt sitzt dort, wo das Muster gelernt wurde. Bei einem
+                // hochkantigen Bild deckt ein Eckquadrat gut ein Drittel der Höhe ab –
+                // genug, um einen Schriftzug in der Ecke sicher einzufangen.
+                (int x, int y) = bereich switch
+                {
+                    WasserzeichenBereich.ObenLinks => (0, 0),
+                    WasserzeichenBereich.ObenRechts => (quelle.PixelWidth - s, 0),
+                    WasserzeichenBereich.UntenLinks => (0, quelle.PixelHeight - s),
+                    WasserzeichenBereich.UntenRechts => (quelle.PixelWidth - s, quelle.PixelHeight - s),
+                    _ => ((quelle.PixelWidth - s) / 2, (quelle.PixelHeight - s) / 2)
+                };
+
+                x = Math.Max(0, x);
+                y = Math.Max(0, y);
 
                 var ausschnitt = new CroppedBitmap(quelle, new Int32Rect(x, y, s, s));
 
@@ -477,6 +653,13 @@ namespace TestImage.Bildersuche
             public int Grundmenge { get; set; }
             public string Name { get; set; } = string.Empty;
             public WasserzeichenVorverarbeitung Modus { get; set; }
+
+            /// <summary>Fehlt in Dateien vor der Bereichswahl – dann gilt die Mitte, wie bisher.</summary>
+            public WasserzeichenBereich Bereich { get; set; } = WasserzeichenBereich.Mitte;
+
+            /// <summary>Eigene Schwelle; 0 in alten Dateien – dann gilt der allgemeine Wert.</summary>
+            public float Schwelle { get; set; }
+
             public float[] Muster { get; set; } = Array.Empty<float>();
 
             /// <summary>Fehlt in Dateien der ersten Fassung – dann zählen alle Pixel gleich.</summary>
@@ -489,6 +672,8 @@ namespace TestImage.Bildersuche
             Grundmenge = Grundmenge,
             Name = Name,
             Modus = Modus,
+            Bereich = Bereich,
+            Schwelle = Schwelle,
             Muster = _muster,
             Gewicht = _gewicht
         };
@@ -513,7 +698,9 @@ namespace TestImage.Bildersuche
 
             return new WasserzeichenMaske(daten.Muster, gewicht, daten.Grundmenge, daten.Modus)
             {
-                Name = daten.Name
+                Name = daten.Name,
+                Bereich = daten.Bereich,
+                Schwelle = daten.Schwelle
             };
         }
 

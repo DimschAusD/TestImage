@@ -12,45 +12,6 @@ namespace TestImage.Bildersuche
             InitializeComponent();
         }
 
-        // --- Griffleiste: Panel im Popup mit der Maus verschieben ---
-        // Das Panel ist das Child eines Popups; verschoben wird über dessen
-        // Horizontal-/VerticalOffset. Als Bezug dient die Maus-Bildschirmposition,
-        // damit das Ziehen stabil bleibt, während sich das Panel mitbewegt.
-        private bool _zieht;
-        private Point _startMausScreen;
-        private double _startOffsetH;
-        private double _startOffsetV;
-
-        private void Griffleiste_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            if (Parent is not Popup popup) return;
-
-            _zieht = true;
-            _startMausScreen = PointToScreen(e.GetPosition(this));
-            _startOffsetH = popup.HorizontalOffset;
-            _startOffsetV = popup.VerticalOffset;
-            BRD_Griffleiste.CaptureMouse();
-            e.Handled = true;
-        }
-
-        private void Griffleiste_MouseMove(object sender, MouseEventArgs e)
-        {
-            if (!_zieht || Parent is not Popup popup) return;
-
-            Point jetztScreen = PointToScreen(e.GetPosition(this));
-            popup.HorizontalOffset = _startOffsetH + (jetztScreen.X - _startMausScreen.X);
-            popup.VerticalOffset = _startOffsetV + (jetztScreen.Y - _startMausScreen.Y);
-        }
-
-        private void Griffleiste_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-        {
-            if (!_zieht) return;
-
-            _zieht = false;
-            BRD_Griffleiste.ReleaseMouseCapture();
-            e.Handled = true;
-        }
-
         private void TXT_Suche_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key != Key.Tab) return;

@@ -1,10 +1,12 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using CommunityToolkit.Mvvm.ComponentModel;
 using TestImage.Bildersuche;
 
 namespace TestImage
@@ -26,6 +28,50 @@ namespace TestImage
         #region Zustand
 
         public ObservableCollection<ZeitAbschnitt> Zeitleiste { get; } = new();
+
+        /// <summary>
+        /// Feines Band: ein Balken je Monat über den ganzen Zeitraum, Jahre als
+        /// Abschnitte. Ergänzt die grobe Leiste um die Verteilung innerhalb der Jahre.
+        /// </summary>
+        public ObservableCollection<ZeitBalken> ZeitBand { get; } = new();
+
+        /// <summary>
+        /// True, wenn ein feines Band überhaupt gebaut werden konnte.
+        /// </summary>
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteZeitleisteUmschaltenCommand))]
+        private bool _zeitBandVorhanden;
+
+        /// <summary>
+        /// Welche der beiden Übersichten gezeigt wird: true = feines Monatsband,
+        /// false = grobe Leiste.
+        ///
+        /// Wird beim Aufbau selbsttätig gesetzt — mehrere Jahre sprechen für das Band,
+        /// ein einzelnes für die Monatsleiste. Von Hand umschaltbar bleibt es trotzdem;
+        /// die Wahl gilt dann bis zum nächsten Ordnerwechsel.
+        /// </summary>
+        [ObservableProperty]
+        private bool _zeitBandBevorzugt;
+
+        private bool CanExecuteZeitleisteUmschalten() => ZeitBandVorhanden;
+
+        /// <summary>Wechselt zwischen grober Leiste und feinem Monatsband.</summary>
+        [RelayCommand(CanExecute = nameof(CanExecuteZeitleisteUmschalten))]
+        private void CommandExecuteZeitleisteUmschalten()
+        {
+            ZeitBandBevorzugt = !ZeitBandBevorzugt;
+            SetzeZeitleisteEinheit();
+        }
+
+        /// <summary>Beschriftung links der Leiste – nennt, was gerade gezeigt wird.</summary>
+        private void SetzeZeitleisteEinheit()
+            => ZeitleisteEinheit = ZeitBandBevorzugt
+                ? "Monatsband"
+                : (ZeitleisteNachJahren ? "Jahre" : "Monate");
+
+        /// <summary>Zusammenfassung unter dem Band, z. B. „1.430 Bilder · 2011 bis 2015".</summary>
+        [ObservableProperty]
+        private string _zeitraumText = string.Empty;
 
         /// <summary>True, wenn nach Jahren eingeteilt ist – sonst nach Monaten.</summary>
         [ObservableProperty]
@@ -62,7 +108,9 @@ namespace TestImage
             foreach (var bild in OcAufgabens)
             {
                 if (!string.IsNullOrWhiteSpace(bild.BName))
+                {
                     pfade.Add(bild.BName);
+                }
             }
 
             _ = BaueZeitleisteAsync(pfade, abbruch);
@@ -76,14 +124,16 @@ namespace TestImage
             {
                 // Rückgabetyp ausgeschrieben: Sonst verliert die Ableitung die Namen der
                 // Tupelfelder, weil der vorzeitige Abbruch unten ein namenloses Tupel liefert.
-                var ergebnis = await Task.Run<(List<ZeitAbschnitt> Abschnitte, bool NachJahren)>(() =>
+                var ergebnis = await Task.Run<(List<ZeitAbschnitt> Abschnitte, bool NachJahren, List<ZeitBalken> Band, string Zeitraum)>(() =>
                 {
                     var daten = new List<DateTime>(pfade.Count);
 
                     foreach (string pfad in pfade)
                     {
                         if (token.IsCancellationRequested)
-                            return (new List<ZeitAbschnitt>(), false);
+                        {
+                            return (new List<ZeitAbschnitt>(), false, new List<ZeitBalken>(), string.Empty);
+                        }
 
                         try
                         {
@@ -91,7 +141,9 @@ namespace TestImage
 
                             // 1601 ist der Wert, den Windows für „unbekannt" liefert.
                             if (zeit.Year > 1601)
+                            {
                                 daten.Add(zeit);
+                            }
                         }
                         catch
                         {
@@ -99,29 +151,60 @@ namespace TestImage
                         }
                     }
 
-                    return Bildersuche.Zeitleiste.Erstelle(daten);
+                    var grob = Bildersuche.Zeitleiste.Erstelle(daten);
+                    var band = Bildersuche.Zeitleiste.ErstelleMonatsBand(daten);
+
+                    string zeitraum = daten.Count == 0
+                        ? string.Empty
+                        : $"{daten.Count:N0} Bilder · {daten.Min():MM.yyyy} bis {daten.Max():MM.yyyy}";
+
+                    return (grob.Abschnitte, grob.NachJahren, band, zeitraum);
                 }).ConfigureAwait(true);
 
                 if (token.IsCancellationRequested)
+                {
                     return;
+                }
 
                 Zeitleiste.Clear();
                 foreach (var abschnitt in ergebnis.Abschnitte)
+                {
                     Zeitleiste.Add(abschnitt);
+                }
+
+                ZeitBand.Clear();
+                foreach (var balken in ergebnis.Band)
+                {
+                    ZeitBand.Add(balken);
+                }
+
+                ZeitBandVorhanden = ZeitBand.Count > 0;
+                ZeitraumText = ergebnis.Zeitraum;
 
                 ZeitleisteNachJahren = ergebnis.NachJahren;
-                ZeitleisteEinheit = ergebnis.NachJahren ? "Jahre" : "Monate";
                 ZeitleisteVorhanden = Zeitleiste.Count > 0;
+
+                // Selbsttätige Wahl: Über mehrere Jahre sagt das feine Band mehr — die
+                // grobe Leiste zeigt dort nur Jahressummen. Bei einem einzelnen Jahr
+                // wäre das Band nur eine dünnere Fassung derselben zwölf Monate.
+                ZeitBandBevorzugt = ZeitBandVorhanden && ergebnis.NachJahren;
+                SetzeZeitleisteEinheit();
             }
             catch
             {
                 Zeitleiste.Clear();
+                ZeitBand.Clear();
                 ZeitleisteVorhanden = false;
+                ZeitBandVorhanden = false;
+                ZeitBandBevorzugt = false;
+                ZeitraumText = string.Empty;
             }
             finally
             {
                 if (ReferenceEquals(_zeitleisteAbbruch, abbruch))
+                {
                     _zeitleisteAbbruch = null;
+                }
 
                 abbruch.Dispose();
             }

@@ -40,6 +40,22 @@ namespace TestImage
         [ObservableProperty]
         private bool _isWasserzeichenOffen;
 
+        /// <summary>
+        /// Auswahl der Stelle im Bild, als Index der Auswahlliste. 0 heisst „alle
+        /// Bereiche" und ist die Vorgabe — dann sucht das Lernen die Stelle selbst.
+        ///
+        /// Die Liste beginnt bewusst mit „alle", die Aufzählung dagegen mit „Mitte":
+        /// deren Zahlen stehen so in bereits gespeicherten Mustern und dürfen sich nicht
+        /// verschieben. Deshalb wird hier umgerechnet statt einfach gecastet.
+        /// </summary>
+        [ObservableProperty]
+        private int _wasserzeichenLernBereich;
+
+        private WasserzeichenBereich GewaehlterLernBereich =>
+            WasserzeichenLernBereich <= 0
+                ? WasserzeichenBereich.Alle
+                : (WasserzeichenBereich)(WasserzeichenLernBereich - 1);
+
         /// <summary>Klappt die Wasserzeichen-Karte auf und zu.</summary>
         [RelayCommand]
         private void CommandExecuteWasserzeichenToggle()
@@ -116,12 +132,22 @@ namespace TestImage
                     WasserzeichenStatus = $"Lerne Muster „{name}“ … {p.Erledigt}/{p.Gesamt}"
                                           + RestzeitZusatz(uhr.Elapsed, p.Erledigt, p.Gesamt));
 
-                int anzahl = await WasserzeichenService.LerneMaskeAsync(dlg.FolderName, name, fortschritt, token);
+                int anzahl = await WasserzeichenService.LerneMaskeAsync(
+                    dlg.FolderName, name, GewaehlterLernBereich, fortschritt, token);
 
                 AktualisiereWasserzeichenMuster();
 
+                // Bei „alle Bereiche" ist die gefundene Stelle das eigentlich Interessante.
+                string stelle = WasserzeichenMuster
+                    .FirstOrDefault(m => string.Equals(m.MusterName, name, StringComparison.OrdinalIgnoreCase))
+                    ?.BereichName ?? string.Empty;
+
                 WasserzeichenStatus = anzahl > 0
-                    ? $"Muster „{name}“ aus {anzahl} Bildern gelernt. Ordner neu indexieren, um es anzuwenden."
+                    ? $"Muster „{name}“ aus {anzahl} Bildern gelernt"
+                      + (stelle.Length > 0 ? $" – Stelle: {stelle}" : string.Empty)
+                      + "."
+                      + WasserzeichenService.LetzteLernMeldung
+                      + " Ordner neu indexieren, um es anzuwenden."
                     : "Zu wenige oder unlesbare Bilder – es werden mindestens 5 gebraucht.";
             }
             catch (OperationCanceledException)
@@ -179,6 +205,8 @@ namespace TestImage
             MusterName = maske.Name,
             Grundmenge = maske.Grundmenge,
             StabilProzent = (int)Math.Round(maske.StabilerAnteil * 100.0),
+            SchwelleProzent = (int)Math.Round(maske.Schwelle * 100.0),
+            BereichName = maske.BereichName,
             Vorschau = maske.ErzeugeVorschau()
         };
 
@@ -258,17 +286,179 @@ namespace TestImage
             if (string.IsNullOrWhiteSpace(ordner) || !Directory.Exists(ordner))
             {
                 WasserzeichenTrefferAnzahl = 0;
+                _befundeDesOrdners = null;
+                AktualisiereWasserzeichenBefundAnzeige();
                 return;
             }
 
             var befunde = WasserzeichenService.Lade(ordner);
+            _befundeDesOrdners = befunde;
+
             if (befunde.Count == 0)
             {
                 WasserzeichenTrefferAnzahl = 0;
+                AktualisiereWasserzeichenBefundAnzeige();
                 return;
             }
 
             UebertrageWasserzeichenBefunde(befunde);
+            AktualisiereWasserzeichenBefundAnzeige();
+        }
+
+        #endregion
+
+        #region Befund zum gewählten Bild
+
+        /// <summary>
+        /// Befunde des zuletzt geladenen Ordners. Gemerkt, um „noch nicht geprüft" von
+        /// „geprüft und sauber" unterscheiden zu können — die Badge-Eigenschaften am Bild
+        /// allein können das nicht, dort ist beides schlicht „false".
+        /// </summary>
+        private System.Collections.Generic.Dictionary<string, WasserzeichenBefund>? _befundeDesOrdners;
+
+        /// <summary>Dateiname des Bildes, auf das sich der angezeigte Befund bezieht.</summary>
+        [ObservableProperty]
+        private string _wasserzeichenBefundDatei = string.Empty;
+
+        /// <summary>Urteil in einem Satz.</summary>
+        [ObservableProperty]
+        private string _wasserzeichenBefundText = "Kein Bild gewählt.";
+
+        /// <summary>Bestes Muster samt Stelle, z. B. „anilvlai · oben rechts".</summary>
+        [ObservableProperty]
+        private string _wasserzeichenBefundMuster = string.Empty;
+
+        /// <summary>Übereinstimmung im Verhältnis zur Schwelle, im Klartext.</summary>
+        [ObservableProperty]
+        private string _wasserzeichenBefundWert = string.Empty;
+
+        /// <summary>Vorschaubild des Musters, das am besten passte.</summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(WasserzeichenBefundHatBild))]
+        private System.Windows.Media.ImageSource? _wasserzeichenBefundBild;
+
+        /// <summary>Steuert das Vorschaukästchen – ein eigener Konverter wäre dafür zu viel.</summary>
+        public bool WasserzeichenBefundHatBild => WasserzeichenBefundBild is not null;
+
+        /// <summary>Gefundene Metadaten-Markierungen, je Zeile eine.</summary>
+        [ObservableProperty]
+        private string _wasserzeichenBefundMetadaten = string.Empty;
+
+        /// <summary>True, wenn das Bild tatsächlich eine Markierung trägt (färbt den Hinweis).</summary>
+        [ObservableProperty]
+        private bool _wasserzeichenBefundIstTreffer;
+
+        /// <summary>
+        /// Stellt den Befund zum gewählten Bild zusammen. Vier Fälle, die sich für den
+        /// Nutzer deutlich unterscheiden — besonders „noch nicht geprüft" darf nicht wie
+        /// „sauber" aussehen.
+        /// </summary>
+        private void AktualisiereWasserzeichenBefundAnzeige()
+        {
+            string? pfad = SelectedBildchen?.BName;
+
+            WasserzeichenBefundIstTreffer = false;
+            WasserzeichenBefundDatei = string.IsNullOrEmpty(pfad)
+                ? string.Empty
+                : Path.GetFileName(pfad);
+
+            if (string.IsNullOrEmpty(pfad))
+            {
+                WasserzeichenBefundText = "Kein Bild gewählt.";
+                LeereBefundFelder();
+                return;
+            }
+
+            if (_befundeDesOrdners is null || _befundeDesOrdners.Count == 0)
+            {
+                WasserzeichenBefundText =
+                    "Dieser Ordner wurde noch nicht auf Wasserzeichen geprüft. "
+                    + "Die Prüfung läuft am Ende des Indexierens mit.";
+                LeereBefundFelder();
+                return;
+            }
+
+            if (!_befundeDesOrdners.TryGetValue(pfad, out var befund))
+            {
+                WasserzeichenBefundText =
+                    "Dieses Bild war beim letzten Prüflauf noch nicht dabei.";
+                LeereBefundFelder();
+                return;
+            }
+
+            ZeigeBefund(befund);
+        }
+
+        /// <summary>Räumt die Zusatzfelder ab, wenn es gar keinen Befund gibt.</summary>
+        private void LeereBefundFelder()
+        {
+            WasserzeichenBefundMuster = string.Empty;
+            WasserzeichenBefundWert = string.Empty;
+            WasserzeichenBefundMetadaten = string.Empty;
+            WasserzeichenBefundBild = null;
+        }
+
+        /// <summary>
+        /// Bereitet einen Befund für die Anzeige auf.
+        ///
+        /// Die blosse Prozentzahl war wenig wert: 23 % klingt nach wenig, liegt aber weit
+        /// über der Schwelle von 10 %. Deshalb steht hier immer der Bezug zur Schwelle
+        /// dabei, und auch unterhalb davon wird gezeigt, welches Muster am nächsten dran
+        /// war — sonst lässt sich „knapp daneben" nicht von „gar nichts" unterscheiden.
+        /// </summary>
+        private void ZeigeBefund(WasserzeichenBefund befund)
+        {
+            float wert = befund.Aehnlichkeit;
+
+            // Die Schwelle des Musters, gegen das verglichen wurde. Ältere Befunddateien
+            // kennen sie nicht — dann gilt der allgemeine Wert.
+            float schwelle = befund.VerwendeteSchwelle > 0f
+                ? befund.VerwendeteSchwelle
+                : WasserzeichenService.Schwelle;
+
+            WasserzeichenBefundIstTreffer = befund.HatSichtbares;
+
+            // Muster samt Stelle – den Bereich holen wir aus der Musterliste.
+            var eintrag = WasserzeichenMuster.FirstOrDefault(
+                m => string.Equals(m.MusterName, befund.MaskenName, StringComparison.OrdinalIgnoreCase));
+
+            WasserzeichenBefundMuster = eintrag is null
+                ? befund.MaskenName
+                : $"{eintrag.MusterName} · {eintrag.BereichName}";
+
+            WasserzeichenBefundBild = eintrag?.Vorschau;
+
+            WasserzeichenBefundWert = string.IsNullOrEmpty(befund.MaskenName)
+                ? string.Empty
+                : $"Übereinstimmung {wert * 100f:F0} % · Schwelle {schwelle * 100f:F0} %";
+
+            WasserzeichenBefundMetadaten = befund.MetadatenHinweise.Count == 0
+                ? string.Empty
+                : string.Join("\n", befund.MetadatenHinweise);
+
+            if (befund.HatSichtbares)
+            {
+                WasserzeichenBefundText = wert >= schwelle * 2
+                    ? "Wasserzeichen erkannt – deutlich über der Schwelle."
+                    : "Wasserzeichen erkannt – knapp über der Schwelle.";
+            }
+            else if (befund.HatMetadaten)
+            {
+                WasserzeichenBefundIstTreffer = true;
+                WasserzeichenBefundText = "Kein sichtbares Zeichen, aber Markierungen in den Metadaten.";
+            }
+            else if (string.IsNullOrEmpty(befund.MaskenName))
+            {
+                WasserzeichenBefundText = "Keine Markierung gefunden – es ist noch kein Muster gelernt.";
+            }
+            else if (wert >= schwelle * 0.6f)
+            {
+                WasserzeichenBefundText = "Kein Treffer, aber nahe an der Schwelle – ansehen lohnt sich.";
+            }
+            else
+            {
+                WasserzeichenBefundText = "Keine Markierung gefunden.";
+            }
         }
 
         #endregion

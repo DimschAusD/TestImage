@@ -22,6 +22,12 @@ namespace TestImage.Bildersuche
         /// <summary>Name des Musters, das am besten passte. Leer, wenn keines passte.</summary>
         public string MaskenName { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Schwelle, gegen die verglichen wurde — die des jeweiligen Musters. Ohne sie
+        /// wäre die Ähnlichkeit nicht einzuordnen, da jedes Muster seine eigene hat.
+        /// </summary>
+        public float VerwendeteSchwelle { get; set; }
+
         /// <summary>Gefundene Metadaten-Markierungen (Autor, Copyright, XMP, C2PA …).</summary>
         public List<string> MetadatenHinweise { get; set; } = new();
 
@@ -127,9 +133,15 @@ namespace TestImage.Bildersuche
         /// ab. Ein gleichnamiges Muster wird ersetzt — nochmal lernen heisst auffrischen.
         /// </summary>
         /// <returns>Anzahl der verwendeten Bilder, 0 bei Misserfolg.</returns>
+        /// <param name="bereich">
+        /// Stelle im Bild, an der das Zeichen sitzt. Wird im Muster gespeichert und beim
+        /// Prüfen wieder verwendet — ein Zeichen oben rechts findet man nicht, wenn man
+        /// in der Bildmitte sucht.
+        /// </param>
         internal static async Task<int> LerneMaskeAsync(
             string ordner,
             string name,
+            WasserzeichenBereich bereich,
             IProgress<(int Erledigt, int Gesamt)>? fortschritt,
             CancellationToken token)
         {
@@ -140,20 +152,221 @@ namespace TestImage.Bildersuche
             if (dateien.Count < 5)
                 return 0;
 
-            var maske = await Task.Run(
-                () => WasserzeichenMaske.Lerne(dateien, fortschritt, token), token).ConfigureAwait(false);
+            string grundName = string.IsNullOrWhiteSpace(name) ? "Muster" : name.Trim();
 
-            if (maske is null)
+            var ergebnis = await Task.Run(
+                () => LerneUndTeile(dateien, bereich, fortschritt, token), token).ConfigureAwait(false);
+
+            if (ergebnis.Count == 0)
                 return 0;
 
-            maske.Name = string.IsNullOrWhiteSpace(name) ? "Muster" : name.Trim();
-
             var alle = HoleMasken();
-            alle.RemoveAll(m => string.Equals(m.Name, maske.Name, StringComparison.OrdinalIgnoreCase));
-            alle.Add(maske);
 
+            // Gleichnamige ersetzen – auch die nummerierten aus einem früheren Lauf.
+            alle.RemoveAll(m => string.Equals(m.Name, grundName, StringComparison.OrdinalIgnoreCase)
+                             || m.Name.StartsWith(grundName + " ", StringComparison.OrdinalIgnoreCase));
+
+            if (ergebnis.Count == 1)
+            {
+                ergebnis[0].Name = grundName;
+                LetzteLernMeldung = string.Empty;
+            }
+            else
+            {
+                for (int i = 0; i < ergebnis.Count; i++)
+                    ergebnis[i].Name = $"{grundName} {i + 1}";
+
+                LetzteLernMeldung =
+                    $" Der Ordner enthielt zweierlei Zeichen – aufgeteilt in "
+                    + string.Join(" und ", ergebnis.Select(m => $"„{m.Name}“ ({m.Grundmenge})"))
+                    + ".";
+            }
+
+            alle.AddRange(ergebnis);
             SpeichereMasken(alle);
-            return maske.Grundmenge;
+
+            return ergebnis.Sum(m => m.Grundmenge);
+        }
+
+        /// <summary>Zusatz zur Statusmeldung des letzten Lernvorgangs; leer, wenn nichts zu sagen war.</summary>
+        internal static string LetzteLernMeldung { get; private set; } = string.Empty;
+
+        /// <summary>
+        /// Mindestabstand zwischen eigener und fremder Übereinstimmung, damit eine
+        /// Aufteilung als bewiesen gilt.
+        ///
+        /// Gemessen an einem Ordner mit zwei Zeichen: 0,214 gegen 0,003 und 0,196 gegen
+        /// 0,003 — der Abstand lag also bei rund 0,20. Bei sortenreinem Material passen
+        /// beide Hälften auf beides, der Abstand geht gegen null. Ein Zehntel ist deshalb
+        /// weit genug von beiden Fällen entfernt.
+        /// </summary>
+        private const float TrennAbstand = 0.10f;
+
+        /// <summary>
+        /// Lernt aus dem Ordner und teilt auf, wenn darin zweierlei Zeichen stecken.
+        ///
+        /// Warum nicht einfach an der grössten Lücke schneiden: Die Messung an echtem
+        /// Material zeigte nur eine Lücke von 1,0 Prozentpunkten in einem einzigen
+        /// breiten Berg — kein verlässliches Kriterium. Der Schnitt wird deshalb nur
+        /// versuchsweise gemacht und danach <b>überprüft</b>: Passt jede Hälfte deutlich
+        /// besser zu ihrem eigenen Muster als zum anderen, war es wirklich zweierlei.
+        /// Sonst bleibt es beim einen Muster.
+        /// </summary>
+        private static List<WasserzeichenMaske> LerneUndTeile(
+            List<string> dateien,
+            WasserzeichenBereich bereich,
+            IProgress<(int Erledigt, int Gesamt)>? fortschritt,
+            CancellationToken token)
+        {
+            var leer = new List<WasserzeichenMaske>();
+
+            // Bei „alle Bereiche" zuerst die Stelle finden – danach steht sie fest.
+            if (bereich == WasserzeichenBereich.Alle)
+            {
+                var beste = LerneBesteStelle(dateien, fortschritt, token);
+                if (beste is null) return leer;
+                bereich = beste.Bereich;
+            }
+
+            // Merkmalsfelder einmal berechnen. Alles Weitere rechnet nur noch darauf –
+            // kein Bild wird ein zweites Mal von der Platte geholt.
+            var felder = new List<float[]>(dateien.Count);
+            for (int i = 0; i < dateien.Count; i++)
+            {
+                token.ThrowIfCancellationRequested();
+
+                var feld = WasserzeichenMaske.Merkmalsfeld(
+                    dateien[i], WasserzeichenVorverarbeitung.Hochpass, bereich);
+
+                if (feld is not null)
+                    felder.Add(feld);
+
+                fortschritt?.Report((i + 1, dateien.Count));
+            }
+
+            var basis = WasserzeichenMaske.LerneAusFeldern(
+                felder, WasserzeichenVorverarbeitung.Hochpass, bereich);
+
+            if (basis is null) return leer;
+
+            var geteilt = VersucheAufteilung(basis, felder, bereich, token);
+            return geteilt ?? new List<WasserzeichenMaske> { basis };
+        }
+
+        /// <summary>
+        /// Versucht die Aufteilung und gibt sie nur zurück, wenn die Kreuzprüfung sie
+        /// bestätigt. <c>null</c> heisst: eine Sorte, beim Grundmuster bleiben.
+        /// </summary>
+        private static List<WasserzeichenMaske>? VersucheAufteilung(
+            WasserzeichenMaske basis,
+            List<float[]> felder,
+            WasserzeichenBereich bereich,
+            CancellationToken token)
+        {
+            if (felder.Count < 12)
+                return null;   // zu wenig, um zwei brauchbare Muster daraus zu machen
+
+            var bewertet = felder
+                .Select(f => (Feld: f, Wert: basis.Pruefe(f)))
+                .OrderBy(p => p.Wert)
+                .ToList();
+
+            // Grösste Lücke im mittleren Bereich – Ausreisser an den Rändern zählen nicht.
+            int von = (int)(bewertet.Count * 0.10);
+            int bis = (int)(bewertet.Count * 0.90);
+
+            float besteLuecke = 0;
+            int schnitt = -1;
+
+            for (int i = von; i < bis && i + 1 < bewertet.Count; i++)
+            {
+                float luecke = bewertet[i + 1].Wert - bewertet[i].Wert;
+                if (luecke > besteLuecke) { besteLuecke = luecke; schnitt = i; }
+            }
+
+            if (schnitt < 0) return null;
+
+            var unten = bewertet.Take(schnitt + 1).Select(p => p.Feld).ToList();
+            var oben = bewertet.Skip(schnitt + 1).Select(p => p.Feld).ToList();
+
+            if (unten.Count < 5 || oben.Count < 5)
+                return null;
+
+            token.ThrowIfCancellationRequested();
+
+            var maskeA = WasserzeichenMaske.LerneAusFeldern(oben, WasserzeichenVorverarbeitung.Hochpass, bereich);
+            var maskeB = WasserzeichenMaske.LerneAusFeldern(unten, WasserzeichenVorverarbeitung.Hochpass, bereich);
+
+            if (maskeA is null || maskeB is null)
+                return null;
+
+            // Kreuzprüfung: Jede Hälfte muss zu ihrem eigenen Muster deutlich besser
+            // passen als zum anderen. Bei sortenreinem Material passt beides auf beides,
+            // die Abstände gehen gegen null und die Aufteilung wird verworfen.
+            double aEigen = oben.Average(f => (double)maskeA.Pruefe(f));
+            double aFremd = oben.Average(f => (double)maskeB.Pruefe(f));
+            double bEigen = unten.Average(f => (double)maskeB.Pruefe(f));
+            double bFremd = unten.Average(f => (double)maskeA.Pruefe(f));
+
+            bool bewiesen = (aEigen - aFremd) >= TrennAbstand
+                         && (bEigen - bFremd) >= TrennAbstand;
+
+            return bewiesen ? new List<WasserzeichenMaske> { maskeA, maskeB } : null;
+        }
+
+        /// <summary>
+        /// Lernt an allen fünf Stellen und behält die mit dem deutlichsten Muster.
+        ///
+        /// Der Vergleich läuft über <see cref="WasserzeichenMaske.MusterStaerke"/>: Wo
+        /// wirklich ein Zeichen liegt, bleibt nach dem Mitteln Struktur übrig; eine leere
+        /// Ecke wird flach. Am Ende trägt die Maske die gefundene Stelle, die Prüfung
+        /// kostet also nicht mehr als sonst.
+        /// </summary>
+        private static WasserzeichenMaske? LerneBesteStelle(
+            List<string> dateien,
+            IProgress<(int Erledigt, int Gesamt)>? fortschritt,
+            CancellationToken token)
+        {
+            var stellen = new[]
+            {
+                WasserzeichenBereich.Mitte,
+                WasserzeichenBereich.ObenLinks,
+                WasserzeichenBereich.ObenRechts,
+                WasserzeichenBereich.UntenLinks,
+                WasserzeichenBereich.UntenRechts
+            };
+
+            WasserzeichenMaske? beste = null;
+            double besteStaerke = double.NegativeInfinity;
+
+            int gesamt = dateien.Count * stellen.Length;
+
+            for (int i = 0; i < stellen.Length; i++)
+            {
+                token.ThrowIfCancellationRequested();
+
+                // Fortschritt über alle Durchgänge hinweg zählen, sonst spränge die
+                // Anzeige fünfmal auf null zurück.
+                int versatz = i * dateien.Count;
+                var teilFortschritt = new Progress<(int Erledigt, int Gesamt)>(
+                    p => fortschritt?.Report((versatz + p.Erledigt, gesamt)));
+
+                var kandidat = WasserzeichenMaske.Lerne(
+                    dateien, teilFortschritt, token,
+                    WasserzeichenVorverarbeitung.Hochpass, stellen[i]);
+
+                if (kandidat is null)
+                    continue;
+
+                double staerke = kandidat.MusterStaerke;
+                if (staerke > besteStaerke)
+                {
+                    besteStaerke = staerke;
+                    beste = kandidat;
+                }
+            }
+
+            return beste;
         }
 
         /// <summary>Entfernt ein Muster aus der Sammlung.</summary>
@@ -281,31 +494,56 @@ namespace TestImage.Bildersuche
             var befund = new WasserzeichenBefund { Pfad = pfad };
 
             float beste = 0f;
+            float besteSchwelle = Schwelle;
             string besterName = string.Empty;
 
-            // Die Datei einmal dekodieren und alle Muster gegen dasselbe Bild prüfen.
-            //
-            // Vorher rief jede Maske Pruefe(pfad) auf, und das lud die Datei jedes Mal
-            // neu — bei drei Mustern also dreimal dekodieren je Bild. Das ist beim
-            // Umbau auf mehrere Muster hineingerutscht.
-            var bild = LadeBild(pfad);
+            // Verglichen wird das Verhältnis Wert zu eigener Schwelle, nicht der rohe
+            // Wert. Sonst gewänne immer das Muster mit der niedrigsten Schwelle, auch
+            // wenn ein anderes seine eigene Schwelle deutlicher überschreitet.
+            float besterAbstand = float.NegativeInfinity;
 
-            if (bild is not null)
+            // Ohne Muster gibt es nichts zu vergleichen – dann die Datei auch nicht laden.
+            //
+            // Vorher wurde jedes Bild des Ordners dekodiert, selbst wenn noch kein
+            // einziges Muster gelernt war. Bei jedem Indexieren lief damit ein
+            // vollständiger zweiter Dekodierdurchlauf über den ganzen Ordner, dessen
+            // Ergebnis sofort verworfen wurde.
+            if (masken.Count > 0)
             {
-                foreach (var maske in masken)
+                // Einmal dekodieren, alle Muster gegen dasselbe Bild prüfen. Jedes
+                // schneidet sich daraus seinen eigenen Bereich – Mitte, Ecke, wo auch immer.
+                var bild = LadeBild(pfad);
+
+                if (bild is not null)
                 {
-                    float wert = maske.Pruefe(bild);
-                    if (wert > beste)
+                    foreach (var maske in masken)
                     {
-                        beste = wert;
-                        besterName = maske.Name;
+                        float wert = maske.Pruefe(bild);
+
+                        // Muster ohne eigene Schwelle (aus der Zeit davor) nutzen die allgemeine.
+                        float eigene = maske.Schwelle > 0f ? maske.Schwelle : Schwelle;
+                        float abstand = wert / Math.Max(eigene, 0.0001f);
+
+                        if (abstand > besterAbstand)
+                        {
+                            besterAbstand = abstand;
+                            beste = wert;
+                            besteSchwelle = eigene;
+                            besterName = maske.Name;
+                        }
                     }
                 }
             }
 
             befund.Aehnlichkeit = beste;
-            befund.HatSichtbares = beste >= Schwelle;
-            befund.MaskenName = befund.HatSichtbares ? besterName : string.Empty;
+            befund.VerwendeteSchwelle = besteSchwelle;
+            befund.HatSichtbares = beste >= besteSchwelle;
+
+            // Den besten Namen auch unterhalb der Schwelle festhalten. Ohne ihn liesse
+            // sich später nicht mehr sagen, welches Muster überhaupt am nächsten dran war
+            // — und genau das braucht man, um zu beurteilen, ob knapp danebenlag oder
+            // schlicht nichts da war.
+            befund.MaskenName = besterName;
 
             befund.MetadatenHinweise = MetadatenPruefer.Pruefe(pfad).ToList();
             return befund;

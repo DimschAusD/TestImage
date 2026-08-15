@@ -1736,7 +1736,51 @@ namespace TestImage
         {
             return OcAufgabens.Any(b => b.BildFürLinks == false)
                 && (!PrüfungLäuft)
+                && ListeStammtAusEinemOrdner
                 && (SelectedBildchen != null && !SelectedBildchen.BName.Contains("kein_Fav"));
+        }
+
+        /// <summary>
+        /// True, solange alle Bilder der Liste aus demselben Ordner stammen.
+        ///
+        /// Die Einzelbild-Befehle leiten ihr Ziel aus dem Pfad des jeweiligen Bildes ab
+        /// und sind deshalb gegen gemischte Listen unempfindlich.
+        /// <see cref="CommandExecuteAlleBilderInsKeinFavVerschieben"/> berechnet das
+        /// Zielverzeichnis dagegen **einmal** aus dem gewählten Bild und schöbe dann
+        /// alles dorthin — bei einer Liste aus mehreren Ordnern würde er die Bilder
+        /// quer über Ordnergrenzen in ein einziges kein_Fav zusammenkippen, in einem
+        /// Rutsch und kaum rückgängig zu machen.
+        ///
+        /// Deshalb ist der Befehl dann gesperrt. Wieder verfügbar wird er über
+        /// „Alle Bilder neu einlesen", das die Liste auf einen Ordner zurücksetzt.
+        /// </summary>
+        public bool ListeStammtAusEinemOrdner
+        {
+            get
+            {
+                string? ersterOrdner = null;
+
+                foreach (var bild in OcAufgabens)
+                {
+                    if (string.IsNullOrWhiteSpace(bild.BName))
+                    {
+                        continue;
+                    }
+
+                    string? ordner = Path.GetDirectoryName(bild.BName);
+
+                    if (ersterOrdner is null)
+                    {
+                        ersterOrdner = ordner;
+                    }
+                    else if (!string.Equals(ersterOrdner, ordner, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
         }
         [RelayCommand(CanExecute = nameof(CanExecuteAlleBilderInsKeinFavVerschieben), IncludeCancelCommand = true)]
         private async Task CommandExecuteAlleBilderInsKeinFavVerschieben(CancellationToken token)
@@ -3381,6 +3425,9 @@ namespace TestImage
                 return;
             }
 
+            // Auch hier: Sobald gesucht wird, gehört der Platz den Ergebnissen.
+            SchliesseIndexOrdnerKarte();
+
             SuchErgebnisse.Clear();
             LeereTrefferCache();
             SucheStatus = $"Suche alle Bilder mit '{anzeigeName}'…";
@@ -4052,7 +4099,12 @@ namespace TestImage
                 }
 
                 IndexAnzahlText = $"{anzahl} Bilder im Index";
-                IndexOrdnerText = "indexiert 1/1 Ordner";
+
+                // Ordner ins Verzeichnis aufnehmen bzw. auffrischen. Grundlage für die
+                // Suche über mehrere Ordner — und ersetzt den bisher fest verdrahteten
+                // Text „indexiert 1/1 Ordner".
+                Bildersuche.IndexOrdnerVerzeichnis.Merke(ordner, anzahl);
+                AktualisiereIndexOrdner();
 
                 // Im selben Durchgang auf Wasserzeichen prüfen (sichtbarer Aufdruck +
                 // Metadaten-Markierungen). Eigener Fortschritt, damit die zweite Phase
@@ -4130,6 +4182,9 @@ namespace TestImage
             {
                 return;
             }
+
+            // Ab hier geht es um Ergebnisse – die Ordnerverwaltung wäre nur im Weg.
+            SchliesseIndexOrdnerKarte();
 
             string? pfad = SelectedBildchen?.BName;
             string? ordner = string.IsNullOrEmpty(pfad) ? null : Path.GetDirectoryName(pfad);
@@ -4320,6 +4375,10 @@ namespace TestImage
             {
                 return;
             }
+
+            // Der Sammel-Befehl „alle ins kein_Fav" kann durch das Übernehmen unzulässig
+            // werden, wenn Treffer aus mehreren Ordnern hereinkommen.
+            CommandExecuteAlleBilderInsKeinFavVerschiebenCommand?.NotifyCanExecuteChanged();
 
             // Filter und Sortierung abschalten. Die übernommene Liste IST bereits das
             // Ergebnis, in der Reihenfolge der Ähnlichkeit — bestes Bild zuerst.
@@ -4744,6 +4803,21 @@ namespace TestImage
             string? ordner = string.IsNullOrEmpty(pfad) ? null : Path.GetDirectoryName(pfad);
             AktuellerOrdnerIndiziert = !string.IsNullOrEmpty(ordner)
                 && File.Exists(Path.Combine(ordner, BildAnalyseService.CacheDateiName));
+
+            // Gleich nachtragen, falls der Ordner noch nicht im Verzeichnis steht. So
+            // füllt sich die Liste auch mit Ordnern, die vor dieser Funktion indexiert
+            // wurden — es genügt, sie einmal zu öffnen.
+            if (AktuellerOrdnerIndiziert)
+                MerkeOrdnerFallsIndiziert(ordner);
+
+            // Diesen Ordner überwachen: Wird die Indexdatei von Hand gelöscht, merkt es
+            // die Anwendung sonst erst beim nächsten Bildwechsel — und „Schema-ähnlich"
+            // liefe bis dahin ins Leere.
+            UeberwacheIndexDatei(ordner);
+
+            // Befund zum jetzt gewählten Bild in der Wasserzeichen-Karte nachziehen.
+            // Diese Methode läuft bei jedem Bildwechsel, ist also der passende Ort.
+            AktualisiereWasserzeichenBefundAnzeige();
         }
 
         // Schema-Slider bewegt → Kandidaten neu filtern (nur bei aktiven Schema-Treffern).
@@ -4795,6 +4869,7 @@ namespace TestImage
             SuchErgebnisse.Clear();
             LeereTrefferCache();
             CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
+            SchliesseIndexOrdnerKarte();   // Verwaltung schliessen, Ergebnisse übernehmen den Platz
             SucheStatus = $"Suche Schema-ähnliche Bilder zu '{Path.GetFileName(bildPfad)}'…";
             SerieFortschritt = 0;
             SerieIndeterminate = true;   // Marquee: Ähnlichkeitsberechnung läuft
@@ -4807,11 +4882,29 @@ namespace TestImage
                 // Bild als Anfrage: alle Bilder im Ordner nach Ähnlichkeit sortiert,
                 // ab dem Slider-Minimum (breiter Kandidatensatz). Das Bild selbst ist
                 // mit 100 % dabei. Angezeigt wird dann per Slider gefiltert.
-                var treffer = await _bildAnalyse.SucheNachSerieAsync(
-                    ordner, bildPfad, topN: 200, minSim: SchemaKandidatenFloor, token,
-                    kalibrierKomponenten: SchemaKalibrierungAktiv ? SchemaKalibrierungKomponenten : -1);
+                var suchOrdner = ErmittleSuchOrdner();
+                bool ueberMehrere = suchOrdner.Count > 1;
 
-                treffer = AufListeAbbilden(treffer);
+                System.Collections.Generic.IReadOnlyList<(string Path, float Score)> treffer;
+
+                if (ueberMehrere)
+                {
+                    var ordnerFortschritt = new Progress<(int Fertig, int Gesamt)>(p =>
+                        SucheStatus = $"Durchsuche Ordner {p.Fertig}/{p.Gesamt}…");
+
+                    treffer = await _bildAnalyse.SucheNachSerieInOrdnernAsync(
+                        suchOrdner, bildPfad, topN: 200, minSim: SchemaKandidatenFloor,
+                        ordnerFortschritt, token);
+                }
+                else
+                {
+                    // Einzelordner: unverändert der bisherige Weg, samt Kalibrierung.
+                    treffer = await _bildAnalyse.SucheNachSerieAsync(
+                        ordner, bildPfad, topN: 200, minSim: SchemaKandidatenFloor, token,
+                        kalibrierKomponenten: SchemaKalibrierungAktiv ? SchemaKalibrierungKomponenten : -1);
+                }
+
+                treffer = AufListeAbbilden(treffer, nurAusListe: !ueberMehrere);
 
                 if (treffer.Count <= 1)
                 {
@@ -4901,8 +4994,15 @@ namespace TestImage
         /// 3. Weder noch → die Datei ist fort. Weglassen; sie erschien bisher als
         ///    schwarzes, leeres Kästchen in den Ergebnissen.
         /// </summary>
+        /// <param name="nurAusListe">
+        /// True bei einer Suche im Einzelordner: Dann darf nur bestehen, was auch in der
+        /// Liste steht — bisheriges Verhalten. Bei einer Suche über mehrere Ordner wäre
+        /// das falsch, denn <c>ocAufgabens</c> enthält immer nur einen Ordner; es fielen
+        /// sonst fast alle Treffer heraus. Dort genügt, dass die Datei existiert.
+        /// </param>
         private System.Collections.Generic.IReadOnlyList<(string Path, float Score)> AufListeAbbilden(
-            System.Collections.Generic.IReadOnlyList<(string Path, float Score)> treffer)
+            System.Collections.Generic.IReadOnlyList<(string Path, float Score)> treffer,
+            bool nurAusListe = true)
         {
             var nachPfad = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var nachName = new System.Collections.Generic.Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -4944,6 +5044,12 @@ namespace TestImage
                          && schonDrin.Add(neuerPfad))
                 {
                     ergebnis.Add((neuerPfad, t.Score));
+                }
+                else if (!nurAusListe && File.Exists(t.Path) && schonDrin.Add(t.Path))
+                {
+                    // Treffer aus einem anderen Ordner – bei ordnerübergreifender Suche
+                    // der Normalfall und kein Grund, ihn zu verwerfen.
+                    ergebnis.Add(t);
                 }
             }
 
@@ -5091,6 +5197,7 @@ namespace TestImage
             LeereTrefferCache();
             CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
             ErgebnisseSindSchemaAehnlich = false;   // andere Suche → Schema-Slider ausblenden
+            SchliesseIndexOrdnerKarte();
             SucheStatus = $"Erweiterte Seriensuche für '{Path.GetFileName(bildPfad)}'…";
             SerieFortschritt = 0;
             SerieIndeterminate = false;   // echter %-Balken mit Restzeit

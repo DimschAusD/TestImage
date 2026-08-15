@@ -382,6 +382,93 @@ namespace TestImage.Bildersuche
         }
 
         /// <summary>
+        /// Wie <see cref="SucheNachSerieAsync"/>, aber über mehrere Ordner.
+        ///
+        /// Das Anfragebild muss im Index **seines eigenen** Ordners stehen — von dort
+        /// kommt die Beschreibung. Verglichen wird sie danach gegen die Indexe aller
+        /// angegebenen Ordner.
+        ///
+        /// <b>Ohne Kalibrierung.</b> Sie gewinnt Mittelvektor und Hauptkomponenten aus
+        /// einem Ordner-Index; über mehrere Ordner hinweg wäre nicht definiert, welcher
+        /// Bestand die Bezugsgrösse liefert — ein gemeinsamer Bezug über alle Ordner
+        /// wäre etwas anderes als der ordnerweise, und die eingemessenen Schwellen
+        /// gälten nicht mehr. Deshalb hier bewusst der schlichte Kosinus-Vergleich.
+        /// </summary>
+        /// <param name="ordner">Zu durchsuchende Ordner. Fehlende werden übersprungen.</param>
+        /// <param name="fortschritt">Meldet (fertige Ordner, Gesamtzahl).</param>
+        public async Task<IReadOnlyList<(string Path, float Score)>> SucheNachSerieInOrdnernAsync(
+            IReadOnlyList<string> ordner, string bildPfad, int topN = 200, float minSim = 0.5f,
+            IProgress<(int Fertig, int Gesamt)>? fortschritt = null,
+            CancellationToken abbruch = default)
+        {
+            if (!await StelleSicherGeladenAsync().ConfigureAwait(false))
+                return Array.Empty<(string, float)>();
+            if (ordner is null || ordner.Count == 0 || string.IsNullOrEmpty(bildPfad))
+                return Array.Empty<(string, float)>();
+
+            string? heimatOrdner = Path.GetDirectoryName(bildPfad);
+            if (string.IsNullOrEmpty(heimatOrdner))
+                return Array.Empty<(string, float)>();
+
+            return await Task.Run<IReadOnlyList<(string Path, float Score)>>(() =>
+            {
+                // 1) Beschreibung des Anfragebildes aus seinem eigenen Ordner holen.
+                var heimat = new ImageIndex(_cnn!);
+                heimat.Load(Path.Combine(heimatOrdner, CacheDateiName));
+
+                var frage = heimat.Entries.FirstOrDefault(
+                    e => string.Equals(e.Path, bildPfad, StringComparison.OrdinalIgnoreCase));
+
+                if (frage is null || frage.Descriptor.Length == 0)
+                    return Array.Empty<(string, float)>();
+
+                // 2) Gegen jeden Ordner vergleichen.
+                var treffer = new List<(string Path, float Score)>();
+                int fertig = 0;
+
+                foreach (string o in ordner)
+                {
+                    abbruch.ThrowIfCancellationRequested();
+
+                    string cache = Path.Combine(o, CacheDateiName);
+                    if (Directory.Exists(o) && File.Exists(cache))
+                    {
+                        var index = new ImageIndex(_cnn!);
+                        index.Load(cache);
+
+                        foreach (var k in index.Entries)
+                        {
+                            if (k.Descriptor.Length == 0) continue;
+
+                            float sim = _cnn!.Similarity(frage.Descriptor, k.Descriptor);
+                            if (sim >= minSim)
+                                treffer.Add((k.Path, sim));
+                        }
+                    }
+
+                    fortschritt?.Report((++fertig, ordner.Count));
+                }
+
+                // Derselbe Pfad kann in zwei Indexen stehen – etwa wenn ein Ordner und
+                // sein Unterordner beide indexiert sind. Der bessere Wert gewinnt.
+                var beste = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
+                foreach (var (pfad, wert) in treffer)
+                {
+                    if (!beste.TryGetValue(pfad, out float alt) || wert > alt)
+                        beste[pfad] = wert;
+                }
+
+                var ergebnis = beste.Select(p => (Path: p.Key, Score: p.Value)).ToList();
+                ergebnis.Sort((a, b) => b.Score.CompareTo(a.Score));
+
+                if (ergebnis.Count > topN)
+                    ergebnis.RemoveRange(topN, ergebnis.Count - topN);
+
+                return ergebnis;
+            }, abbruch).ConfigureAwait(false);
+        }
+
+        /// <summary>
         /// Schwelle, ab der zwei Bilder als Dublette (praktisch identisch) gelten.
         /// Echte Duplikate/Neuspeicherungen liegen bei ≈ 0,98–1,00; bloße Varianten
         /// deutlich darunter (≈ 0,85–0,90) und fallen so bewusst nicht mit hinein.

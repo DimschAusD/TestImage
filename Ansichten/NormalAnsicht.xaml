@@ -15,6 +15,46 @@
     d:DesignWidth="800"
     mc:Ignorable="d">
 
+    <UserControl.Resources>
+        <!--
+            Entwurfsdaten für das Monatsband: 28 Monate über drei Jahre. Als Ressource,
+            weil zwei ItemsControls dieselbe Reihe brauchen — die Jahreszeile oben und die
+            Balken darunter. Zur Laufzeit ungenutzt, kostet nur ein paar kleine Objekte.
+        -->
+        <x:Array x:Key="ZeitBandBeispiel" Type="{x:Type bildersuche:ZeitBalken}">
+            <bildersuche:ZeitBalken Hoehe="4" IstJahresAnfang="True" JahrText="2011" Tooltip="Jan 2011: 3 Bilder" />
+            <bildersuche:ZeitBalken Hoehe="7" Tooltip="Feb 2011: 6 Bilder" />
+            <bildersuche:ZeitBalken Hoehe="12" Tooltip="Mär 2011: 12 Bilder" />
+            <bildersuche:ZeitBalken Hoehe="19" Tooltip="Apr 2011: 21 Bilder" />
+            <bildersuche:ZeitBalken Hoehe="9" Tooltip="Mai 2011: 8 Bilder" />
+            <bildersuche:ZeitBalken Hoehe="2" Tooltip="Jun 2011: keine Bilder" />
+            <bildersuche:ZeitBalken Hoehe="2" Tooltip="Jul 2011: keine Bilder" />
+            <bildersuche:ZeitBalken Hoehe="5" Tooltip="Aug 2011: 4 Bilder" />
+            <bildersuche:ZeitBalken Hoehe="14" Tooltip="Sep 2011: 15 Bilder" />
+            <bildersuche:ZeitBalken Hoehe="22" Tooltip="Okt 2011: 25 Bilder" />
+            <bildersuche:ZeitBalken Hoehe="17" Tooltip="Nov 2011: 18 Bilder" />
+            <bildersuche:ZeitBalken Hoehe="8" Tooltip="Dez 2011: 7 Bilder" />
+
+            <bildersuche:ZeitBalken Hoehe="11" IstJahresAnfang="True" JahrText="2012" Tooltip="Jan 2012: 11 Bilder" />
+            <bildersuche:ZeitBalken Hoehe="26" Tooltip="Feb 2012: 31 Bilder" />
+            <bildersuche:ZeitBalken Hoehe="20" Tooltip="Mär 2012: 22 Bilder" />
+            <bildersuche:ZeitBalken Hoehe="6" Tooltip="Apr 2012: 5 Bilder" />
+            <bildersuche:ZeitBalken Hoehe="2" Tooltip="Mai 2012: keine Bilder" />
+            <bildersuche:ZeitBalken Hoehe="3" Tooltip="Jun 2012: 2 Bilder" />
+            <bildersuche:ZeitBalken Hoehe="13" Tooltip="Jul 2012: 13 Bilder" />
+            <bildersuche:ZeitBalken Hoehe="18" Tooltip="Aug 2012: 19 Bilder" />
+            <bildersuche:ZeitBalken Hoehe="24" Tooltip="Sep 2012: 28 Bilder" />
+            <bildersuche:ZeitBalken Hoehe="16" Tooltip="Okt 2012: 17 Bilder" />
+            <bildersuche:ZeitBalken Hoehe="10" Tooltip="Nov 2012: 9 Bilder" />
+            <bildersuche:ZeitBalken Hoehe="4" Tooltip="Dez 2012: 3 Bilder" />
+
+            <bildersuche:ZeitBalken Hoehe="15" IstJahresAnfang="True" JahrText="2013" Tooltip="Jan 2013: 16 Bilder" />
+            <bildersuche:ZeitBalken Hoehe="21" Tooltip="Feb 2013: 24 Bilder" />
+            <bildersuche:ZeitBalken Hoehe="9" Tooltip="Mär 2013: 8 Bilder" />
+            <bildersuche:ZeitBalken Hoehe="5" Tooltip="Apr 2013: 4 Bilder" />
+        </x:Array>
+    </UserControl.Resources>
+
     <!--  Normalansicht (IsImageMaximiert = false). Inhalt wird etappenweise aus MainWindow hierher verschoben.  -->
     <Grid x:Name="GRD_NormalWurzel">
         <Grid.RowDefinitions>
@@ -108,8 +148,10 @@
         <Border
             x:Name="BRD_Zeitleiste"
             Grid.Row="2"
-            Margin="93,0,25,152"
-            Padding="8,4,8,5"
+            Margin="108,0,10,135"
+            Padding="6,3,6,4"
+            d:ToolTip="1.136 Bilder · 11.2013 bis 02.2026"
+            ToolTip="{Binding ZeitraumText}"
             VerticalAlignment="Bottom"
             Background="White"
             BorderBrush="#FFCBD5E1"
@@ -117,22 +159,43 @@
             CornerRadius="6"
             d:Visibility="Visible"
             Visibility="{Binding ZeitleisteVorhanden, Converter={StaticResource CLconverterVisiblityBoolian}}">
-            <Grid x:Name="GRD_Zeitleiste">
+            <StackPanel x:Name="STP_Zeitleiste" Orientation="Vertical">
+
+                <!--  Grobe Leiste – nur eine der beiden Übersichten ist sichtbar  -->
+                <Grid
+                    x:Name="GRD_Zeitleiste"
+                    d:Visibility="Collapsed"
+                    Visibility="{Binding ZeitBandBevorzugt, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition x:Name="COL_ZeitleisteEinheit" Width="Auto" />
                     <ColumnDefinition x:Name="COL_ZeitleisteFelder" Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <TextBlock
-                    x:Name="TXT_ZeitleisteEinheit"
+                <!--
+                    Die Einheit ist zugleich der Umschalter zwischen grober Leiste und
+                    feinem Monatsband. Die Anwendung wählt beim Laden selbst — mehrere
+                    Jahre sprechen für das Band —, aber die Wahl bleibt änderbar.
+                -->
+                <Button
+                    x:Name="BTN_ZeitleisteUmschalten"
                     Grid.Column="0"
                     Margin="0,0,10,0"
+                    Padding="0"
                     VerticalAlignment="Center"
-                    d:Text="Jahre"
-                    FontFamily="Segoe UI"
-                    FontSize="11"
-                    Foreground="Gray"
-                    Text="{Binding ZeitleisteEinheit}" />
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Command="{Binding CommandExecuteZeitleisteUmschaltenCommand}"
+                    Cursor="Hand"
+                    ToolTip="Zwischen Jahres-/Monatsleiste und feinem Monatsband wechseln">
+                    <TextBlock
+                        x:Name="TXT_ZeitleisteEinheit"
+                        d:Text="Monatsband"
+                        FontFamily="Segoe UI"
+                        FontSize="11"
+                        Foreground="Gray"
+                        Text="{Binding ZeitleisteEinheit}"
+                        TextDecorations="Underline" />
+                </Button>
 
                 <ItemsControl
                     x:Name="IC_Zeitleiste"
@@ -211,14 +274,96 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
-            </Grid>
+                </Grid>
+
+                <!--
+                    Feines Band: ein Balken je Monat über den ganzen Zeitraum, die Jahre
+                    als Abschnitte mit Trennstrich und Jahreszahl. Zeigt, wo innerhalb
+                    eines Jahres die Bilder liegen — das kann die grobe Leiste darüber nicht.
+
+                    Zwei ItemsControls über derselben Sammlung: So sitzt jede Jahreszahl
+                    ohne Rechnerei genau über ihrem ersten Monat. Beschriftungen dürfen
+                    dabei über die Nachbarzellen hinausragen; WPF-Panels schneiden nicht ab.
+                -->
+                <StackPanel
+                    x:Name="STP_ZeitBand"
+                    d:Visibility="Visible"
+                    Orientation="Vertical"
+                    Visibility="{Binding ZeitBandBevorzugt, Converter={StaticResource CLconverterVisiblityBoolian}}">
+
+                    <ItemsControl
+                        x:Name="IC_ZeitBandJahre"
+                        d:ItemsSource="{StaticResource ZeitBandBeispiel}"
+                        ItemsSource="{Binding ZeitBand}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Rows="1" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <!--
+                                    Die Beschriftung ragt bewusst über ihre Zelle hinaus –
+                                    eine Monatszelle ist nur wenige Punkte breit. WPF-Panels
+                                    schneiden nicht ab, ClipToBounds bleibt aus.
+                                -->
+                                <TextBlock
+                                    x:Name="TXT_ZeitBandJahr"
+                                    Margin="2,0,0,0"
+                                    ClipToBounds="False"
+                                    FontFamily="Segoe UI"
+                                    FontSize="10"
+                                    Foreground="#FF6B6B6B"
+                                    Text="{Binding JahrText}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <ItemsControl
+                        x:Name="IC_ZeitBand"
+                        Height="20"
+                        Margin="0,1,0,0"
+                        d:ItemsSource="{StaticResource ZeitBandBeispiel}"
+                        ItemsSource="{Binding ZeitBand}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Rows="1" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid x:Name="GRD_ZeitBandZelle" ToolTip="{Binding Tooltip}">
+                                    <!--  Durchsichtiger Grund, damit die ganze Zelle den ToolTip auslöst  -->
+                                    <Rectangle x:Name="RCT_ZeitBandFlaeche" Fill="Transparent" />
+
+                                    <!--  Trennstrich am Jahreswechsel  -->
+                                    <Rectangle
+                                        x:Name="RCT_ZeitBandTrenner"
+                                        Width="1"
+                                        HorizontalAlignment="Left"
+                                        Fill="#FFD0D0D0"
+                                        Visibility="{Binding IstJahresAnfang, Converter={StaticResource CLconverterVisiblityBoolian}}" />
+
+                                    <Rectangle
+                                        x:Name="RCT_ZeitBandBalken"
+                                        Margin="1,0"
+                                        VerticalAlignment="Bottom"
+                                        Fill="#FF3A9B45"
+                                        Height="{Binding Hoehe}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                </StackPanel>
+            </StackPanel>
         </Border>
 
         <ListBox
             x:Name="Listbox_MiniaturBilder"
             Grid.Row="2"
-            Height="138"
-            Margin="93,0,25,10"
+            Height="120"
+            Margin="93,0,10,10"
             VerticalAlignment="Bottom"
             d:ItemsSource="{d:SampleData ItemCount=4}"
             local:HorizontalListBoxBehavior.CenterSelectedItem="True"
@@ -1641,19 +1786,16 @@
                 </Button.Style>
             </Button>
 
-            <!--  Bildersuche: schlanke Zeile — als Popup unter dem Button  -->
-            <Popup
-                x:Name="POP_IndexSuchLeiste"
-                AllowsTransparency="True"
-                HorizontalOffset="0"
-                IsOpen="{Binding IsSuchleisteOffen}"
-                Placement="Bottom"
-                PlacementTarget="{Binding ElementName=BTN_IndexSuchleiste}"
-                PopupAnimation="Fade"
-                StaysOpen="False"
-                VerticalOffset="6">
-                <bildersuche:IndexSuchPanel x:Name="PNL_IndexSuche" Margin="12" />
-            </Popup>
+            <!--
+                Die Bildersuche lief bis hier als Popup unter dem Knopf. Sie sitzt jetzt
+                in einem eigenen Werkzeugfenster (IndexSuchFenster), geöffnet über
+                IsSuchleisteOffen in NormalAnsicht.xaml.cs.
+
+                Grund: Ein Popup mit StaysOpen="False" schliesst sich, sobald man in den
+                Explorer klickt — und genau das braucht man, um einen Ordner auf die
+                Index-Karte zu ziehen. Ausserdem lässt sich ein Popup nicht in der Grösse
+                ändern.
+            -->
 
         </StackPanel>
         <Button

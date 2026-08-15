@@ -7,7 +7,7 @@
     xmlns:local="clr-namespace:TestImage"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:sys="clr-namespace:System;assembly=mscorlib"
-    Width="889"
+    MinWidth="993"
     mc:Ignorable="d">
     <UserControl.Resources>
         <local:CLconverterVisiblityBoolian x:Key="CLconverterVisiblityBoolian" />
@@ -47,48 +47,68 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!--
+            Linke Hälfte eines geteilten Knopfes: gleiches Aussehen wie OutlineButtonStyle,
+            aber ohne eigenen Rahmen und nur links abgerundet. Den Rahmen zieht die Klammer
+            aussen herum, damit Knopf und Aufklappteil als ein Stück wirken.
+        -->
+        <Style
+            x:Key="SplitHauptButtonStyle"
+            BasedOn="{StaticResource OutlineButtonStyle}"
+            TargetType="Button">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            x:Name="bd"
+                            Padding="{TemplateBinding Padding}"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="6,0,0,6"
+                            SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#FFF5F5F5" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#FFEBEBEB" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
+    <!--
+        Rand durchsichtig: Das Panel sass früher in einem Popup und brauchte dort eine
+        eigene Kante, um sich vom Fenster dahinter abzuheben. Im eigenen Fenster ist die
+        Kante überflüssig und liegt als zweiter Rahmen direkt neben dem Fensterrahmen.
+
+        Die Stärke bleibt bei 1, damit sich die Innenmasse nicht um einen Punkt verschieben.
+    -->
     <Border
         x:Name="BRD_PanelRahmen"
         Background="#FFFFFFFF"
-        BorderBrush="#FFE3E3E3"
+        BorderBrush="Transparent"
         BorderThickness="1"
         CornerRadius="10">
-        <Border.Effect>
-            <DropShadowEffect
-                BlurRadius="18"
-                Opacity="0.22"
-                ShadowDepth="2"
-                Color="Black" />
-        </Border.Effect>
+       
         <StackPanel
             x:Name="STP_Inhalt"
             Margin="6"
             Orientation="Vertical">
 
-            <!--  Griffleiste: Panel mit der Maus verschieben  -->
-            <Border
-                x:Name="BRD_Griffleiste"
-                Height="18"
-                Margin="0,0,0,4"
-                Background="#FFF3F3F3"
-                CornerRadius="6"
-                Cursor="SizeAll"
-                MouseLeftButtonDown="Griffleiste_MouseLeftButtonDown"
-                MouseLeftButtonUp="Griffleiste_MouseLeftButtonUp"
-                MouseMove="Griffleiste_MouseMove"
-                ToolTip="Zum Verschieben ziehen">
-                <TextBlock
-                    x:Name="TXT_GriffIcon"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    FontFamily="Segoe MDL2 Assets"
-                    FontSize="10"
-                    Foreground="#FFAAAAAA"
-                    Text="&#xE76F;" />
-            </Border>
-
+            <!--
+                Die Griffleiste zum Verschieben ist entfallen: Sie diente dem Popup, das
+                keine Titelleiste hatte. Das Werkzeugfenster verschiebt man an seiner
+                eigenen Titelleiste.
+            -->
             <StackPanel
                 x:Name="STP_Werkzeugleiste"
                 VerticalAlignment="Center"
@@ -538,6 +558,20 @@
                         </TextBlock>
                     </StackPanel>
                 </Button>
+                <!--
+                    Suchbereich für „Schema-ähnlich". Ein Schalter statt mehrerer Knöpfe —
+                    sonst gäbe es je Bereich einen eigenen Befehl, Abbrechen-Knopf und
+                    Fortschritt. Damit der Zustand nicht verborgen bleibt, steht die Anzahl
+                    der betroffenen Ordner mit auf dem Schalter.
+                -->
+                <!--
+                    Aufklappteil des Suchknopfes: ein schmaler Chevron direkt daneben, der
+                    die drei Bereiche zeigt. Bewusst ein Menu und kein Popup — ein MenuItem
+                    öffnet auf Linksklick und schliesst nach der Wahl von selbst, ganz ohne
+                    Code-Behind. Ein RibbonSplitButton könnte dasselbe, brächte aber sein
+                    eigenes Aussehen mit und passte nicht zu den Knöpfen ringsum.
+                -->
+
                 <Button
                     x:Name="BTN_ErweiterteSerie"
                     Margin="4,0,0,0"
@@ -554,23 +588,104 @@
                         <TextBlock x:Name="TXT_ErweiterteSerieLabel" Text="Erw. Serie" />
                     </StackPanel>
                 </Button>
-                <Button
-                    x:Name="BTN_SchemaAehnlich"
+                <!--
+                    Geteilter Knopf: Suchen links, Bereichswahl rechts. Der Rahmen sitzt
+                    aussen an dieser Klammer, die beiden Hälften haben keinen eigenen —
+                    dadurch wirken sie als ein Stück statt als zwei Knöpfe nebeneinander.
+                    Getrennt werden sie nur durch einen Haarstrich.
+                -->
+                <Border
+                    x:Name="BRD_SchemaGeteilt"
                     Margin="4,0,0,0"
-                    Command="{Binding CommandExecuteSchemaAehnlichCommand}"
-                    Style="{StaticResource OutlineButtonStyle}"
-                    ToolTip="Schema-ähnliche Bilder zum gewählten Bild finden (Regler erscheint darunter nach der Suche)">
-                    <StackPanel x:Name="STP_SchemaInhalt" Orientation="Horizontal">
-                        <TextBlock
+                    BorderBrush="#FFDADADA"
+                    BorderThickness="1"
+                    CornerRadius="7"
+                    SnapsToDevicePixels="True">
+                    <StackPanel x:Name="STP_SchemaGeteilt" Orientation="Horizontal">
+
+                        <Button
+                            x:Name="BTN_SchemaAehnlich"
+                            Command="{Binding CommandExecuteSchemaAehnlichCommand}"
+                            Style="{StaticResource SplitHauptButtonStyle}"
+                            ToolTip="Schema-ähnliche Bilder zum gewählten Bild finden (Regler erscheint darunter nach der Suche)">
+                            <StackPanel x:Name="STP_SchemaInhalt" Orientation="Horizontal">
+                                <TextBlock
                             x:Name="TXT_SchemaIcon"
                             Margin="0,1,7,0"
                             VerticalAlignment="Center"
                             FontFamily="Segoe MDL2 Assets"
                             FontSize="14"
                             Text="&#xE8B3;" />
-                        <TextBlock x:Name="TXT_SchemaLabel" Text="Schema-ähnlich" />
+                                <!--  Bereich wandert in die Beschriftung, sobald er nicht der Einzelordner ist  -->
+                                <TextBlock
+                                    x:Name="TXT_SchemaLabel"
+                                    d:Text="Schema-ähnlich · alle (12)"
+                                    Text="{Binding SchemaKnopfText}" />
+                            </StackPanel>
+                        </Button>
+
+                        <!--  Haarstrich statt Lücke: trennt die Hälften, hält sie zusammen  -->
+                        <Border
+                            x:Name="BRD_SchemaTrenner"
+                            Width="1"
+                            Margin="0,4"
+                            Background="#FFDADADA" />
+
+                        <Menu
+                            x:Name="MNU_Suchbereich"
+                            VerticalAlignment="Stretch"
+                            Background="Transparent">
+                            <MenuItem
+                                x:Name="MNI_SuchbereichWurzel"
+                                Padding="7,0"
+                                Background="Transparent"
+                                ToolTip="Wo „Schema-ähnlich“ sucht. Mit Unterordnern lässt die Ablagen wie kein_Fav aussen vor." Height="32">
+                                <MenuItem.Header>
+                                    <TextBlock
+                                x:Name="IC_SuchbereichChevron"
+                                VerticalAlignment="Center"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="10"
+                                Foreground="#FF2B2B2B"
+                                Text="&#xE70D;" />
+                                </MenuItem.Header>
+
+                                <MenuItem
+                            x:Name="MNI_BereichOrdner"
+                            Header="dieser Ordner"
+                            IsCheckable="True"
+                            IsChecked="{Binding BereichIstOrdner, Mode=TwoWay}" />
+                                <MenuItem
+                            x:Name="MNI_BereichZweig"
+                            d:Header="mit Unterordnern (4)"
+                            Header="{Binding BereichZweigText}"
+                            IsCheckable="True"
+                            IsChecked="{Binding BereichIstZweig, Mode=TwoWay}" />
+                                <MenuItem
+                                    x:Name="MNI_BereichAlle"
+                                    d:Header="alle Ordner (12)"
+                                    Header="{Binding BereichAlleText}"
+                                    IsCheckable="True"
+                                    IsChecked="{Binding BereichIstAlle, Mode=TwoWay}" />
+
+                                <Separator x:Name="SEP_Suchbereich" />
+
+                                <!--
+                                    Brücke zur Ordnerliste: Von hier aus ist sie erreichbar,
+                                    ohne dass sie dauerhaft Platz kostet. Sie steht in den
+                                    Einstellungen, weil sie zum Verwalten gehört, nicht zum
+                                    Suchen — der Weg dorthin gehört aber hierher.
+                                -->
+                                <MenuItem
+                                    x:Name="MNI_OrdnerVerwalten"
+                                    Command="{Binding CommandExecuteIndexOrdnerZeigenCommand}"
+                                    d:Header="Ordner verwalten … (12)"
+                                    Header="{Binding OrdnerVerwaltenText}"
+                                    ToolTip="Öffnet die Einstellungen bei der Liste der indizierten Ordner" />
+                            </MenuItem>
+                        </Menu>
                     </StackPanel>
-                </Button>
+                </Border>
 
                 <!--
                     Hilfe zur Schema-Suche. Bewusst kein Button, sondern ein Chip mit
@@ -1077,6 +1192,7 @@
                             Text="{Binding IndexOrdnerText}" />
                     </Grid>
 
+
                     <!--  Filter nach: Kategorie + Wert  -->
                     <Grid x:Name="GRD_Filter" Margin="0,16,0,0">
                         <Grid.ColumnDefinitions>
@@ -1186,6 +1302,285 @@
             </Border>
 
             <!--
+                Verzeichnis der indizierten Ordner — alles dazu in einer eigenen
+                Karte, damit erkennbar ist, was zusammengehört.
+
+                Die ganze Karte ist zugleich Ablagefläche: Ein darauf gezogener
+                Ordner wird samt Unterordnern nach Indexdateien durchsucht. Das
+                Ziel sitzt bewusst hier und nicht an der Bilderzahl darüber —
+                einen Ordner auf die Ordnerliste zu ziehen erklärt sich von selbst.
+            -->
+            <Border
+                x:Name="BRD_IndexOrdnerKarte"
+                Margin="2,10,2,2"
+                Padding="14"
+                local:OrdnerDropHelper.Command="{Binding CommandExecuteIndexOrdnerAusDropCommand}"
+                AllowDrop="True"
+                BorderBrush="#FFECECEC"
+                BorderThickness="1"
+                CornerRadius="10"
+                d:Visibility="Visible"
+                ToolTip="Ordner hierher ziehen: durchsucht ihn samt Unterordnern nach bereits indizierten Ordnern."
+                Visibility="{Binding IsIndexOrdnerKarteOffen, Converter={StaticResource CLconverterVisiblityBoolian}}">
+
+                <!--  Dezenter weicher Schatten, wie bei der Begriffe-Karte  -->
+                <Border.Effect>
+                    <DropShadowEffect
+                        BlurRadius="12"
+                        Opacity="0.16"
+                        ShadowDepth="1.5"
+                        Color="Black" />
+                </Border.Effect>
+
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="#FFFCFCFC" />
+                        <Style.Triggers>
+                            <!--  Beim Überfahren mit einem Ordner: Grund und Rand färben  -->
+                            <Trigger Property="local:OrdnerDropHelper.IstZielAktiv" Value="True">
+                                <Setter Property="Background" Value="#FFE8F2E0" />
+                                <Setter Property="BorderBrush" Value="#FF8FB56A" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+
+                <StackPanel x:Name="STP_IndexOrdnerKarte" Orientation="Vertical">
+
+                    <!--  Titelzeile mit Schliessen rechts – die Karte lässt sich auch von Hand wegräumen  -->
+                    <Grid x:Name="GRD_IndexOrdnerTitelzeile">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition x:Name="COL_IndexOrdnerUeberschrift" Width="*" />
+                            <ColumnDefinition x:Name="COL_IndexOrdnerSchliessen" Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock
+                            x:Name="TXT_IndexOrdnerTitel"
+                            Grid.Column="0"
+                            VerticalAlignment="Center"
+                            FontFamily="Segoe UI"
+                            FontSize="13"
+                            FontWeight="SemiBold"
+                            Foreground="#FF1F2937"
+                            Text="Indizierte Ordner" />
+
+                        <Button
+                            x:Name="BTN_IndexOrdnerKarteSchliessen"
+                            Grid.Column="1"
+                            Padding="6,1"
+                            VerticalAlignment="Center"
+                            Command="{Binding CommandExecuteIndexOrdnerKarteSchliessenCommand}"
+                            Cursor="Hand"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="11"
+                            Style="{StaticResource OutlineButtonStyle}"
+                            ToolTip="Karte ausblenden – wieder aufrufbar über „Ordner verwalten“ im Bereichsmenü">
+                            <!--  E70E = Chevron nach oben: einklappen, nicht abbrechen. Das X wäre hier irreführend.  -->
+                            <TextBlock x:Name="IC_IndexOrdnerKarteSchliessen" Text="&#xE70E;" />
+                        </Button>
+                    </Grid>
+
+                    <TextBlock
+                        x:Name="TXT_IndexOrdnerUntertitel"
+                        Margin="0,2,0,0"
+                        FontFamily="Segoe UI"
+                        FontSize="11"
+                        Foreground="Gray"
+                        Text="Grundlage für die Suche über mehrere Ordner. Ordner hierher ziehen, um bereits indizierte nachzutragen."
+                        TextWrapping="Wrap" />
+
+                    <Grid x:Name="GRD_IndexOrdnerKopf" Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition x:Name="COL_IndexOrdnerTitel" Width="*" />
+                        <ColumnDefinition x:Name="COL_IndexOrdnerAbbrechen" Width="Auto" />
+                        <ColumnDefinition x:Name="COL_IndexOrdnerAuffrischen" Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock
+                        x:Name="TXT_IndexOrdnerZusammenfassung"
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        d:Text="12 Ordner · 8.430 Bilder · 1 fehlt"
+                        FontFamily="Segoe UI"
+                        FontSize="12"
+                        Foreground="#FF6B6B6B"
+                        Text="{Binding IndexOrdnerZusammenfassung}" />
+
+                    <!--  Nur sichtbar, solange der abgelegte Ordnerbaum durchsucht wird  -->
+                    <Button
+                        x:Name="BTN_IndexOrdnerSucheAbbrechen"
+                        Grid.Column="1"
+                        Margin="0,0,4,0"
+                        Padding="6,1"
+                        VerticalAlignment="Center"
+                        d:Visibility="Visible"
+                        Command="{Binding CommandExecuteIndexOrdnerAusDropCancelCommand}"
+                        Content="&#xE711;"
+                        Cursor="Hand"
+                        FontFamily="Segoe MDL2 Assets"
+                        FontSize="10"
+                        Style="{StaticResource OutlineButtonStyle}"
+                        ToolTip="Suche nach indizierten Ordnern abbrechen"
+                        Visibility="{Binding CommandExecuteIndexOrdnerAusDropCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}}" />
+
+                    <Button
+                        x:Name="BTN_IndexOrdnerAuffrischen"
+                        Grid.Column="2"
+                        Padding="6,1"
+                        VerticalAlignment="Center"
+                        Command="{Binding CommandExecuteIndexOrdnerAuffrischenCommand}"
+                        Content="&#xE72C;"
+                        Cursor="Hand"
+                        FontFamily="Segoe MDL2 Assets"
+                        FontSize="10"
+                        Style="{StaticResource OutlineButtonStyle}"
+                        ToolTip="Liste neu prüfen – erkennt Ordner, die inzwischen fehlen" />
+                </Grid>
+
+                <TextBlock
+                    x:Name="TXT_IndexOrdnerHinweis"
+                    Margin="0,4,0,0"
+                    d:Text="7 indizierte Ordner gefunden, 3 neu aufgenommen."
+                    FontFamily="Segoe UI"
+                    FontSize="11"
+                    Foreground="#FF6B7280"
+                    Text="{Binding IndexOrdnerHinweis}"
+                    TextWrapping="Wrap">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IndexOrdnerHinweis}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <ItemsControl
+                    x:Name="IC_IndexOrdner"
+                    MaxHeight="150"
+                    Margin="0,6,0,0"
+                    d:Visibility="Visible"
+                    ItemsSource="{Binding IndexOrdnerListe}"
+                    VirtualizingPanel.IsVirtualizing="True"
+                    VirtualizingPanel.VirtualizationMode="Recycling"
+                    Visibility="{Binding HatIndexOrdner, Converter={StaticResource CLconverterVisiblityBoolian}}">
+
+                    <d:ItemsControl.ItemsSource>
+                        <x:Array Type="{x:Type bs:IndexOrdnerEintrag}">
+                            <bs:IndexOrdnerEintrag Bilder="1157" Pfad="C:\Bilder\ZL4\he17_CG" />
+                            <bs:IndexOrdnerEintrag Bilder="387" Pfad="C:\Bilder\ZL4\Doppelt" />
+                            <bs:IndexOrdnerEintrag
+                                Bilder="0"
+                                Existiert="False"
+                                Pfad="U:\Sicherung\Explorer7-2" />
+                        </x:Array>
+                    </d:ItemsControl.ItemsSource>
+
+                    <!--  Eigene Vorlage mit Bildlaufleiste: Die Liste kann lang werden.  -->
+                    <ItemsControl.Template>
+                        <ControlTemplate TargetType="{x:Type ItemsControl}">
+                            <ScrollViewer
+                                x:Name="SCV_IndexOrdner"
+                                CanContentScroll="True"
+                                HorizontalScrollBarVisibility="Disabled"
+                                VerticalScrollBarVisibility="Auto">
+                                <ItemsPresenter />
+                            </ScrollViewer>
+                        </ControlTemplate>
+                    </ItemsControl.Template>
+
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <VirtualizingStackPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border
+                                x:Name="BRD_IndexOrdnerZeile"
+                                Margin="0,0,4,2"
+                                Padding="5,2"
+                                Background="White"
+                                BorderBrush="#FFECECEC"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                ToolTip="{Binding Tooltip}">
+                                <Grid x:Name="GRD_IndexOrdnerZeile">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition x:Name="COL_OrdnerIcon" Width="Auto" />
+                                        <ColumnDefinition x:Name="COL_OrdnerName" Width="*" />
+                                        <ColumnDefinition x:Name="COL_OrdnerInfo" Width="Auto" />
+                                        <ColumnDefinition x:Name="COL_OrdnerEntfernen" Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock
+                                        x:Name="IC_OrdnerZeile"
+                                        Grid.Column="0"
+                                        Margin="0,0,6,0"
+                                        VerticalAlignment="Center"
+                                        FontFamily="Segoe MDL2 Assets"
+                                        FontSize="12"
+                                        Foreground="#FF6B7280"
+                                        Text="&#xE8B7;" />
+
+                                    <TextBlock
+                                        x:Name="TXT_OrdnerName"
+                                        Grid.Column="1"
+                                        VerticalAlignment="Center"
+                                        FontFamily="Segoe UI"
+                                        FontSize="11"
+                                        Text="{Binding Anzeigename}"
+                                        TextTrimming="CharacterEllipsis">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="#FF1F2937" />
+                                                <Style.Triggers>
+                                                    <!--  Fehlender Ordner: grau und durchgestrichen, nicht still verschwinden lassen  -->
+                                                    <DataTrigger Binding="{Binding Existiert}" Value="False">
+                                                        <Setter Property="Foreground" Value="#FF9A9A9A" />
+                                                        <Setter Property="TextDecorations" Value="Strikethrough" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+
+                                    <TextBlock
+                                        x:Name="TXT_OrdnerInfo"
+                                        Grid.Column="2"
+                                        Margin="8,0,4,0"
+                                        VerticalAlignment="Center"
+                                        FontFamily="Segoe UI"
+                                        FontSize="10"
+                                        Foreground="Gray"
+                                        Text="{Binding Beschreibung}" />
+
+                                    <Button
+                                        x:Name="BTN_IndexOrdnerEntfernen"
+                                        Grid.Column="3"
+                                        Padding="5,0"
+                                        VerticalAlignment="Center"
+                                        Command="{Binding DataContext.CommandExecuteIndexOrdnerEntfernenCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                        CommandParameter="{Binding Pfad}"
+                                        Content="&#xE711;"
+                                        Cursor="Hand"
+                                        FontFamily="Segoe MDL2 Assets"
+                                        FontSize="10"
+                                        Style="{StaticResource OutlineButtonStyle}"
+                                        ToolTip="Diesen Ordner aus der Liste nehmen (die Indexdatei bleibt liegen)" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!--
                 Alles zum Wasserzeichen in einer Karte: Lernen, Zustand, gelernte Muster.
                 Klappt über BTN_WasserzeichenToggle auf – gleiche Mechanik wie die
                 Einstellungen darüber, deshalb auch als eigene Karte neben ihnen und
@@ -1195,11 +1590,11 @@
                 x:Name="BRD_WasserzeichenKarte"
                 Margin="0,10,0,0"
                 Padding="12,10,12,12"
+                d:Visibility="Visible"
                 Background="#FFFCFCFC"
                 BorderBrush="#FFECECEC"
                 BorderThickness="1"
                 CornerRadius="10"
-                d:Visibility="Visible"
                 Visibility="{Binding IsWasserzeichenOffen, Converter={StaticResource CLconverterVisiblityBoolian}}">
                 <StackPanel x:Name="STP_WasserzeichenKarte" Orientation="Vertical">
 
@@ -1231,6 +1626,232 @@
                         Text="Noch kein Muster gelernt – es wird nur nach Metadaten gesucht."
                         TextWrapping="Wrap"
                         Visibility="{Binding WasserzeichenMaskeVorhanden, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}" />
+
+                    <!--
+                        Befund zum gerade gewählten Bild. Bisher stand er nur im ToolTip
+                        des kleinen Abzeichens auf der Miniatur — dort findet man ihn nur,
+                        wenn man weiss, dass es ihn gibt.
+                    -->
+                    <Border
+                        x:Name="BRD_WasserzeichenBefund"
+                        Margin="0,10,0,0"
+                        Padding="8,6"
+                        BorderBrush="#FFE3E3E3"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="#FFFAFAFA" />
+                                <Style.Triggers>
+                                    <!--  Trägt das Bild eine Markierung, hebt sich der Kasten ab  -->
+                                    <DataTrigger Binding="{Binding WasserzeichenBefundIstTreffer}" Value="True">
+                                        <Setter Property="Background" Value="#FFFDF6E3" />
+                                        <Setter Property="BorderBrush" Value="#FFE0C07A" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+
+                        <Grid x:Name="GRD_WasserzeichenBefund">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition x:Name="COL_BefundBild" Width="Auto" />
+                                <ColumnDefinition x:Name="COL_BefundText" Width="*" />
+                                <ColumnDefinition x:Name="COL_BefundHilfe" Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <!--
+                                Das Muster, das am besten passte – sagt mehr als sein Name.
+                                96 Punkte ist die Eigengrösse der Maske; grösser gezeigt
+                                würde es nur unschärfer, ohne mehr zu verraten.
+                            -->
+                            <Border
+                                x:Name="BRD_BefundMusterBild"
+                                Grid.Column="0"
+                                Width="96"
+                                Height="96"
+                                Margin="0,0,10,0"
+                                VerticalAlignment="Top"
+                                BorderBrush="#FFCBD5E1"
+                                BorderThickness="1"
+                                d:Visibility="Visible"
+                                Visibility="{Binding WasserzeichenBefundHatBild, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                                <Image
+                                    x:Name="IMG_BefundMuster"
+                                    RenderOptions.BitmapScalingMode="HighQuality"
+                                    Source="{Binding WasserzeichenBefundBild}"
+                                    Stretch="Uniform"
+                                    d:Source="/Images/HeavyO.jpg" />
+                            </Border>
+
+                            <StackPanel
+                                x:Name="STP_WasserzeichenBefund"
+                                Grid.Column="1"
+                                Orientation="Vertical">
+
+                                <TextBlock
+                                    x:Name="TXT_WasserzeichenBefundDatei"
+                                    d:Text="2B - NieR_Automata …jpg"
+                                    FontFamily="Segoe UI"
+                                    FontSize="11"
+                                    FontWeight="SemiBold"
+                                    Foreground="#FF1F2937"
+                                    Text="{Binding WasserzeichenBefundDatei}"
+                                    TextTrimming="CharacterEllipsis" />
+
+                                <TextBlock
+                                    x:Name="TXT_WasserzeichenBefundText"
+                                    Margin="0,2,0,0"
+                                    d:Text="Wasserzeichen erkannt – deutlich über der Schwelle."
+                                    FontFamily="Segoe UI"
+                                    FontSize="11"
+                                    Foreground="#FF555555"
+                                    Text="{Binding WasserzeichenBefundText}"
+                                    TextWrapping="Wrap" />
+
+                                <TextBlock
+                                    x:Name="TXT_WasserzeichenBefundMuster"
+                                    Margin="0,3,0,0"
+                                    d:Text="anilvlai · oben rechts"
+                                    FontFamily="Segoe UI"
+                                    FontSize="11"
+                                    FontWeight="SemiBold"
+                                    Foreground="#FF1F2937"
+                                    Text="{Binding WasserzeichenBefundMuster}"
+                                    TextTrimming="CharacterEllipsis" />
+
+                                <!--  Zahl immer mit der Schwelle daneben: 23 % klingt nach wenig, ist aber viel  -->
+                                <TextBlock
+                                    x:Name="TXT_WasserzeichenBefundWert"
+                                    d:Text="Übereinstimmung 23 % · Schwelle 10 %"
+                                    FontFamily="Segoe UI"
+                                    FontSize="10"
+                                    Foreground="Gray"
+                                    Text="{Binding WasserzeichenBefundWert}" />
+
+                                <TextBlock
+                                    x:Name="TXT_WasserzeichenBefundMetadaten"
+                                    Margin="0,3,0,0"
+                                    d:Text="Autor: AnilvlAi"
+                                    FontFamily="Segoe UI"
+                                    FontSize="10"
+                                    Foreground="#FF6B7280"
+                                    Text="{Binding WasserzeichenBefundMetadaten}"
+                                    TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <!--  Erklärung rechts: die Zahlen sind ohne Einordnung wenig wert  -->
+                            <Border
+                                x:Name="BRD_BefundHilfe"
+                                Grid.Column="2"
+                                Width="18"
+                                Height="18"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Top"
+                                Background="#FFEFEFEF"
+                                BorderBrush="#FFCBD5E1"
+                                BorderThickness="1"
+                                CornerRadius="9"
+                                Cursor="Help"
+                                ToolTipService.ShowDuration="60000">
+                                <Border.ToolTip>
+                                    <ToolTip x:Name="TTP_BefundHilfe">
+                                        <StackPanel x:Name="STP_BefundHilfe" MaxWidth="420">
+                                            <TextBlock
+                                                x:Name="TXT_WzHilfeTitel"
+                                                Margin="0,0,0,6"
+                                                FontSize="12"
+                                                FontWeight="SemiBold"
+                                                Text="Wasserzeichen-Befund" />
+
+                                            <TextBlock
+                                                x:Name="TXT_WzHilfeBild"
+                                                FontSize="11"
+                                                Text="Links das gelernte Muster: der Mittelwert vieler Beispielbilder, gewichtet nach Beständigkeit. Was dort klar zu sehen ist, blieb über alle Beispiele gleich — das ist der feste Teil des Zeichens. Verwaschene Stellen wechselten, etwa ein Künstlername."
+                                                TextWrapping="Wrap" />
+
+                                            <TextBlock
+                                                x:Name="TXT_WzHilfeWert"
+                                                Margin="0,6,0,0"
+                                                FontSize="11"
+                                                Text="Die Übereinstimmung ist keine Wahrscheinlichkeit, sondern ein Ähnlichkeitsmass. Sie ist nur im Verhältnis zur Schwelle zu lesen: Eingemessen lagen Treffer bei 15 bis 28 %, Bilder ohne Zeichen zwischen −7 und 5 %. Deshalb liegt die Schwelle bei 10 % — und 23 % ist ein deutlicher Treffer, kein knapper."
+                                                TextWrapping="Wrap" />
+
+                                            <TextBlock
+                                                x:Name="TXT_WzHilfeStelle"
+                                                Margin="0,6,0,0"
+                                                FontSize="11"
+                                                Text="Hinter dem Musternamen steht die Stelle im Bild, an der gesucht wurde — Mitte oder eine der vier Ecken. Ein Muster findet nur dort, wo es gelernt wurde."
+                                                TextWrapping="Wrap" />
+
+                                            <TextBlock
+                                                x:Name="TXT_WzHilfeMetadaten"
+                                                Margin="0,6,0,0"
+                                                FontSize="11"
+                                                Text="Metadaten-Markierungen stehen im Dateikopf — Autor, Copyright, XMP, C2PA. Die gibt es auch ohne sichtbares Zeichen; das sind die unsichtbaren Wasserzeichen."
+                                                TextWrapping="Wrap" />
+
+                                            <TextBlock
+                                                x:Name="TXT_WzHilfeWann"
+                                                Margin="0,6,0,0"
+                                                FontSize="11"
+                                                Foreground="Gray"
+                                                Text="Geprüft wird am Ende des Indexierens. Neue Muster wirken erst, wenn der Ordner erneut indexiert wurde."
+                                                TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </ToolTip>
+                                </Border.ToolTip>
+
+                                <TextBlock
+                                    x:Name="TXT_BefundHilfeZeichen"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontFamily="Segoe UI"
+                                    FontSize="11"
+                                    FontWeight="SemiBold"
+                                    Foreground="#FF6B7280"
+                                    Text="?" />
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <!--
+                        Wo sitzt das Zeichen? Die Reihenfolge muss zu WasserzeichenBereich
+                        passen — gebunden wird der Index, damit kein Konverter nötig ist.
+                    -->
+                    <Grid x:Name="GRD_WasserzeichenBereich" Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition x:Name="COL_WzBereichLabel" Width="Auto" />
+                            <ColumnDefinition x:Name="COL_WzBereichWahl" Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock
+                            x:Name="TXT_WzBereichLabel"
+                            Grid.Column="0"
+                            Margin="0,0,8,0"
+                            VerticalAlignment="Center"
+                            FontFamily="Segoe UI"
+                            FontSize="11"
+                            Foreground="Gray"
+                            Text="Zeichen sitzt" />
+
+                        <ComboBox
+                            x:Name="CBX_WasserzeichenBereich"
+                            Grid.Column="1"
+                            Height="26"
+                            HorizontalAlignment="Left"
+                            MinWidth="150"
+                            VerticalContentAlignment="Center"
+                            FontSize="12"
+                            SelectedIndex="{Binding WasserzeichenLernBereich, Mode=TwoWay}"
+                            ToolTip="Stelle im Bild, an der das Zeichen liegt. Wird im Muster gespeichert und beim Prüfen wieder verwendet.">
+                            <ComboBoxItem x:Name="CBI_WzAlle" Content="alle Bereiche (selbst finden)" />
+                            <ComboBoxItem x:Name="CBI_WzMitte" Content="in der Mitte" />
+                            <ComboBoxItem x:Name="CBI_WzObenLinks" Content="oben links" />
+                            <ComboBoxItem x:Name="CBI_WzObenRechts" Content="oben rechts" />
+                            <ComboBoxItem x:Name="CBI_WzUntenLinks" Content="unten links" />
+                            <ComboBoxItem x:Name="CBI_WzUntenRechts" Content="unten rechts" />
+                        </ComboBox>
+                    </Grid>
 
                     <Grid x:Name="GRD_WasserzeichenLernen" Margin="0,10,0,0">
                         <Grid.ColumnDefinitions>

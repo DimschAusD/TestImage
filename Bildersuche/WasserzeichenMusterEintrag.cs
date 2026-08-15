@@ -24,6 +24,9 @@ namespace TestImage.Bildersuche
         /// </summary>
         public int StabilProzent { get; set; }
 
+        /// <summary>Eigene Erkennungsschwelle dieses Musters, in Prozent.</summary>
+        public int SchwelleProzent { get; set; }
+
         /// <summary>
         /// Das gelernte Muster als Bild. Zeigt den Mittelausschnitt, gewichtet mit der
         /// Stabilität – der feste Teil des Zeichens steht klar da, der wechselnde
@@ -31,11 +34,16 @@ namespace TestImage.Bildersuche
         /// </summary>
         public ImageSource? Vorschau { get; set; }
 
-        /// <summary>Knapp gehalten – die Liste kann lang werden, das Wort „stabil" steht im Tooltip.</summary>
-        public string Beschreibung => $"{Grundmenge} Bilder · {StabilProzent} %";
+        /// <summary>Stelle im Bild, an der dieses Muster gelernt wurde — „Mitte", „oben rechts" …</summary>
+        public string BereichName { get; set; } = "Mitte";
+
+        /// <summary>Knapp gehalten – die Liste kann lang werden, Erklärungen stehen im Tooltip.</summary>
+
+        public string Beschreibung => $"{BereichName} · {Grundmenge} Bilder · {StabilProzent} % · ab {SchwelleProzent} %";
 
         public string Tooltip =>
-            $"Aus {Grundmenge} Bildern gelernt.\n" +
+            $"Gelernt im Bereich: {BereichName}.\n"
+            + $"Aus {Grundmenge} Bildern gelernt.\n" +
             $"{StabilProzent} % der Bildpunkte blieben über alle Beispiele hinweg gleich.\n" +
             "Niedrige Werte heissen: Die Beispiele hatten wenig gemeinsam – dann besser\n" +
             "einen Ordner nehmen, in dem wirklich nur ein Zeichentyp vorkommt.";

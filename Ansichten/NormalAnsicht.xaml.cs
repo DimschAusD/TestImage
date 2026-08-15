@@ -65,7 +65,68 @@ namespace TestImage.Ansichten
         {
             if (e.PropertyName == nameof(AufgabeViewModel.DisplayImage))
                 EinblendenBild();
+
+            if (e.PropertyName == nameof(AufgabeViewModel.IsSuchleisteOffen))
+                ZeigeSuchfenster((sender as AufgabeViewModel)?.IsSuchleisteOffen == true);
         }
+
+        #region Werkzeugfenster Bildersuche
+
+        /// <summary>
+        /// Ein einziges Fenster für die ganze Sitzung. Beim Schliessen wird es nur
+        /// versteckt, damit Grösse und Position erhalten bleiben.
+        /// </summary>
+        private IndexSuchFenster? _suchFenster;
+
+        /// <summary>
+        /// Öffnet oder versteckt das Werkzeugfenster mit der Bildersuche.
+        ///
+        /// Fensterverwaltung gehört nicht ins ViewModel — das weiss nichts von Fenstern.
+        /// Es setzt nur <c>IsSuchleisteOffen</c>, und die Ansicht reagiert darauf.
+        /// </summary>
+        private void ZeigeSuchfenster(bool zeigen)
+        {
+            if (!zeigen)
+            {
+                _suchFenster?.Hide();
+                return;
+            }
+
+            if (_suchFenster is null)
+            {
+                var besitzer = Window.GetWindow(this);
+
+                _suchFenster = new IndexSuchFenster
+                {
+                    Owner = besitzer,
+
+                    // Ein Fenster erbt den DataContext nicht vom Besitzer – hier
+                    // ausdrücklich weiterreichen, damit das Panel dasselbe ViewModel sieht.
+                    DataContext = DataContext
+                };
+
+                // Beim Beenden der Anwendung wirklich schliessen, sonst bliebe das
+                // abgefangene Schliessen hängen und die Anwendung liefe weiter.
+                if (besitzer is not null)
+                {
+                    besitzer.Closing += (_, _) =>
+                    {
+                        if (_suchFenster is null) return;
+                        _suchFenster.DarfEndgueltigSchliessen = true;
+                        _suchFenster.Close();
+                    };
+                }
+            }
+
+            _suchFenster.Show();
+
+            if (_suchFenster.WindowState == WindowState.Minimized)
+                _suchFenster.WindowState = WindowState.Normal;
+
+            _suchFenster.Activate();
+        }
+
+        #endregion
 
         /// <summary>
         /// Senkrechtes Wackeln des Bildes – Rückmeldung, wenn das Verschieben nach unten
