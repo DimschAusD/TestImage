@@ -99,14 +99,22 @@ namespace TestImage
         /// </summary>
         private const int MaxVersuche = 6;
 
-        /// <summary>Nachmessungen bei kurzer Strecke – dort ist meist nichts zu korrigieren.</summary>
-        private const int NahsprungKorrekturen = 1;
-
         /// <summary>
-        /// Nachmessungen nach einem weiten Sprung. Mehr, weil sich Behälter, Ausdehnung
-        /// und der ScrollIntoView-Auftrag dort erst über mehrere Durchläufe einpendeln.
+        /// Obergrenze der Nachmessungen. Notbremse, kein Regelfall: Sobald die Mitte
+        /// innerhalb von <see cref="MittenToleranz"/> getroffen ist, hört die Kette von
+        /// selbst auf – auch dann, wenn das Element am Listenende gar nicht mittig
+        /// stehen kann, denn dort ist der geklemmte Zielwert nach einem Durchgang erreicht.
+        ///
+        /// Vorher gab es zwei feste Vorräte, 1 bei kurzer und 3 bei weiter Strecke. Das
+        /// war zu knapp und genau die Ursache dafür, dass die Leiste zwar rollte, aber
+        /// neben dem gesuchten Bild stehen blieb: Bei Pixel-Virtualisierung ist
+        /// <c>ExtentWidth</c> eine Hochrechnung, die sich mit jedem neu erzeugten Element
+        /// ändert. Ein vorher berechneter Versatz bedeutet danach etwas anderes. War der
+        /// Vorrat aufgebraucht, blieb der Rest stehen — und erst der nächste Klick brachte
+        /// zwei weitere Messungen mit. Deshalb wurde es „nach mehreren Klicks von selbst
+        /// richtig". Jetzt wird nachgemessen, bis es stimmt.
         /// </summary>
-        private const int WeitsprungKorrekturen = 3;
+        private const int MaxKorrekturen = 10;
 
         private static void OnSelectionChangedCenter(object? sender, SelectionChangedEventArgs e)
         {
@@ -149,7 +157,22 @@ namespace TestImage
             // trifft es nur die beiden äusseren Elemente und keines der mittleren.
             bool weitsprung = lb.ItemContainerGenerator.ContainerFromItem(lb.SelectedItem) is null;
             if (weitsprung)
-                lb.ScrollIntoView(lb.SelectedItem);
+            {
+                // Weiter Sprung ohne ScrollIntoView – siehe SpringeGrobZuIndex.
+                //
+                // ScrollIntoView war hier bis zuletzt der Grund, warum ausgerechnet der
+                // Sprung aus der Kachelliste beim ersten Mal danebenging: Sein Auftrag
+                // arbeitet weiter, nachdem wir zentriert haben, und zieht das Element
+                // zurück an den Rand. Erst der nächste Klick lief sauber, weil das Ziel
+                // dann schon erzeugt war und dieser Zweig gar nicht mehr betreten wurde.
+                var svSprung = FindVisualChild<ScrollViewer>(lb);
+                if (svSprung is null || !SpringeGrobZuIndex(lb, svSprung, lb.SelectedItem))
+                {
+                    // Nur als Rückfall, wenn sich die Lage nicht rechnen lässt – etwa
+                    // bevor die Leiste das erste Mal gemessen wurde.
+                    lb.ScrollIntoView(lb.SelectedItem);
+                }
+            }
 
             // Weiter Sprung wird gesetzt, nicht gerollt.
             //
@@ -164,9 +187,88 @@ namespace TestImage
                     lb,
                     lb.SelectedItem,
                     weitsprung ? 0 : RollDauerMs,
-                    weitsprung ? WeitsprungKorrekturen : NahsprungKorrekturen,
+                    MaxKorrekturen,
                     versuch: 0),
                 DispatcherPriority.Background);
+
+            if (weitsprung)
+                PlaneSpaeteKontrollen(lb, lb.SelectedItem);
+        }
+
+        /// <summary>
+        /// Springt grob an die Stelle des Elements, ohne <c>ScrollIntoView</c> zu benutzen.
+        ///
+        /// <b>Warum nicht ScrollIntoView:</b> Es legt einen Auftrag an, der das Element
+        /// „gerade eben sichtbar" schieben will und dafür über mehrere Layoutdurchläufe
+        /// nachfasst. Über tausende Kacheln hinweg ist er nach unserem Zentrieren noch
+        /// nicht fertig und zieht das Element anschliessend an den Rand des Sichtfensters
+        /// zurück – aus der Mitte heraus. Dagegen anzumessen ist ein Wettlauf, den mal der
+        /// eine und mal der andere gewinnt.
+        ///
+        /// <b>Warum eine Rechnung genügt:</b> Die Kacheln sind alle gleich breit – die
+        /// Vorlage setzt das Bild fest auf 80 × 80. Damit ist die Breite einer Kachel
+        /// schlicht <c>ExtentWidth / Anzahl</c>, und die Lage der n-ten Kachel ist exakt
+        /// bestimmt. Es wird also direkt an den Zielversatz gesetzt, ohne dass jemand
+        /// hinterher daran zieht. Den Rest – ein paar Pixel aus der Hochrechnung der
+        /// Gesamtbreite – erledigt das anschliessende Nachmessen wie bei jedem anderen
+        /// Sprung auch.
+        /// </summary>
+        /// <returns>False, wenn sich die Lage nicht rechnen lässt; dann bleibt nur ScrollIntoView.</returns>
+        private static bool SpringeGrobZuIndex(ListBox lb, ScrollViewer sv, object ausgewaehlt)
+        {
+            int anzahl = lb.Items.Count;
+            if (anzahl <= 0 || sv.ExtentWidth <= 0 || sv.ViewportWidth <= 0)
+                return false;
+
+            int index = lb.Items.IndexOf(ausgewaehlt);
+            if (index < 0)
+                return false;
+
+            double kachelBreite = sv.ExtentWidth / anzahl;
+            double ziel = ((index + 0.5) * kachelBreite) - (sv.ViewportWidth / 2.0);
+
+            SetzeVersatz(sv, Math.Max(0, Math.Min(ziel, sv.ExtentWidth - sv.ViewportWidth)));
+            return true;
+        }
+
+        /// <summary>
+        /// Späte Kontrollen nach einem weiten Sprung, in Millisekunden.
+        ///
+        /// Die Kette der Nachmessungen läuft über <see cref="DispatcherPriority.ContextIdle"/>
+        /// und ist nach wenigen Bildwechseln abgearbeitet. Der ScrollIntoView-Auftrag
+        /// arbeitet aber länger: Über tausende Elemente hinweg fasst er mehrfach nach,
+        /// korrigiert dabei die Hochrechnung der Gesamtbreite und zieht das Element
+        /// zuletzt an den Rand des Sichtfensters — also aus unserer Mitte heraus. Beim
+        /// Sprung aus der Kachelliste kommt hinzu, dass das Popup mit einer Blende
+        /// schliesst und dabei erneut Layout anstösst.
+        ///
+        /// Beides passiert nach unserem letzten Messpunkt. Zwei späte Kontrollen fangen
+        /// es ab; sie kosten nichts, wenn ohnehin alles stimmt, denn
+        /// <see cref="RolleZurMitte"/> steigt bei getroffener Mitte sofort wieder aus.
+        /// </summary>
+        private static readonly int[] SpaeteKontrollenMs = { 150, 400 };
+
+        /// <summary>
+        /// Meldet die späten Kontrollen an. Ändert sich die Auswahl vorher, laufen sie
+        /// ins Leere — <see cref="RolleZurMitte"/> prüft das selbst.
+        /// </summary>
+        private static void PlaneSpaeteKontrollen(ListBox lb, object ausgewaehlt)
+        {
+            foreach (int ms in SpaeteKontrollenMs)
+            {
+                var uhr = new DispatcherTimer(DispatcherPriority.ContextIdle, lb.Dispatcher)
+                {
+                    Interval = TimeSpan.FromMilliseconds(ms)
+                };
+
+                uhr.Tick += (_, _) =>
+                {
+                    uhr.Stop();
+                    RolleZurMitte(lb, ausgewaehlt, dauerMs: 0, restKorrekturen: 2, versuch: 0);
+                };
+
+                uhr.Start();
+            }
         }
 
         /// <summary>
@@ -219,6 +321,32 @@ namespace TestImage
                 return;
             }
 
+            // Behälter da, aber noch nicht unserer oder noch nicht an seiner Stelle.
+            //
+            // Die Leiste läuft mit VirtualizationMode="Recycling": Ein Behälter wird für
+            // ein neues Element wiederverwendet, und zwischen dem Umhängen und dem neuen
+            // Anordnen liegt ein Layoutdurchlauf. Wer ihn dazwischen misst, bekommt die
+            // Lage des vorigen Elements — und rollt an eine Stelle, die mit dem gesuchten
+            // Bild nichts zu tun hat. Dasselbe gilt, solange auf dem Panel noch ein
+            // Rollauftrag offen ist: Dann gehören Versatz und gemessene Lage nicht
+            // zusammen. In beiden Fällen lieber noch einen Durchlauf warten.
+            bool gehoertDazu = ReferenceEquals(
+                lb.ItemContainerGenerator.ItemFromContainer(container), ausgewaehlt);
+            bool angeordnet = VisualTreeHelper.GetParent(container) is not UIElement panel
+                              || panel.IsArrangeValid;
+
+            if (!gehoertDazu || !angeordnet)
+            {
+                if (versuch < MaxVersuche)
+                {
+                    lb.Dispatcher.BeginInvoke(
+                        () => RolleZurMitte(lb, ausgewaehlt, dauerMs, restKorrekturen, versuch + 1),
+                        DispatcherPriority.ContextIdle);
+                }
+
+                return;
+            }
+
             try
             {
                 double ziel = BerechneMittenVersatz(sv, container);
@@ -242,8 +370,13 @@ namespace TestImage
                     EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
                 };
 
+                // Erste Nachkorrektur noch mit kurzer Bewegung, danach ohne: Eine Kette
+                // vieler 90-ms-Bewegungen sieht aus wie Zittern, und ab der zweiten
+                // Korrektur geht es ohnehin nur noch um wenige Pixel.
+                int folgeDauer = dauerMs == RollDauerMs ? NachziehDauerMs : 0;
+
                 animation.Completed += (_, _) =>
-                    PlaneKorrektur(lb, ausgewaehlt, NachziehDauerMs, restKorrekturen);
+                    PlaneKorrektur(lb, ausgewaehlt, folgeDauer, restKorrekturen);
 
                 AnimatableScrollOffset.SetOffset(sv, sv.HorizontalOffset);
                 sv.BeginAnimation(AnimatableScrollOffset.OffsetProperty, animation);
@@ -262,8 +395,11 @@ namespace TestImage
         {
             if (restKorrekturen <= 0) return;
 
+            // versuch: 0 – auch eine Nachmessung darf auf den Behälter warten. Vorher
+            // stand hier MaxVersuche, womit ein gerade wiederverwendeter oder noch nicht
+            // erzeugter Behälter die Kette sofort abbrach.
             lb.Dispatcher.BeginInvoke(
-                () => RolleZurMitte(lb, ausgewaehlt, dauerMs, restKorrekturen - 1, versuch: MaxVersuche),
+                () => RolleZurMitte(lb, ausgewaehlt, dauerMs, restKorrekturen - 1, versuch: 0),
                 DispatcherPriority.ContextIdle);
         }
 

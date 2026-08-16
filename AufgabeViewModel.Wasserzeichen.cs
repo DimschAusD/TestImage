@@ -19,26 +19,26 @@ namespace TestImage
         #region Zustand
 
         [ObservableProperty]
-        private string _wasserzeichenStatus = string.Empty;
+        public partial string WasserzeichenStatus { get; set; } = string.Empty;
 
         /// <summary>Anzahl der im aktuellen Ordner gefundenen Bilder mit Markierung.</summary>
         [ObservableProperty]
-        private int _wasserzeichenTrefferAnzahl;
+        public partial int WasserzeichenTrefferAnzahl { get; set; }
 
         /// <summary>True, wenn mindestens ein Muster gelernt wurde – sonst greift nur die Metadatenprüfung.</summary>
         [ObservableProperty]
-        private bool _wasserzeichenMaskeVorhanden = WasserzeichenService.MaskeVorhanden;
+        public partial bool WasserzeichenMaskeVorhanden { get; set; } = WasserzeichenService.MaskeVorhanden;
 
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteWasserzeichenMaskeLernenCommand))]
-        private bool _wasserzeichenAufgabeLäuft;
+        public partial bool WasserzeichenAufgabeLäuft { get; set; }
 
         /// <summary>
         /// Karte aufgeklappt. Gleiche Mechanik wie <c>IsIndexPopoverOffen</c> bei den
         /// Einstellungen: ein Knopf oben schaltet um, die Karte hängt an dieser Eigenschaft.
         /// </summary>
         [ObservableProperty]
-        private bool _isWasserzeichenOffen;
+        public partial bool IsWasserzeichenOffen { get; set; }
 
         /// <summary>
         /// Auswahl der Stelle im Bild, als Index der Auswahlliste. 0 heisst „alle
@@ -49,7 +49,7 @@ namespace TestImage
         /// verschieben. Deshalb wird hier umgerechnet statt einfach gecastet.
         /// </summary>
         [ObservableProperty]
-        private int _wasserzeichenLernBereich;
+        public partial int WasserzeichenLernBereich { get; set; }
 
         private WasserzeichenBereich GewaehlterLernBereich =>
             WasserzeichenLernBereich <= 0
@@ -206,6 +206,7 @@ namespace TestImage
             Grundmenge = maske.Grundmenge,
             StabilProzent = (int)Math.Round(maske.StabilerAnteil * 100.0),
             SchwelleProzent = (int)Math.Round(maske.Schwelle * 100.0),
+            Staerke = maske.MusterStaerke,
             BereichName = maske.BereichName,
             Vorschau = maske.ErzeugeVorschau()
         };
@@ -237,6 +238,17 @@ namespace TestImage
                 var befunde = await WasserzeichenService.PruefeOrdnerAsync(ordner, fortschritt, token);
 
                 UebertrageWasserzeichenBefunde(befunde);
+
+                // Auch der Befund-Kasten muss die frischen Ergebnisse bekommen, nicht nur
+                // die Abzeichen auf den Miniaturen.
+                //
+                // Vorher wurden hier ausschliesslich die Abzeichen gesetzt. Der Kasten
+                // liest aber aus _befundeDesOrdners, und das stand noch auf dem Stand vom
+                // Öffnen des Ordners — bei einem erstmals indexierten Ordner also leer.
+                // Deshalb blieb er gleich nach dem Indexieren ohne Musterbild und tauchte
+                // erst auf, wenn die Befunde später wieder von der Platte gelesen wurden.
+                _befundeDesOrdners = befunde;
+                AktualisiereWasserzeichenBefundAnzeige();
 
                 int treffer = WasserzeichenTrefferAnzahl;
                 WasserzeichenStatus = treffer == 0
@@ -296,7 +308,10 @@ namespace TestImage
 
             if (befunde.Count == 0)
             {
-                WasserzeichenTrefferAnzahl = 0;
+                // Auch hier übertragen, obwohl nichts drinsteht: Sonst blieben die
+                // Abzeichen der vorigen Prüfung auf den Miniaturen kleben, wenn die
+                // Befunddatei gelöscht wurde.
+                UebertrageWasserzeichenBefunde(befunde);
                 AktualisiereWasserzeichenBefundAnzeige();
                 return;
             }
@@ -318,35 +333,35 @@ namespace TestImage
 
         /// <summary>Dateiname des Bildes, auf das sich der angezeigte Befund bezieht.</summary>
         [ObservableProperty]
-        private string _wasserzeichenBefundDatei = string.Empty;
+        public partial string WasserzeichenBefundDatei { get; set; } = string.Empty;
 
         /// <summary>Urteil in einem Satz.</summary>
         [ObservableProperty]
-        private string _wasserzeichenBefundText = "Kein Bild gewählt.";
+        public partial string WasserzeichenBefundText { get; set; } = "Kein Bild gewählt.";
 
         /// <summary>Bestes Muster samt Stelle, z. B. „anilvlai · oben rechts".</summary>
         [ObservableProperty]
-        private string _wasserzeichenBefundMuster = string.Empty;
+        public partial string WasserzeichenBefundMuster { get; set; } = string.Empty;
 
         /// <summary>Übereinstimmung im Verhältnis zur Schwelle, im Klartext.</summary>
         [ObservableProperty]
-        private string _wasserzeichenBefundWert = string.Empty;
+        public partial string WasserzeichenBefundWert { get; set; } = string.Empty;
 
         /// <summary>Vorschaubild des Musters, das am besten passte.</summary>
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(WasserzeichenBefundHatBild))]
-        private System.Windows.Media.ImageSource? _wasserzeichenBefundBild;
+        public partial System.Windows.Media.ImageSource? WasserzeichenBefundBild { get; set; }
 
         /// <summary>Steuert das Vorschaukästchen – ein eigener Konverter wäre dafür zu viel.</summary>
         public bool WasserzeichenBefundHatBild => WasserzeichenBefundBild is not null;
 
         /// <summary>Gefundene Metadaten-Markierungen, je Zeile eine.</summary>
         [ObservableProperty]
-        private string _wasserzeichenBefundMetadaten = string.Empty;
+        public partial string WasserzeichenBefundMetadaten { get; set; } = string.Empty;
 
         /// <summary>True, wenn das Bild tatsächlich eine Markierung trägt (färbt den Hinweis).</summary>
         [ObservableProperty]
-        private bool _wasserzeichenBefundIstTreffer;
+        public partial bool WasserzeichenBefundIstTreffer { get; set; }
 
         /// <summary>
         /// Stellt den Befund zum gewählten Bild zusammen. Vier Fälle, die sich für den
@@ -445,19 +460,27 @@ namespace TestImage
             else if (befund.HatMetadaten)
             {
                 WasserzeichenBefundIstTreffer = true;
-                WasserzeichenBefundText = "Kein sichtbares Zeichen, aber Markierungen in den Metadaten.";
+                WasserzeichenBefundText = "Kein sichtbares Zeichen, aber Metadaten-Markierungen gefunden.";
             }
             else if (string.IsNullOrEmpty(befund.MaskenName))
             {
-                WasserzeichenBefundText = "Keine Markierung gefunden – es ist noch kein Muster gelernt.";
+                // Ohne Muster wird die Datei für die Sichtprüfung gar nicht erst geöffnet.
+                // „Keine Markierung gefunden" wäre hier eine Behauptung über etwas, das
+                // niemand nachgesehen hat — die Metadaten dagegen wurden geprüft.
+                WasserzeichenBefundText =
+                    "Keine Metadaten-Markierungen. Auf sichtbare Zeichen wurde nicht "
+                    + "geprüft – es ist noch kein Muster gelernt.";
             }
             else if (wert >= schwelle * 0.6f)
             {
-                WasserzeichenBefundText = "Kein Treffer, aber nahe an der Schwelle – ansehen lohnt sich.";
+                WasserzeichenBefundText =
+                    "Kein Treffer, aber nahe an der Schwelle – ansehen lohnt sich. "
+                    + "Keine Metadaten-Markierungen.";
             }
             else
             {
-                WasserzeichenBefundText = "Keine Markierung gefunden.";
+                WasserzeichenBefundText =
+                    "Kein sichtbares Zeichen und keine Metadaten-Markierungen gefunden.";
             }
         }
 

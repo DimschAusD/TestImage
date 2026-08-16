@@ -688,6 +688,86 @@
                 </Border>
 
                 <!--
+                    FS = „Fav-Sortierung". Ordnet den offenen Ordner so, dass die
+                    wahrscheinlichen Ausschussbilder oben stehen — gelernt aus dem, was
+                    dort liegt, gegen das, was im kein_Fav daneben liegt.
+
+                    Kurze Beschriftung mit Absicht: Der Knopf steht in einer Reihe mit
+                    „Schema-ähnlich", und eine ausgeschriebene zweite Beschriftung würde
+                    die Zeile sprengen. Die Bedeutung steht im ToolTip.
+
+                    Verschoben wird nichts — das Ergebnis landet in derselben Trefferliste
+                    wie jede Suche und wird mit „Treffer übernehmen" angewandt.
+                -->
+                <!--
+                    FS und die Marke „fertig sortiert" in einer Umrandung, nach demselben
+                    Muster wie BRD_SchemaGeteilt daneben.
+
+                    Sie gehören zusammen: Die Marke ist keine allgemeine Einstellung,
+                    sondern sagt FS, ob dieser Ordner ins gemeinsame Profil darf. Getrennt
+                    stehend sähe sie aus wie ein Schalter für irgendetwas anderes.
+                -->
+                <Border
+                    x:Name="BRD_FavGeteilt"
+                    Margin="4,0,0,0"
+                    BorderBrush="#FFDADADA"
+                    BorderThickness="1"
+                    CornerRadius="7"
+                    SnapsToDevicePixels="True">
+                    <StackPanel x:Name="STP_FavGeteilt" Orientation="Horizontal">
+
+                        <Button
+                            x:Name="BTN_FavSortieren"
+                            Command="{Binding CommandExecuteFavSortierenCommand}"
+                            Style="{StaticResource SplitHauptButtonStyle}"
+                            ToolTip="FS – Bilder nach Fav sortieren: Der Ordner wird nach deinen bisherigen Entscheidungen geordnet, wahrscheinlicher Ausschuss zuerst. Gelernt wird aus diesem Ordner und seinem kein_Fav. Verschoben wird nichts – der Regler darunter zieht die Grenze, „Treffer übernehmen“ wendet sie an.">
+                            <StackPanel x:Name="STP_FavSortierenInhalt" Orientation="Horizontal">
+                                <TextBlock
+                                    x:Name="IC_FavSortieren"
+                                    Margin="0,1,6,0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="13"
+                                    Text="&#xE8CB;" />
+                                <TextBlock
+                                    x:Name="TXT_FavSortieren"
+                                    VerticalAlignment="Center"
+                                    FontWeight="SemiBold"
+                                    Text="FS" />
+                            </StackPanel>
+                        </Button>
+
+                        <!--  Haarstrich statt Lücke: trennt die Hälften, hält sie zusammen  -->
+                        <Border
+                            x:Name="BRD_FavTrenner"
+                            Width="1"
+                            Margin="0,4"
+                            Background="#FFDADADA" />
+
+                        <!--
+                            Marke „fertig sortiert".
+
+                            Kein Beiwerk: Nur so markierte Ordner gehen ins gemeinsame
+                            Profil ein. Gemessen liegt das gemeinsame Muster über alle
+                            Ordner bei AUC 0,53 — Münzwurf —, über die gründlich
+                            sortierten bei 0,66. Der Unterschied ist halbfertige Arbeit,
+                            nicht das Verfahren: In einem unfertigen Ordner liegt
+                            ungeprüfter Ausschuss zwischen den Behaltern und verdirbt
+                            die gute Seite.
+                        -->
+                        <CheckBox
+                            x:Name="CHK_OrdnerFertigSortiert"
+                            Margin="9,0,10,0"
+                            VerticalAlignment="Center"
+                            Content="fertig sortiert"
+                            FontSize="11"
+                            Foreground="#FF555555"
+                            IsChecked="{Binding OrdnerFertigSortiert, Mode=TwoWay}"
+                            ToolTip="Ankreuzen, wenn in diesem Ordner alles geprüft ist – was noch daliegt, ist gut. Nur so markierte Ordner fliessen in das gemeinsame Profil ein, das bei einem neuen Künstler ohne eigene Historie aushilft." />
+                    </StackPanel>
+                </Border>
+
+                <!--
                     Hilfe zur Schema-Suche. Bewusst kein Button, sondern ein Chip mit
                     Fragezeichen-Cursor: es gibt nichts zu klicken, nur zu lesen.
                     ShowDuration hochgesetzt, weil die 5-Sekunden-Vorgabe für einen
@@ -1773,7 +1853,7 @@
                                                 x:Name="TXT_WzHilfeWert"
                                                 Margin="0,6,0,0"
                                                 FontSize="11"
-                                                Text="Die Übereinstimmung ist keine Wahrscheinlichkeit, sondern ein Ähnlichkeitsmass. Sie ist nur im Verhältnis zur Schwelle zu lesen: Eingemessen lagen Treffer bei 15 bis 28 %, Bilder ohne Zeichen zwischen −7 und 5 %. Deshalb liegt die Schwelle bei 10 % — und 23 % ist ein deutlicher Treffer, kein knapper."
+                                                Text="Die Übereinstimmung ist keine Wahrscheinlichkeit, sondern ein Ähnlichkeitsmass, und nur im Verhältnis zur Schwelle daneben zu lesen. Jedes Muster hat seine eigene: Sie wird beim Lernen an den eigenen Beispielen eingemessen, weil ein bildfüllendes Zeichen ein Vielfaches dessen erreicht, was ein Banner in der Ecke erreicht. Unter 6 % geht sie nie — so tief liegt das Rauschen unmarkierter Bilder (−7 bis 5 %). Muster aus der Zeit vor dieser Messung benutzen ersatzweise 10 %. Ein Wert klar über der Schwelle ist ein deutlicher Treffer, auch wenn die Prozentzahl klein aussieht."
                                                 TextWrapping="Wrap" />
 
                                             <TextBlock
@@ -1788,6 +1868,13 @@
                                                 Margin="0,6,0,0"
                                                 FontSize="11"
                                                 Text="Metadaten-Markierungen stehen im Dateikopf — Autor, Copyright, XMP, C2PA. Die gibt es auch ohne sichtbares Zeichen; das sind die unsichtbaren Wasserzeichen."
+                                                TextWrapping="Wrap" />
+
+                                            <TextBlock
+                                                x:Name="TXT_WzHilfeLernen"
+                                                Margin="0,6,0,0"
+                                                FontSize="11"
+                                                Text="Zum Lernen genügen rund 20 Bilder – sie müssen aber alle dasselbe Zeichen an derselben Stelle tragen, und keines darf ohne Zeichen dabei sein. Mehr Bilder machen das Muster nicht besser: Es ist ein Mittelwert, und ein Ordner mit tausenden Bildern verschiedener Zeichentypen mittelt sich zu einer leeren Fläche. Unter 5 Bildern wird nichts gelernt; ab 12 wird zusätzlich geprüft, ob zweierlei Zeichen im Ordner stecken."
                                                 TextWrapping="Wrap" />
 
                                             <TextBlock
@@ -1843,7 +1930,7 @@
                             VerticalContentAlignment="Center"
                             FontSize="12"
                             SelectedIndex="{Binding WasserzeichenLernBereich, Mode=TwoWay}"
-                            ToolTip="Stelle im Bild, an der das Zeichen liegt. Wird im Muster gespeichert und beim Prüfen wieder verwendet.">
+                            ToolTip="Stelle im Bild, an der das Zeichen liegt. Wird im Muster gespeichert und beim Prüfen wieder verwendet. „Alle Bereiche“ lernt Mitte und alle vier Ecken durch und behält die stärkste — das dauert entsprechend fünfmal so lange.">
                             <ComboBoxItem x:Name="CBI_WzAlle" Content="alle Bereiche (selbst finden)" />
                             <ComboBoxItem x:Name="CBI_WzMitte" Content="in der Mitte" />
                             <ComboBoxItem x:Name="CBI_WzObenLinks" Content="oben links" />
@@ -1868,7 +1955,7 @@
                             Command="{Binding CommandExecuteWasserzeichenMaskeLernenCommand}"
                             Cursor="Hand"
                             Style="{StaticResource OutlineButtonStyle}"
-                            ToolTip="Muster aus einem Beispielordner lernen – alle Bilder darin müssen dasselbe Wasserzeichen tragen (mindestens 5).">
+                            ToolTip="Muster aus einem Beispielordner lernen – mindestens 5 Bilder, alle mit Wasserzeichen desselben Anbieters. Ab 12 Bildern wird geprüft, ob der Ordner zwei verschiedene Zeichen enthält; bestätigt sich das, werden zwei Muster daraus.">
                             <StackPanel x:Name="STP_WzLernenInhalt" Orientation="Horizontal">
                                 <TextBlock
                                     x:Name="IC_WzLernen"
@@ -1966,11 +2053,15 @@
                                 <bs:WasserzeichenMusterEintrag
                                     Grundmenge="32"
                                     MusterName="DeviantArt-Logo"
-                                    StabilProzent="74" />
+                                    SchwelleProzent="16"
+                                    StabilProzent="49"
+                                    Staerke="7.4" />
                                 <bs:WasserzeichenMusterEintrag
                                     Grundmenge="11"
                                     MusterName="DeviantArt-Balken"
-                                    StabilProzent="58" />
+                                    SchwelleProzent="11"
+                                    StabilProzent="51"
+                                    Staerke="2.9" />
                             </x:Array>
                         </d:ItemsControl.ItemsSource>
 

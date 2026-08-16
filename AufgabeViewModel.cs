@@ -31,7 +31,7 @@ namespace TestImage
 
 
         [ObservableProperty]
-        private int _CountInnerZählerTest;
+        public partial int CountInnerZählerTest { get; set; }
 
 
         [ObservableProperty]
@@ -56,6 +56,8 @@ namespace TestImage
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteBildInsBesondersVerschiebenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteAlleBilderMiteinanderAufByteGleichheitPrüfenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteAlleBilderNeuEinlesenCommand))]
+        // Gegenstück zur Sperre im Indexieren: Läuft ein Abgleich, ist der Index-Knopf aus.
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteOrdnerIndexierenCommand))]
         public partial bool PrüfungLäuft { get; set; } = false;
 
 
@@ -111,34 +113,30 @@ namespace TestImage
         public partial bool? IsBildNullDatei { get; set; } = false;
 
         [ObservableProperty]
-        private string _LabelDropContent = "⓵ mvvmDrop";
-        private bool _zehnBilderAnzeigen = false;
+        public partial string LabelDropContent { get; set; } = "⓵ mvvmDrop";
 
         [ObservableProperty]
-        private ImageSource _Bildchen = null;
+        public partial ImageSource Bildchen { get; set; } = null;
 
         [ObservableProperty]
         public partial bool SollBildGeprüftWerden { get; set; } = false;
 
         [ObservableProperty]
-        private double _PercentageValueVerschieben;
+        public partial double PercentageValueVerschieben { get; set; }
 
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteAlleBilderMiteinanderAufByteGleichheitPrüfenCommand))]
-        private bool _MultiByteParallelGleichheit = true;
-
-
-
+        public partial bool MultiByteParallelGleichheit { get; set; } = true;
 
         [ObservableProperty]
-        private bool _IsImageMaximiert = false;
+        public partial bool IsImageMaximiert { get; set; } = false;
 
         /// <summary>
         /// Tastenübersicht im Bildmodus eingeblendet (F1 oder ?). Dort gibt es keine
         /// sichtbaren Knöpfe – ohne diese Liste wären die Kürzel nicht auffindbar.
         /// </summary>
         [ObservableProperty]
-        private bool _isVollbildHilfeOffen;
+        public partial bool IsVollbildHilfeOffen { get; set; }
 
         /// <summary>Blendet die Tastenübersicht ein oder aus (Hinweisfeld und F1).</summary>
         [RelayCommand]
@@ -146,13 +144,13 @@ namespace TestImage
             => IsVollbildHilfeOffen = !IsVollbildHilfeOffen;
 
         [ObservableProperty]
-        private bool _isWebcamAktiv;
+        public partial bool IsWebcamAktiv { get; set; }
 
         [ObservableProperty]
-        private bool _isMikrofonAktiv;
+        public partial bool IsMikrofonAktiv { get; set; }
 
         [ObservableProperty]
-        private bool _isScreenShareAktiv;
+        public partial bool IsScreenShareAktiv { get; set; }
 
         private readonly System.Windows.Threading.DispatcherTimer _geraeteTimer;
 
@@ -170,20 +168,6 @@ namespace TestImage
         public partial int OriginalImageHeight { get; set; } = -1;
         #endregion
 
-        // [ObservableProperty]
-        private int _aufgabenViewIndex = 0;
-        private int _AufgabenViewIndex
-        {
-            get => _aufgabenViewIndex;
-            set
-            {
-                if (SetProperty(ref _aufgabenViewIndex, value))
-                {
-                    // 10 Bilder in die View bringen
-                    //MeUI_10BilderInViewBringen();
-                }
-            }
-        }
 
 
 
@@ -494,41 +478,7 @@ namespace TestImage
                     //    return true;
                     //}
 
-                    // auf 10 Einträge begrenzen
-
-                    //var indexSelecded = _AufgabenViewIndex;
-                    //var hhh = AufgabenView.Count;
-
-                    //if (indexSelecded == -1) return true;
-
-
-                    //var kl = indexSelecded - 2;
-                    //if (kl < 0)
-                    //{
-                    //    kl = 0;
-                    //}
-
-                    //var gr = indexSelecded + 2;
-                    //if (gr > ocAufgabens.Count)
-                    //{
-                    //    gr = ocAufgabens.Count - 1;
-                    //}
-
-
-                    //var test = ocAufgabens.IndexOf(aufgabe);
-
-                    //if (test >= kl & test <= gr)
-                    //{
-
-                    //    Debug.WriteLine($"Index: {indexSelecded} kl: {kl} gr: {gr}  test: {test}");
-                    //    return true;
-                    //}
-                    //else
-                    //{
-                    //    return false;
-                    //}
                 }
-
                 else
                 {
                     //    return aufgabe.BName.IndexOf(FilterText, StringComparison.OrdinalIgnoreCase) >= 0;
@@ -604,7 +554,9 @@ namespace TestImage
                     string? neuerOrdner = Path.GetDirectoryName(fullDateiName);
 
                     if (!string.Equals(alterOrdner, neuerOrdner, StringComparison.OrdinalIgnoreCase))
+                    {
                         VerwerfeSuchtreffer();
+                    }
                 }
 
                 LabelDropContent = Path.GetFileName(fullDateiName);
@@ -660,7 +612,7 @@ namespace TestImage
                     return liste;
                 });
 
-                int index = 0;
+                //int index = 0;
                 foreach (var datei in dateies)
                 {
                     await Task.Yield();
@@ -680,8 +632,6 @@ namespace TestImage
 
                 AufgabenView.Refresh();
 
-                //ocAufgabens?.OrderBy(k => System.IO.Path.GetFileName(k.BName));
-                //MeUI_10BilderInViewBringen();
 
 
                 // Rabat Code
@@ -815,10 +765,6 @@ namespace TestImage
             set
             {
 
-
-
-                _AufgabenViewIndex = ocAufgabens.IndexOf(value);
-
                 // Fehler
 
                 //if (_AufgabenViewIndex == -1)
@@ -833,8 +779,6 @@ namespace TestImage
                 //}
 
 
-
-                //AufgabenView.MoveCurrentTo(value);
                 AufgabenView.MoveCurrentTo(value);
                 OnPropertyChanged(nameof(SelectedBildchen.BildFürLinks));
 
@@ -852,7 +796,6 @@ namespace TestImage
                 CommandExecuteBildStretchAnpassenCommand?.NotifyCanExecuteChanged();
                 CommandExecuteAlleBilderInsKeinFavVerschiebenCommand?.NotifyCanExecuteChanged();
                 CommandExecuteSuchleisteToggleCommand?.NotifyCanExecuteChanged();
-                //  CommandExecuteAlleBilderMiteinanderAufByteGleichheitPrüfenCommand?.NotifyCanExecuteChanged();
 
             }
         }
@@ -879,9 +822,11 @@ namespace TestImage
             }
             else
             {
+                // !IndexLaeuft: siehe die übrigen Verschiebe-Befehle – während des
+                // Indexierens darf keine Datei wegwandern. Das Blättern bleibt frei.
                 return (OcAufgabens.Count > 0) & File.Exists(SelectedBildchen.BName)
                      & (AufgabenView.CurrentPosition <= AufgabenView.Count
-                    & (!SelectedBildchen.BName.Contains("kein_Fav")) & !PrüfungLäuft);
+                    & (!SelectedBildchen.BName.Contains("kein_Fav")) & !PrüfungLäuft & !IndexLaeuft);
             }
 
 
@@ -1111,10 +1056,13 @@ namespace TestImage
                 return false;
             }
 
+            // !IndexLaeuft aus demselben Grund wie beim Verschieben aller Bilder: Der
+            // Index verweist auf Pfade, und was während des Laufs wegwandert, steht
+            // hinterher falsch darin.
             return /*(OcLinkeBilder.Count > 0)*/
                  !string.IsNullOrEmpty(SelectedBildchen.BName)
                 & File.Exists(SelectedBildchen.BName)
-                & (SelectedBildchen.BildFürLinks == true & (!PrüfungLäuft));
+                & (SelectedBildchen.BildFürLinks == true & (!PrüfungLäuft) & (!IndexLaeuft));
         }
         [RelayCommand(CanExecute = nameof(CanExecuteBildInsHauptVerzeichnisZuruckVerschiebenCommand))]
         private async Task CommandExecuteBildInsHauptVerzeichnisZuruckVerschieben()
@@ -1291,8 +1239,10 @@ namespace TestImage
 
         private bool CanExecuteVerschiebenZurück()
         {
+            // !IndexLaeuft: Rückgängig verschiebt ebenfalls eine Datei.
             return !string.IsNullOrEmpty(BildchenVorher)
-                & File.Exists(BildchenVorher);
+                & File.Exists(BildchenVorher)
+                & !IndexLaeuft;
         }
         [RelayCommand(CanExecute = nameof(CanExecuteVerschiebenZurück))]
         private void CommandExecuteVerschiebenZurück()
@@ -1673,13 +1623,13 @@ namespace TestImage
 
 
         [ObservableProperty]
-        private BitmapSource _DisplayImage;
+        public partial BitmapSource DisplayImage { get; set; }
 
         [ObservableProperty]
-        private bool _IsDisplayImageLoading;
+        public partial bool IsDisplayImageLoading { get; set; }
 
         [ObservableProperty]
-        private int _ProgressValue;
+        public partial int ProgressValue { get; set; }
 
 
 
@@ -1687,16 +1637,16 @@ namespace TestImage
 
 
         [ObservableProperty]
-        private Stretch _ImageStretch = Stretch.Uniform;
+        public partial Stretch ImageStretch { get; set; } = Stretch.Uniform;
 
         [ObservableProperty]
-        private ScrollBarVisibility _MyHorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
+        public partial ScrollBarVisibility MyHorizontalScrollBarVisibility { get; set; } = ScrollBarVisibility.Disabled;
 
         [ObservableProperty]
-        private string _SWkleinesBild = string.Empty;
+        public partial string SWkleinesBild { get; set; } = string.Empty;
 
         [ObservableProperty]
-        private string _SWgrossesBild = string.Empty;
+        public partial string SWgrossesBild { get; set; } = string.Empty;
 
 
 
@@ -1734,8 +1684,12 @@ namespace TestImage
         #region Command Alle Bilder ins kein Fav verschieben
         private bool CanExecuteAlleBilderInsKeinFavVerschieben()
         {
+            // !IndexLaeuft: Während des Indexierens dürfen keine Dateien wegwandern.
+            // Der Index wird gerade geschrieben und verweist auf Pfade — verschobene
+            // Bilder machen ihn stellenweise unbrauchbar, ohne dass man es ihm ansieht.
             return OcAufgabens.Any(b => b.BildFürLinks == false)
                 && (!PrüfungLäuft)
+                && (!IndexLaeuft)
                 && ListeStammtAusEinemOrdner
                 && (SelectedBildchen != null && !SelectedBildchen.BName.Contains("kein_Fav"));
         }
@@ -2038,7 +1992,9 @@ namespace TestImage
 
         private bool CanExecuteSuchenGleichesBildByteVergleich()
         {
-            return OcAufgabens.Count > 1 && (!PrüfungLäuft);
+            // !IndexLaeuft: Gegenstück zur Sperre am Indexieren – nur ein schwerer
+            // Vorgang gleichzeitig, sonst zeigt die gemeinsame Leiste nur einen davon.
+            return OcAufgabens.Count > 1 && (!PrüfungLäuft) && (!IndexLaeuft);
         }
 
         [RelayCommand(CanExecute = nameof(CanExecuteSuchenGleichesBildByteVergleich), IncludeCancelCommand = true)]
@@ -2191,7 +2147,7 @@ namespace TestImage
 
         private bool CanExecuteSuchenUngefährGleichesBild()
         {
-            return OcAufgabens.Count > 1 && (!PrüfungLäuft);
+            return OcAufgabens.Count > 1 && (!PrüfungLäuft) && (!IndexLaeuft);
 
         }
 
@@ -2339,7 +2295,7 @@ namespace TestImage
         #region Command Alle Bilder miteinander auf Byte Gleichheit prüfen
         private bool CanExecuteAlleBilderMiteinanderAufByteGleichheitPrüfen()
         {
-            return OcAufgabens.Count > 1 && (!PrüfungLäuft) /*&& (!MultiByteParallelGleichheit)*/;
+            return OcAufgabens.Count > 1 && (!PrüfungLäuft) && (!IndexLaeuft) /*&& (!MultiByteParallelGleichheit)*/;
 
         }
 
@@ -2600,7 +2556,7 @@ namespace TestImage
         #region Command Bild ins KI Fehler verschieben
         private bool CanExecuteBildInsKIFehlerVerschiebenCommand()
         {
-            return SelectedBildchen != null && !PrüfungLäuft;
+            return SelectedBildchen != null && !PrüfungLäuft && !IndexLaeuft;
         }
 
         [RelayCommand(CanExecute = nameof(CanExecuteBildInsKIFehlerVerschiebenCommand))]
@@ -2752,7 +2708,7 @@ namespace TestImage
 
         private bool CanExecuteBildInsBesondersVerschieben()
         {
-            return SelectedBildchen != null && !PrüfungLäuft;
+            return SelectedBildchen != null && !PrüfungLäuft && !IndexLaeuft;
         }
 
         /// <summary>
@@ -2855,7 +2811,7 @@ namespace TestImage
         #region Command Alle Bilder SHA256 Abgleich prüfen
         private bool CanExecuteAlleBilderSHA256AbgleichPrüfen()
         {
-            return OcAufgabens.Count > 1 && (!PrüfungLäuft) /*&& (!MultiByteParallelGleichheit)*/;
+            return OcAufgabens.Count > 1 && (!PrüfungLäuft) && (!IndexLaeuft) /*&& (!MultiByteParallelGleichheit)*/;
         }
 
         [RelayCommand(CanExecute = nameof(CanExecuteAlleBilderSHA256AbgleichPrüfen), IncludeCancelCommand = true)]
@@ -3130,26 +3086,26 @@ namespace TestImage
 
         /// <summary>True, wenn die schlanke Such-/Index-Leiste eingeblendet ist.</summary>
         [ObservableProperty]
-        private bool _isSuchleisteOffen;
+        public partial bool IsSuchleisteOffen { get; set; }
 
         /// <summary>True, wenn die Schnell-Liste (alle Miniaturen im Popup) eingeblendet ist.</summary>
         [ObservableProperty]
-        private bool _isBildListeOffen;
+        public partial bool IsBildListeOffen { get; set; }
 
         /// <summary>Die Zeilen der Schnell-Liste (je <see cref="BildListeSpalten"/> Kacheln) – ermöglicht zeilenweise Virtualisierung.</summary>
         [ObservableProperty]
-        private ObservableCollection<System.Collections.Generic.IReadOnlyList<Bildersuche.BildListeItem>> _bildListeZeilen = new();
+        public partial ObservableCollection<System.Collections.Generic.IReadOnlyList<Bildersuche.BildListeItem>> BildListeZeilen { get; set; } = new();
 
         /// <summary>Die Zeile, die das aktuell gewählte Bild enthält (zum Sichtbar-Scrollen).</summary>
         [ObservableProperty]
-        private System.Collections.Generic.IReadOnlyList<Bildersuche.BildListeItem>? _aktuelleZeile;
+        public partial System.Collections.Generic.IReadOnlyList<Bildersuche.BildListeItem>? AktuelleZeile { get; set; }
 
         /// <summary>Feste Spaltenzahl pro Zeile (die Popup-Breite ist fix).</summary>
         private const int BildListeSpalten = 5;
 
         /// <summary>True, während die Vorschaubilder der Schnell-Liste im Hintergrund laden.</summary>
         [ObservableProperty]
-        private bool _bildListeLaedt;
+        public partial bool BildListeLaedt { get; set; }
 
         private CancellationTokenSource? _bildListeCts;
 
@@ -3170,40 +3126,41 @@ namespace TestImage
 
         /// <summary>Kurzstatus der Bildanalyse (z. B. „Analysiere…", „6 Begriffe erkannt").</summary>
         [ObservableProperty]
-        private string _analyseStatus = string.Empty;
+        public partial string AnalyseStatus { get; set; } = string.Empty;
 
         /// <summary>True während die Analyse läuft (für einen Ladehinweis).</summary>
         [ObservableProperty]
-        private bool _analyseLaeuft;
+        public partial bool AnalyseLaeuft { get; set; }
 
         /// <summary>Vorschaubild das gerade analysiert wurde (für die Anzeige im Popup).</summary>
         [ObservableProperty]
-        private ImageSource? _analyseBildVorschau;
+        public partial ImageSource? AnalyseBildVorschau { get; set; }
 
         /// <summary>Heatmap-Overlay (halbtransparent) über der Vorschau — zeigt wo der Begriff erkannt wurde.</summary>
         [ObservableProperty]
-        private ImageSource? _heatmapOverlay;
+        public partial ImageSource? HeatmapOverlay { get; set; }
 
         /// <summary>True während die Heatmap berechnet wird.</summary>
         [ObservableProperty]
-        private bool _heatmapLaeuft;
+        public partial bool HeatmapLaeuft { get; set; }
 
         [ObservableProperty]
-        private bool _filterLaeuft;
+        public partial bool FilterLaeuft { get; set; }
 
         [ObservableProperty]
-        private int _serieFortschritt;
+        public partial int SerieFortschritt { get; set; }
 
         /// <summary>True während Suche/BFS (Marquee), False während Thumbnails laden (echter %-Balken).</summary>
         [ObservableProperty]
-        private bool _serieIndeterminate;
+        public partial bool SerieIndeterminate { get; set; }
 
 
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteErweiterteSerieSucheCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteDublettenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteSchemaAehnlichCommand))]
-        private bool _serieSucheLaeuft;
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteFavSortierenCommand))]
+        public partial bool SerieSucheLaeuft { get; set; }
 
         /// <summary>Die erkannten Begriffe des aktuellen Bildes (z. B. „Blume 34 %").</summary>
         public ObservableCollection<string> ErkannteBegriffe { get; } = new();
@@ -3222,7 +3179,7 @@ namespace TestImage
         /// zurückgezogen werden).
         /// </summary>
         [ObservableProperty]
-        private bool _hatTrefferCache;
+        public partial bool HatTrefferCache { get; set; }
 
         /// <summary>
         /// True, wenn die Trefferliste wegen eines Ordnerwechsels verworfen wurde. Färbt
@@ -3230,7 +3187,7 @@ namespace TestImage
         /// Suchleiste erst später über BTN_IndexSuchleiste wieder geöffnet wird.
         /// </summary>
         [ObservableProperty]
-        private bool _suchErgebnisseVeraltet;
+        public partial bool SuchErgebnisseVeraltet { get; set; }
 
         /// <summary>
         /// Restzeit lesbar aufbereiten: unter einer Minute in Sekunden, darüber in
@@ -3240,10 +3197,14 @@ namespace TestImage
         private static string FormatiereRestzeit(int sekunden)
         {
             if (sekunden <= 0)
+            {
                 return string.Empty;
+            }
 
             if (sekunden < 60)
+            {
                 return $"{sekunden} s";
+            }
 
             int minuten = sekunden / 60;
             int rest = sekunden % 60;
@@ -3256,6 +3217,10 @@ namespace TestImage
         {
             _alleSuchTreffer.Clear();
             HatTrefferCache = false;
+
+            // Jede neue Suche ist keine FS-Sortierung mehr – sonst filterte der Regler
+            // die frischen Treffer mit dem falschen Renderer.
+            ErgebnisseSindFavSortierung = false;
 
             // Jeder Suchlauf beginnt hiermit → Einfärbung des letzten Wechsels aufheben.
             SuchErgebnisseVeraltet = false;
@@ -3294,7 +3259,7 @@ namespace TestImage
         /// des Suchfelds (PGB_SuchfeldLinie).
         /// </summary>
         [ObservableProperty]
-        private int _suchfeldFortschritt;
+        public partial int SuchfeldFortschritt { get; set; }
 
         /// <summary>
         /// True, solange die Dauer unbekannt ist (Modell laden, Index abfragen) — dann
@@ -3302,19 +3267,19 @@ namespace TestImage
         /// Prozent-Fortschritt umgeschaltet.
         /// </summary>
         [ObservableProperty]
-        private bool _suchfeldIndeterminate = true;
+        public partial bool SuchfeldIndeterminate { get; set; } = true;
 
         /// <summary>Kurzstatus der Freitextsuche.</summary>
         [ObservableProperty]
-        private string _sucheStatus = string.Empty;
+        public partial string SucheStatus { get; set; } = string.Empty;
 
         /// <summary>Der aktuell hervorgehobene Begriff (für visuelles Feedback im Chip).</summary>
         [ObservableProperty]
-        private string? _aktuellerHeatmapBegriff;
+        public partial string? AktuellerHeatmapBegriff { get; set; }
 
         /// <summary>True = Begriffe auf Deutsch anzeigen, False = englische Originale.</summary>
         [ObservableProperty]
-        private bool _begriffeAufDeutsch = true;
+        public partial bool BegriffeAufDeutsch { get; set; } = true;
 
         /// <summary>Letzte Roh-Ergebnisse (englisch) für erneutes Rendern bei Sprachwechsel.</summary>
         private System.Collections.Generic.IReadOnlyList<(string Word, float Score)> _letzteBegriffe =
@@ -3582,7 +3547,7 @@ namespace TestImage
 
         /// <summary>True, wenn das Filter-Popover aufgeklappt ist.</summary>
         [ObservableProperty]
-        private bool _isIndexPopoverOffen;
+        public partial bool IsIndexPopoverOffen { get; set; }
 
         // Schließt die Leiste (auch per Klick daneben) → Einstellungen mit einklappen.
         partial void OnIsSuchleisteOffenChanged(bool value)
@@ -3593,20 +3558,20 @@ namespace TestImage
 
         /// <summary>Freitext für die Bildersuche (z. B. „mädchen am strand").</summary>
         [ObservableProperty]
-        private string _sucheText = string.Empty;
+        public partial string SucheText { get; set; } = string.Empty;
 
         /// <summary>Grauer Ghost-Rest der Autovervollständigung (nach dem Getippten).</summary>
         [ObservableProperty]
-        private string _sucheVorschlagRest = string.Empty;
+        public partial string SucheVorschlagRest { get; set; } = string.Empty;
 
         /// <summary>True während das CLIP-Modell (einmalig) geladen wird.</summary>
         [ObservableProperty]
-        private bool _clipLaedt;
+        public partial bool ClipLaedt { get; set; }
 
         public ObservableCollection<string> SucheVorschlaege { get; } = new();
 
         [ObservableProperty]
-        private bool _vorschlaegeOffen;
+        public partial bool VorschlaegeOffen { get; set; }
 
         partial void OnSucheTextChanged(string value)
         {
@@ -3690,7 +3655,9 @@ namespace TestImage
                 // Der Vergleich stellt sicher, dass nur der eigene Text weggeräumt wird:
                 // Hat inzwischen jemand anders etwas gesetzt, bleibt das stehen.
                 if (SucheStatus == ClipLadeHinweis)
+                {
                     SucheStatus = string.Empty;
+                }
             }
         }
 
@@ -3726,17 +3693,17 @@ namespace TestImage
 
         /// <summary>Anzahl der indexierten Bilder, z. B. „1140 Bilder im Index".</summary>
         [ObservableProperty]
-        private string _indexAnzahlText = "0 Bilder im Index";
+        public partial string IndexAnzahlText { get; set; } = "0 Bilder im Index";
 
         /// <summary>Ordner-Fortschritt, z. B. „indexiert 3/3 Ordner".</summary>
         [ObservableProperty]
-        private string _indexOrdnerText = "indexiert 0/0 Ordner";
+        public partial string IndexOrdnerText { get; set; } = "indexiert 0/0 Ordner";
 
 
 
         /// <summary>Mindest-Ähnlichkeit der Suchtreffer in Prozent (0..100).</summary>
         [ObservableProperty]
-        private double _mindestAehnlichkeit = MindestAehnlichkeitStandard;
+        public partial double MindestAehnlichkeit { get; set; } = MindestAehnlichkeitStandard;
 
         /// <summary>Standardwert der Mindest-Ähnlichkeit in Prozent (Reset-Button).</summary>
         public const double MindestAehnlichkeitStandard = 23;
@@ -3750,33 +3717,48 @@ namespace TestImage
         // Nicht wenn gerade Schema-ähnlich-Treffer aktiv sind – die filtert ihr eigener Slider.
         partial void OnMindestAehnlichkeitChanged(double value)
         {
-            if (!_ergebnisseSindSchemaAehnlich && _alleSuchTreffer.Count > 0)
+            if (!ErgebnisseSindSchemaAehnlich && _alleSuchTreffer.Count > 0)
                 RenderSuchErgebnisse();
         }
 
         /// <summary>True während der Ordner indexiert wird.</summary>
         [ObservableProperty]
-        private bool _indexLaeuft;
+        // Sperrt die schweren Abgleiche, solange indexiert wird — Gegenstück zu der
+        // Prüfung auf PrüfungLäuft in CanExecuteOrdnerIndexieren.
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteSuchenGleichesBildByteVergleichCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteSuchenUngefährGleichesBildCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteAlleBilderMiteinanderAufByteGleichheitPrüfenCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteAlleBilderSHA256AbgleichPrüfenCommand))]
+        // Und die Verschiebe-Befehle: Was während des Indexierens wegwandert, steht
+        // hinterher falsch im gerade geschriebenen Index.
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteAlleBilderInsKeinFavVerschiebenCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteBildInsHauptVerzeichnisZuruckVerschiebenCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteBildInsKeinFavVerzeichnisVerschiebenCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteBildInsBesondersVerschiebenCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteBildInsKIFehlerVerschiebenCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteVerschiebenZurückCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteFavSortierenCommand))]
+        public partial bool IndexLaeuft { get; set; }
 
         /// <summary>Fortschritt der Indexierung in Prozent (0..100).</summary>
         [ObservableProperty]
-        private double _indexFortschritt;
+        public partial double IndexFortschritt { get; set; }
 
         /// <summary>Fortschritts-/Ergebnistext der Indexierung.</summary>
         [ObservableProperty]
-        private string _indexFortschrittText = string.Empty;
+        public partial string IndexFortschrittText { get; set; } = string.Empty;
 
         /// <summary>Filter-Kategorien (z. B. „Erkannt", „Ort" …).</summary>
         public ObservableCollection<string> FilterKategorien { get; } = new();
 
         [ObservableProperty]
-        private string? _selectedFilterKategorie;
+        public partial string? SelectedFilterKategorie { get; set; }
 
         /// <summary>Mögliche Werte zur gewählten Kategorie (z. B. „flower").</summary>
         public ObservableCollection<string> FilterWerte { get; } = new();
 
         [ObservableProperty]
-        private string? _selectedFilterWert;
+        public partial string? SelectedFilterWert { get; set; }
 
         private System.Collections.Generic.Dictionary<string, System.Collections.Generic.IReadOnlyList<string>> _tagOptionen = new();
 
@@ -4047,7 +4029,19 @@ namespace TestImage
             }
         }
 
-        [RelayCommand(IncludeCancelCommand = true)]
+        /// <summary>
+        /// Nicht indexieren, während ein Abgleich läuft.
+        ///
+        /// Beide belasten dieselbe Platte, und die gemeinsame Fortschrittsanzeige könnte
+        /// nur einen von beiden zeigen — der andere liefe dann unsichtbar weiter. Bewusst
+        /// nur gegen <c>PrüfungLäuft</c> geprüft und nicht gegen <c>IndexLaeuft</c>: Ein
+        /// zweiter Start desselben Befehls ist schon dadurch ausgeschlossen, dass
+        /// <c>AsyncRelayCommand</c> ohne <c>AllowConcurrentExecutions</c> währenddessen
+        /// nicht ausführbar ist.
+        /// </summary>
+        private bool CanExecuteOrdnerIndexieren() => !PrüfungLäuft;
+
+        [RelayCommand(CanExecute = nameof(CanExecuteOrdnerIndexieren), IncludeCancelCommand = true)]
         private async Task CommandExecuteOrdnerIndexieren(CancellationToken token)
         {
             string? pfad = SelectedBildchen?.BName;
@@ -4717,7 +4711,7 @@ namespace TestImage
         /// damit das bei „75 %" gerundete Grenzbild sicher drin bleibt).
         /// </summary>
         [ObservableProperty]
-        private double _schemaAehnlichkeitProzent = SchemaAehnlichkeitStandard;
+        public partial double SchemaAehnlichkeitProzent { get; set; } = SchemaAehnlichkeitStandard;
 
         /// <summary>Standardwert der Schema-Ähnlichkeit in Prozent (Reset-Button).</summary>
         public const double SchemaAehnlichkeitStandard = 74;
@@ -4742,14 +4736,14 @@ namespace TestImage
         /// zum Vergleichen bewusst umschalten.
         /// </summary>
         [ObservableProperty]
-        private bool _schemaKalibrierungAktiv;
+        public partial bool SchemaKalibrierungAktiv { get; set; }
 
         /// <summary>
         /// Wie viele Hauptkomponenten entfernt werden. 0 = nur zentrieren.
         /// 3 ist der übliche Ausgangswert; mehr entfernt zunehmend echtes Signal.
         /// </summary>
         [ObservableProperty]
-        private int _schemaKalibrierungKomponenten = 3;
+        public partial int SchemaKalibrierungKomponenten { get; set; } = 3;
 
         /// <summary>
         /// Standardschwelle im kalibrierten Modus. Dort liegt die mittlere Ähnlichkeit
@@ -4769,7 +4763,7 @@ namespace TestImage
         {
             SchemaAehnlichkeitProzent = AktuellerSchemaStandard;
 
-            if (_ergebnisseSindSchemaAehnlich)
+            if (ErgebnisseSindSchemaAehnlich)
                 SucheStatus = value
                     ? "Kalibrierung ein — Suche erneut ausführen, um sie anzuwenden."
                     : "Kalibrierung aus — Suche erneut ausführen.";
@@ -4783,7 +4777,7 @@ namespace TestImage
         /// Steuert zugleich, ob der Schema-Slider überhaupt eingeblendet wird (erst nach der Suche).
         /// </summary>
         [ObservableProperty]
-        private bool _ergebnisseSindSchemaAehnlich;
+        public partial bool ErgebnisseSindSchemaAehnlich { get; set; }
 
         /// <summary>
         /// True, wenn der Ordner des aktuell gewählten Bildes einen CLIP-Index besitzt.
@@ -4794,7 +4788,8 @@ namespace TestImage
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteSchemaAehnlichCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteErweiterteSerieSucheCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteDublettenCommand))]
-        private bool _aktuellerOrdnerIndiziert;
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteFavSortierenCommand))]
+        public partial bool AktuellerOrdnerIndiziert { get; set; }
 
         /// <summary>Bestimmt neu, ob der Ordner des aktuellen Bildes indiziert ist.</summary>
         private void PruefeAktuellerOrdnerIndiziert()
@@ -4808,7 +4803,9 @@ namespace TestImage
             // füllt sich die Liste auch mit Ordnern, die vor dieser Funktion indexiert
             // wurden — es genügt, sie einmal zu öffnen.
             if (AktuellerOrdnerIndiziert)
+            {
                 MerkeOrdnerFallsIndiziert(ordner);
+            }
 
             // Diesen Ordner überwachen: Wird die Indexdatei von Hand gelöscht, merkt es
             // die Anwendung sonst erst beim nächsten Bildwechsel — und „Schema-ähnlich"
@@ -4818,12 +4815,24 @@ namespace TestImage
             // Befund zum jetzt gewählten Bild in der Wasserzeichen-Karte nachziehen.
             // Diese Methode läuft bei jedem Bildwechsel, ist also der passende Ort.
             AktualisiereWasserzeichenBefundAnzeige();
+
+            // Ebenso die Marke „fertig sortiert" und den Stand des gemeinsamen Profils.
+            AktualisiereFavProfilAnzeige();
         }
 
         // Schema-Slider bewegt → Kandidaten neu filtern (nur bei aktiven Schema-Treffern).
+        //
+        // Die FS-Sortierung benutzt denselben Regler, aber einen eigenen Renderer: Dort
+        // ist die Zahl kein Ähnlichkeitsmass, sondern der Rang im Ordner, und die
+        // Statuszeile muss etwas anderes sagen.
         partial void OnSchemaAehnlichkeitProzentChanged(double value)
         {
-            if (_ergebnisseSindSchemaAehnlich && _alleSuchTreffer.Count > 0)
+            if (_alleSuchTreffer.Count == 0)
+                return;
+
+            if (ErgebnisseSindFavSortierung)
+                RenderFavSortierung();
+            else if (ErgebnisseSindSchemaAehnlich)
                 RenderSchemaAehnlich();
         }
 
@@ -5143,7 +5152,11 @@ namespace TestImage
                 if (score < min)
                 {
                     // Liste ist absteigend → der erste Verworfene ist der höchste.
-                    if (hoechsterVerworfen < 0f) hoechsterVerworfen = score;
+                    if (hoechsterVerworfen < 0f)
+                    {
+                        hoechsterVerworfen = score;
+                    }
+
                     continue;
                 }
 

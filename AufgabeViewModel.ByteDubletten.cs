@@ -23,7 +23,7 @@ namespace TestImage
 
         /// <summary>Dritte Ansicht (Byte-Dubletten aufräumen) aktiv.</summary>
         [ObservableProperty]
-        private bool _isDublettenAnsicht;
+        public partial bool IsDublettenAnsicht { get; set; }
 
         [RelayCommand]
         private void CommandExecuteDublettenAnsichtOeffnen()
@@ -66,7 +66,7 @@ namespace TestImage
         /// </summary>
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteByteDublettenSuchenCommand))]
-        private string _dublettenOrdner = string.Empty;
+        public partial string DublettenOrdner { get; set; } = string.Empty;
 
         /// <summary>Ordner, deren Dateien behalten werden (Bestand).</summary>
         public ObservableCollection<string> DublettenReferenzOrdner { get; } = new();
@@ -75,11 +75,11 @@ namespace TestImage
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteReferenzOrdnerEntfernenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteReferenzOrdnerEineEbeneHochCommand))]
-        private string? _ausgewaehlterReferenzOrdner;
+        public partial string? AusgewaehlterReferenzOrdner { get; set; }
 
         /// <summary>False = nur Bilddateien (Standard), True = alle Dateitypen.</summary>
         [ObservableProperty]
-        private bool _dublettenAlleDateitypen;
+        public partial bool DublettenAlleDateitypen { get; set; }
 
         // Beide Schalter ändern, was im Ordner überhaupt gefunden wird. Ohne erneutes
         // Einlesen zeigte die Liste weiter den alten Stand – der Haken hätte scheinbar
@@ -116,14 +116,14 @@ namespace TestImage
         /// </summary>
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteLeerenDublettenOrdnerLoeschenCommand))]
-        private bool _dublettenOrdnerIstLeer;
+        public partial bool DublettenOrdnerIstLeer { get; set; }
 
         /// <summary>
         /// Anzahl der Dateien, die noch im Dubletten-Ordner liegen. −1 = unbekannt.
         /// Macht sichtbar, warum der Ordner gegebenenfalls nicht als leer gilt.
         /// </summary>
         [ObservableProperty]
-        private int _dublettenOrdnerRestDateien = -1;
+        public partial int DublettenOrdnerRestDateien { get; set; } = -1;
 
         /// <summary>Text neben dem Entfernen-Knopf, wenn der Ordner noch Dateien enthält.</summary>
         public string DublettenOrdnerRestText => DublettenOrdnerRestDateien switch
@@ -143,7 +143,7 @@ namespace TestImage
         /// Dateien wie desktop.ini oder Thumbs.db.
         /// </summary>
         [ObservableProperty]
-        private string _dublettenOrdnerRestTooltip = string.Empty;
+        public partial string DublettenOrdnerRestTooltip { get; set; } = string.Empty;
 
         /// <summary>Bestimmt neu, ob der Dubletten-Ordner leer ist.</summary>
         private void PruefeDublettenOrdnerLeer()
@@ -237,7 +237,7 @@ namespace TestImage
 
         /// <summary>True, sobald einmal gesucht wurde. Unterscheidet „noch nicht gesucht" von „nichts gefunden".</summary>
         [ObservableProperty]
-        private bool _dublettenSucheGelaufen;
+        public partial bool DublettenSucheGelaufen { get; set; }
 
         /// <summary>
         /// Hinweis in der leeren Trefferliste. Nennt den jeweils nächsten sinnvollen
@@ -245,7 +245,7 @@ namespace TestImage
         /// erfolglosen Suche, es sei noch nichts geschehen.
         /// </summary>
         [ObservableProperty]
-        private string _dublettenLeerHinweis = "Dubletten-Ordner wählen oder hineinziehen";
+        public partial string DublettenLeerHinweis { get; set; } = "Dubletten-Ordner wählen oder hineinziehen";
 
         /// <summary>Bestimmt den Hinweistext aus dem aktuellen Zustand.</summary>
         private void AktualisiereLeerHinweis()
@@ -274,19 +274,19 @@ namespace TestImage
         }
 
         [ObservableProperty]
-        private bool _dublettenMitUnterordnern = true;
+        public partial bool DublettenMitUnterordnern { get; set; } = true;
 
         [ObservableProperty]
-        private string _dublettenStatus = "Dubletten-Ordner und Referenzordner wählen, dann suchen.";
+        public partial string DublettenStatus { get; set; } = "Dubletten-Ordner und Referenzordner wählen, dann suchen.";
 
         [ObservableProperty]
-        private int _dublettenFortschritt;
+        public partial int DublettenFortschritt { get; set; }
 
         [ObservableProperty]
-        private int _dublettenFortschrittMax = 100;
+        public partial int DublettenFortschrittMax { get; set; } = 100;
 
         [ObservableProperty]
-        private string _dublettenRestzeit = string.Empty;
+        public partial string DublettenRestzeit { get; set; } = string.Empty;
 
         /// <summary>Sperrt die Commands, solange Suche oder Löschlauf aktiv ist.</summary>
         [ObservableProperty]
@@ -295,7 +295,7 @@ namespace TestImage
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteReferenzOrdnerHinzufuegenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteReferenzOrdnerEntfernenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteDublettenOrdnerWaehlenCommand))]
-        private bool _isDublettenAufgabeLäuft;
+        public partial bool IsDublettenAufgabeLäuft { get; set; }
 
         /// <summary>
         /// Anzahl der zum Löschen vorgemerkten Treffer. Nur bestätigte zählen —

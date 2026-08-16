@@ -131,8 +131,11 @@ namespace TestImage.Bildersuche
 
         /// <summary>
         /// Anteil der Pixel, die über die Beispielbilder stabil geblieben sind.
-        /// Niedrige Werte heissen: Die Beispiele hatten wenig gemeinsam — das Muster
-        /// taugt dann wenig.
+        ///
+        /// <b>Kein Gütemass.</b> Die Gewichte werden auf die mittlere Streuung normiert,
+        /// also liegt ihr Mittelwert bauartbedingt nahe 0,5 — nachgemessen an drei sehr
+        /// unterschiedlich guten Mustern, alle bei rund diesem Wert. Wer die Qualität
+        /// eines Musters braucht, nimmt <see cref="MusterStaerke"/>.
         /// </summary>
         public double StabilerAnteil
         {
@@ -593,8 +596,9 @@ namespace TestImage.Bildersuche
         ///    den Rest grau. Null wird Mittelgrau, das Zeichen tritt hell und dunkel
         ///    daraus hervor.
         ///
-        /// Es zeigt den Mittelausschnitt (siehe <see cref="AusschnittAnteil"/>), sieht
-        /// also nicht aus wie ein Bild, sondern wie ein Quadrat um die Bildmitte.
+        /// Es zeigt den Ausschnitt, in dem gelernt wurde (siehe <see cref="Bereich"/> und
+        /// <see cref="AusschnittAnteil"/>) – bei einem Eckmuster also das Eckquadrat, nicht
+        /// die Bildmitte. Es sieht daher nicht aus wie ein Bild, sondern wie ein Quadrat.
         /// </summary>
         public BitmapSource? ErzeugeVorschau()
         {

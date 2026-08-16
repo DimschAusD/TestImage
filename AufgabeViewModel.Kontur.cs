@@ -24,27 +24,27 @@ namespace TestImage
         /// <summary>Kantenbild statt Originalbild anzeigen.</summary>
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(AnzeigeBild))]
-        private bool _zeigeKontur;
+        public partial bool ZeigeKontur { get; set; }
 
         /// <summary>Schwelle für die Gradientenstärke, 0 … 255.</summary>
         [ObservableProperty]
-        private double _konturSchwelle = KonturBerechnung.SchwelleStandard;
+        public partial double KonturSchwelle { get; set; } = KonturBerechnung.SchwelleStandard;
 
         /// <summary>Vor der Kantensuche weichzeichnen – nimmt Rauschen aus dem Ergebnis.</summary>
         [ObservableProperty]
-        private bool _konturWeichzeichnen;
+        public partial bool KonturWeichzeichnen { get; set; }
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(AnzeigeBild))]
-        private BitmapSource? _konturImage;
+        public partial BitmapSource? KonturImage { get; set; }
 
         /// <summary>Läuft gerade eine Kantenberechnung?</summary>
         [ObservableProperty]
-        private bool _konturLäuft;
+        public partial bool KonturLäuft { get; set; }
 
         /// <summary>Rechenzeit der letzten Kantenberechnung, für den ToolTip.</summary>
         [ObservableProperty]
-        private string _sWkonturBild = string.Empty;
+        public partial string SWkonturBild { get; set; } = string.Empty;
 
         /// <summary>
         /// Was das grosse Bild tatsächlich zeigt. Eigene Eigenschaft, damit die

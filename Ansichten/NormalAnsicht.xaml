@@ -65,7 +65,7 @@
         <StackPanel
             Grid.Row="2"
             Height="90"
-            Margin="45,0,45,160"
+            Margin="45,0,45,186"
             VerticalAlignment="Bottom"
             Orientation="Vertical">
             <StackPanel Orientation="Horizontal">
@@ -87,9 +87,9 @@
                 Maximum="{Binding AufgabenView.Count, Mode=OneWay}"
                 Value="{Binding AufgabenView.CurrentPosition, Converter={StaticResource CLconverterProgressbarIntPlusEins}, Mode=OneWay}" />
             <ListBox
-                x:Name="listBox"
+                x:Name="LBX_Dateiliste"
                 Height="70"
-                local:HorizontalListBoxBehavior.CenterSelectedItem="True"
+                local:ListBoxAuswahlBehavior.SichtbarHalten="True"
                 IsSynchronizedWithCurrentItem="True"
                 ItemsSource="{Binding AufgabenView}"
                 ScrollViewer.HorizontalScrollBarVisibility="Visible"
@@ -144,11 +144,25 @@
             Übersicht: Bilder je Zeitraum. Die Einheit wechselt selbsttätig — zwölf
             Monate, solange alles in einem Jahr liegt, sonst Jahre. Liegt direkt über
             der Miniaturleiste und ist genauso breit.
+
+            ACHTUNG, drei Blöcke teilen sich diese Zeile und stehen alle unten
+            ausgerichtet. Sie werden allein über ihren unteren Abstand gestapelt —
+            überschneiden sie sich, gewinnt der weiter unten stehende, weil er später
+            gezeichnet wird. Von unten nach oben:
+
+            Listbox_MiniaturBilder   10 … 130   (Höhe 120)
+            BRD_Zeitleiste          135 … 178   (Monatsband ist der höhere der beiden
+                                                 Zustände: 20 Band + 13 Jahreszahlen
+                                                 + Rand und Innenabstand)
+            StackPanel, LBX_Dateiliste
+                                    186 … 276   (Höhe 90)
+
+            Wird einer der Blöcke höher, müssen die darüberliegenden Abstände mitwachsen.
         -->
         <Border
             x:Name="BRD_Zeitleiste"
             Grid.Row="2"
-            Margin="108,0,10,135"
+            Margin="93,0,10,135"
             Padding="6,3,6,4"
             d:ToolTip="1.136 Bilder · 11.2013 bis 02.2026"
             ToolTip="{Binding ZeitraumText}"
@@ -159,16 +173,17 @@
             CornerRadius="6"
             d:Visibility="Visible"
             Visibility="{Binding ZeitleisteVorhanden, Converter={StaticResource CLconverterVisiblityBoolian}}">
-            <StackPanel x:Name="STP_Zeitleiste" Orientation="Vertical">
+            <!--
+                Der Umschalter steht ausserhalb beider Übersichten.
 
-                <!--  Grobe Leiste – nur eine der beiden Übersichten ist sichtbar  -->
-                <Grid
-                    x:Name="GRD_Zeitleiste"
-                    d:Visibility="Collapsed"
-                    Visibility="{Binding ZeitBandBevorzugt, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}">
+                Er lag vorher in der groben Leiste – und verschwand damit mitsamt ihr,
+                sobald das Monatsband gewählt war. Da die selbsttätige Wahl bei mehreren
+                Jahren immer das Band nimmt, war er im Regelfall gar nicht zu sehen.
+            -->
+            <Grid x:Name="GRD_ZeitleisteRahmen">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition x:Name="COL_ZeitleisteEinheit" Width="Auto" />
-                    <ColumnDefinition x:Name="COL_ZeitleisteFelder" Width="*" />
+                    <ColumnDefinition x:Name="COL_ZeitleisteInhalt" Width="*" />
                 </Grid.ColumnDefinitions>
 
                 <!--
@@ -197,9 +212,19 @@
                         TextDecorations="Underline" />
                 </Button>
 
+                <StackPanel
+                    x:Name="STP_Zeitleiste"
+                    Grid.Column="1"
+                    Orientation="Vertical">
+
+                <!--  Grobe Leiste – nur eine der beiden Übersichten ist sichtbar  -->
+                <Grid
+                    x:Name="GRD_Zeitleiste"
+                    d:Visibility="Collapsed"
+                    Visibility="{Binding ZeitBandBevorzugt, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}">
+
                 <ItemsControl
                     x:Name="IC_Zeitleiste"
-                    Grid.Column="1"
                     ItemsSource="{Binding Zeitleiste}">
                     <d:ItemsControl.ItemsSource>
                         <x:Array Type="{x:Type bildersuche:ZeitAbschnitt}">
@@ -356,7 +381,8 @@
                     </ItemsControl>
 
                 </StackPanel>
-            </StackPanel>
+                </StackPanel>
+            </Grid>
         </Border>
 
         <ListBox
@@ -1536,6 +1562,7 @@
                     ToolTip="Byte Abgleich, Abbrechen"
                     Visibility="{Binding CommandExecuteSuchenGleichesBildByteVergleichCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}, Mode=OneWay}" />
                 <RibbonButton
+                    x:Name="RDBTN_AbbrechenByteAbgleichAlle"
                     Width="22"
                     Height="22"
                     Margin="2,0,0,0"
@@ -1567,7 +1594,7 @@
 
 
                 <!--  Vertical Separator  -->
-                <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" />
+                <Separator x:Name="SEP_VorGrauAbgleich" Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" />
                 <!--  SmallImageSource="{svg1:SvgIcon Source=Images/UngefährGleich.svg}"  -->
                 <RibbonButton
                     x:Name="RDBTN_BildGleicheByteBildFinden_Kopieren"
@@ -1586,13 +1613,14 @@
                     ToolTip="Grau Abgleich (HammingDistance &gt; 10)">
 
                     <RibbonButton.ContextMenu>
-                        <ContextMenu>
-                            <MenuItem Header="Nix" IsEnabled="False" />
+                        <ContextMenu x:Name="CTM_GrauAbgleich">
+                            <MenuItem x:Name="MNI_GrauAbgleichPlatzhalter" Header="Nix" IsEnabled="False" />
                         </ContextMenu>
                     </RibbonButton.ContextMenu>
 
                 </RibbonButton>
                 <Button
+                    x:Name="BTN_AbbrechenGrauAbgleich"
                     Width="22"
                     Height="22"
                     Margin="2,0,2,0"
@@ -1607,62 +1635,15 @@
 
             </StackPanel>
         </Border>
-        <Grid
-            Grid.Row="1"
-            Width="auto"
-            Height="12"
-            Margin="15,0,0,43"
-            HorizontalAlignment="Left"
-            VerticalAlignment="Bottom"
-            Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="68" />
-            </Grid.ColumnDefinitions>
-            <ProgressBar
-                Width="248"
-                Height="8"
-                HorizontalAlignment="Left"
-                VerticalAlignment="Center"
-                d:Visibility="Visible"
-                Visibility="{Binding PrüfungLäuft, Converter={StaticResource CLconverterVisiblityBoolian}, Mode=OneWay}"
-                Value="{Binding PercentageValueVerschieben, Mode=OneWay}" />
-            <StackPanel Grid.Column="1" Orientation="Horizontal">
+        <!--
+            Hier stand der zweite Fortschrittsbalken (GRD_PruefFortschritt) mit
+            PGB_PruefFortschritt, TXBL_ProzentProgressbar und RDBTN_AbbrechenKonsistenz.
 
-
-
-                <TextBlock
-                    x:Name="TXBL_ProzentProgressbar"
-                    Width="50"
-                    Height="14"
-                    Padding="4,0,4,0"
-                    d:Visibility="Visible"
-                    Background="#FFF9C234"
-                    FontSize="10"
-                    FontWeight="Medium"
-                    Language="de-DE"
-                    Text="{Binding ProzentAbgleich, StringFormat=\{0:F2\} %}"
-                    TextWrapping="NoWrap"
-                    Visibility="{Binding PrüfungLäuft, Converter={StaticResource CLconverterVisiblityBoolian}, Mode=OneWay}"
-                    d:LayoutOverrides="Height, TopPosition, BottomPosition" />
-                <RibbonButton
-                    x:Name="RDBTN_AbbrechenKonsistenz"
-                    Width="10"
-                    Height="10"
-                    Margin="4,0,0,0"
-                    Background="#FFF7E9E9"
-                    BorderBrush="#FFFC4747"
-                    MouseOverBackground="#FFB7F393"
-                    MouseOverBorderBrush="#FF49AF0C"
-                    PressedBackground="#FFCACFFE"
-                    SmallImageSource="/Images/Abbrechen.png"
-                    ToolTip="Enc (Verschlüsselung) Abbrechen"
-                    d:LayoutOverrides="Width, Height, TopPosition, BottomPosition" />
-
-
-            </StackPanel>
-        </Grid>
-        <!--  Visibility="{Binding PrüfungLäuft, Converter={StaticResource CLconverterVisiblityBoolian}, Mode=OneWay}"  -->
+            Er ist in BRD_AufgabeFortschritt in der Kopfleiste aufgegangen, das jetzt alle
+            langlaufenden Vorgänge zeigt. Der Abbrechen-Knopf hier hatte kein Command und
+            tat beim Klick nichts; sein Ersatz BTN_AufgabeAbbrechen trifft den Vorgang,
+            der tatsächlich läuft.
+        -->
         <!--  Kopfleiste links: Ablagefeld, Fensterknöpfe und Einstieg in die Bildersuche  -->
         <StackPanel
             x:Name="STP_KopfleisteLinks"
@@ -1785,6 +1766,121 @@
                     </Style>
                 </Button.Style>
             </Button>
+
+            <!--
+                Eine Anzeige für alle langlaufenden Vorgänge — Indexieren, Byte-/SHA-/
+                Grau-Abgleich, Wasserzeichen lernen.
+
+                Sie hängt am ViewModel, nicht am Werkzeugfenster der Bildersuche, und
+                bleibt deshalb sichtbar, wenn man das Fenster zumacht.
+
+                Die Werte kommen aus der Fassade in AufgabeViewModel.LaufendeAufgabe.cs,
+                nicht von einem einzelnen Vorgang. Der frühere zweite Balken über der
+                Miniaturleiste (GRD_PruefFortschritt) ist dafür entfallen; sein
+                Abbrechen-Knopf hatte ohnehin kein Command.
+
+                Dass hier immer nur ein Vorgang stehen kann, sichern die CanExecute-
+                Sperren der schweren Befehle — sonst liefe einer davon unsichtbar weiter.
+            -->
+            <Border
+                x:Name="BRD_AufgabeFortschritt"
+                Width="280"
+                Height="28"
+                Margin="8,0,0,0"
+                Padding="8,2,4,2"
+                VerticalAlignment="Center"
+                d:Visibility="Visible"
+                Background="White"
+                BorderBrush="#FFCBD5E1"
+                BorderThickness="1"
+                CornerRadius="6"
+                Visibility="{Binding AufgabeLäuft, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                <Grid x:Name="GRD_AufgabeFortschritt">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition x:Name="COL_AufgabeText" Width="*" />
+                        <ColumnDefinition x:Name="COL_AufgabeAbbrechen" Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel
+                        x:Name="STP_AufgabeFortschritt"
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        Orientation="Vertical">
+                        <TextBlock
+                            x:Name="TXT_AufgabeFortschritt"
+                            d:Text="Indexiere 1.240/5.310 – noch ~4 min"
+                            FontFamily="Segoe UI"
+                            FontSize="11"
+                            Foreground="#FF1F2937"
+                            Text="{Binding AufgabeText}"
+                            TextTrimming="CharacterEllipsis" />
+
+                        <!--
+                            IsIndeterminate: In der Anlaufphase gibt es nichts zu zählen —
+                            CLIP lädt seine Modelle, und das Wasserzeichen-Lernen meldet
+                            gar keinen Prozentwert. Ein Balken auf null sähe dort aus wie
+                            ein Hänger.
+                        -->
+                        <ProgressBar
+                            x:Name="PGB_AufgabeFortschritt"
+                            Height="3"
+                            Margin="0,3,0,0"
+                            d:Value="35"
+                            Background="#FFE5E7EB"
+                            BorderThickness="0"
+                            Foreground="#FF3A9B45"
+                            IsIndeterminate="{Binding AufgabeUnbestimmt}"
+                            Maximum="100"
+                            Value="{Binding AufgabeFortschritt, Mode=OneWay}" />
+                    </StackPanel>
+
+                    <Button
+                        x:Name="BTN_AufgabeAbbrechen"
+                        Grid.Column="1"
+                        Width="20"
+                        Height="20"
+                        Margin="6,0,0,0"
+                        VerticalAlignment="Center"
+                        Command="{Binding CommandExecuteAufgabeAbbrechenCommand}"
+                        Cursor="Hand"
+                        ToolTip="Laufenden Vorgang abbrechen"
+                        Visibility="{Binding AufgabeAbbrechbar, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                        <Button.Style>
+                            <Style TargetType="{x:Type Button}">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="Foreground" Value="#FF6B6B6B" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="{x:Type Button}">
+                                            <Border
+                                                x:Name="BRD_AbbrechenFlaeche"
+                                                Background="{TemplateBinding Background}"
+                                                CornerRadius="4">
+                                                <TextBlock
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center"
+                                                    FontFamily="Segoe MDL2 Assets"
+                                                    FontSize="10"
+                                                    Foreground="{TemplateBinding Foreground}"
+                                                    Text="&#xE711;" />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="BRD_AbbrechenFlaeche" Property="Background" Value="#FFF3F4F6" />
+                                                    <Setter Property="Foreground" Value="#FFB03030" />
+                                                </Trigger>
+                                                <Trigger Property="IsPressed" Value="True">
+                                                    <Setter TargetName="BRD_AbbrechenFlaeche" Property="Background" Value="#FFE9EBEF" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </Grid>
+            </Border>
 
             <!--
                 Die Bildersuche lief bis hier als Popup unter dem Knopf. Sie sitzt jetzt

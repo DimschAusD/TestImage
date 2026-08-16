@@ -40,7 +40,7 @@ namespace TestImage
         /// </summary>
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteZeitleisteUmschaltenCommand))]
-        private bool _zeitBandVorhanden;
+        public partial bool ZeitBandVorhanden { get; set; }
 
         /// <summary>
         /// Welche der beiden Übersichten gezeigt wird: true = feines Monatsband,
@@ -51,7 +51,7 @@ namespace TestImage
         /// die Wahl gilt dann bis zum nächsten Ordnerwechsel.
         /// </summary>
         [ObservableProperty]
-        private bool _zeitBandBevorzugt;
+        public partial bool ZeitBandBevorzugt { get; set; }
 
         private bool CanExecuteZeitleisteUmschalten() => ZeitBandVorhanden;
 
@@ -71,19 +71,19 @@ namespace TestImage
 
         /// <summary>Zusammenfassung unter dem Band, z. B. „1.430 Bilder · 2011 bis 2015".</summary>
         [ObservableProperty]
-        private string _zeitraumText = string.Empty;
+        public partial string ZeitraumText { get; set; } = string.Empty;
 
         /// <summary>True, wenn nach Jahren eingeteilt ist – sonst nach Monaten.</summary>
         [ObservableProperty]
-        private bool _zeitleisteNachJahren;
+        public partial bool ZeitleisteNachJahren { get; set; }
 
         /// <summary>Kurze Angabe der Einheit für die Beschriftung links der Leiste.</summary>
         [ObservableProperty]
-        private string _zeitleisteEinheit = "Monate";
+        public partial string ZeitleisteEinheit { get; set; } = "Monate";
 
         /// <summary>Steuert, ob die Leiste überhaupt angezeigt wird.</summary>
         [ObservableProperty]
-        private bool _zeitleisteVorhanden;
+        public partial bool ZeitleisteVorhanden { get; set; }
 
         #endregion
 

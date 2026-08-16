@@ -33,6 +33,10 @@
             <local:CLconverterStringZuKleinemImage x:Key="CLconverterStringZuKleinemImage" />
             <local:CLconverterStringZuImage x:Key="CLconverterStringZuImage" />
             <Converters:ConverterVerschobenSegment x:Key="VerschobenSegmentConverter" />
+
+            <!--  Fortschritt im Taskleisten-Symbol (MainWindow.TaskbarItemInfo).  -->
+            <Converters:ConverterProzentZuAnteil x:Key="ConverterProzentZuAnteil" />
+            <Converters:ConverterTaskleistenZustand x:Key="ConverterTaskleistenZustand" />
             <local:BoolToBrushConverter x:Key="BoolToBrushConverter" />
 
             <!--  Wasserzeichen-Brush (von der Normalansicht genutzt).  -->

@@ -1,5 +1,5 @@
-using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
+using System.Windows.Media;
 
 namespace TestImage
 {
@@ -19,6 +19,6 @@ namespace TestImage
         /// vorliegt – die Fläche bleibt dann leer, der Rahmen zeigt den Streifen weiterhin an.
         /// </summary>
         [ObservableProperty]
-        private Brush? _bildFarbsignatur;
+        public partial Brush? BildFarbsignatur { get; set; }
     }
 }

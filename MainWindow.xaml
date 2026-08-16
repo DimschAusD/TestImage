@@ -21,6 +21,30 @@
     <Window.DataContext>
         <local:AufgabeViewModel />
     </Window.DataContext>
+
+    <!--
+        Fortschritt im Taskleisten-Symbol, für jeden langlaufenden Vorgang.
+
+        Sitzt hier und nicht am Werkzeugfenster der Bildersuche: Das hat
+        ShowInTaskbar="False" und damit gar kein Symbol. Ausserdem laufen die Vorgänge
+        im ViewModel weiter, wenn das Werkzeugfenster zu ist – genau dann ist diese
+        Anzeige die einzige, die man ohne Hinsehen bemerkt.
+
+        Gebunden an dieselbe Fassade wie BRD_AufgabeFortschritt in der Normalansicht,
+        damit Symbol und Leiste nicht auseinanderlaufen können.
+    -->
+    <Window.TaskbarItemInfo>
+        <TaskbarItemInfo
+            x:Name="TBI_Fortschritt"
+            ProgressValue="{Binding AufgabeFortschritt, Converter={StaticResource ConverterProzentZuAnteil}, Mode=OneWay}">
+            <TaskbarItemInfo.ProgressState>
+                <MultiBinding Converter="{StaticResource ConverterTaskleistenZustand}" Mode="OneWay">
+                    <Binding Path="AufgabeLäuft" />
+                    <Binding Path="AufgabeFortschritt" />
+                </MultiBinding>
+            </TaskbarItemInfo.ProgressState>
+        </TaskbarItemInfo>
+    </Window.TaskbarItemInfo>
     <Window.InputBindings>
         <!--
             Strg+D/A/S/W sind entfallen. Die Navigation und das Verschieben laufen über

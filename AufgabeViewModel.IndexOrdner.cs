@@ -32,11 +32,11 @@ namespace TestImage
         /// Zusammenfassung über der Liste, z. B. „12 Ordner · 8.430 Bilder".
         /// </summary>
         [ObservableProperty]
-        private string _indexOrdnerZusammenfassung = FasseIndexOrdnerZusammen();
+        public partial string IndexOrdnerZusammenfassung { get; set; } = FasseIndexOrdnerZusammen();
 
         /// <summary>Steuert, ob die Liste überhaupt angezeigt wird.</summary>
         [ObservableProperty]
-        private bool _hatIndexOrdner = IndexOrdnerVerzeichnis.Alle().Count > 0;
+        public partial bool HatIndexOrdner { get; set; } = IndexOrdnerVerzeichnis.Alle().Count > 0;
 
         private static string FasseIndexOrdnerZusammen()
         {
@@ -118,6 +118,25 @@ namespace TestImage
 
             // Und die Liste nachziehen: Ein Ordner ohne Indexdatei gilt dort als fehlend.
             AktualisiereIndexOrdner();
+
+            // Der Wächter meldet auch das *Auftauchen* der Datei. Dann hat gerade ein
+            // Indexlauf geschrieben, und dessen Meldungen dürfen nicht abgeräumt werden.
+            if (AktuellerOrdnerIndiziert || IndexLaeuft)
+                return;
+
+            // Index gelöscht, Meldungen blieben stehen.
+            //
+            // Bisher wurde hier nur der Zustand der Befehle nachgezogen — der Knopf
+            // sperrte sich also richtig, während daneben unverändert „Fertig: 293 Bilder
+            // indexiert" stand. Die Texte gehören zu einer Datei, die es nicht mehr gibt.
+            IndexAnzahlText = string.Empty;
+            IndexFortschrittText = "Index gelöscht – der Ordner ist nicht mehr indexiert.";
+            WasserzeichenStatus = string.Empty;
+
+            // Wasserzeichen-Befunde neu von der Platte lesen statt blind zu leeren:
+            // Die Befunddatei ist eine eigene Datei. Liegt sie noch, bleibt sie gültig;
+            // wurde sie mitgelöscht, räumt das Laden Abzeichen und Kasten auf.
+            LadeWasserzeichenBefunde(AktuellerBildOrdner());
         }
 
         #endregion
@@ -145,7 +164,7 @@ namespace TestImage
         /// zum Suchen, und würde sonst dauerhaft Platz im Panel belegen.
         /// </summary>
         [ObservableProperty]
-        private bool _isIndexOrdnerKarteOffen;
+        public partial bool IsIndexOrdnerKarteOffen { get; set; }
 
         /// <summary>Menüpunkt „Ordner verwalten …" im Bereichsmenü.</summary>
         [RelayCommand]
@@ -170,11 +189,11 @@ namespace TestImage
 
         /// <summary>Rückmeldung zum letzten Ordner-Drop. Leer, solange nichts abgelegt wurde.</summary>
         [ObservableProperty]
-        private string _indexOrdnerHinweis = string.Empty;
+        public partial string IndexOrdnerHinweis { get; set; } = string.Empty;
 
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteIndexOrdnerAusDropCommand))]
-        private bool _indexOrdnerSucheLäuft;
+        public partial bool IndexOrdnerSucheLäuft { get; set; }
 
         private bool CanExecuteIndexOrdnerAusDrop() => !IndexOrdnerSucheLäuft;
 
@@ -299,7 +318,7 @@ namespace TestImage
         /// eigenen Abbrechen-Knopf und einen eigenen Fortschritt für dieselbe Sache.
         /// </summary>
         [ObservableProperty]
-        private int _suchbereich = BereichOrdner;
+        public partial int Suchbereich { get; set; } = BereichOrdner;
 
         partial void OnSuchbereichChanged(int value) => AktualisiereSuchbereichText();
 
