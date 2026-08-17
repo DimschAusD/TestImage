@@ -41,6 +41,19 @@ namespace TestImage
             // 1) Header ↔ Extension
             bool headerPasst = IsHeaderPassendZurErweiterung(filePath, out string detectedFormat);
 
+            // Passt es nicht, hat die Prüfung oben nur „unknown" hinterlassen — sie sieht
+            // ja nur nach, ob die Bytes zur eigenen Endung passen. Erst der Blick in den
+            // Kopf sagt, was die Datei wirklich ist, und damit auch, welche Endung
+            // richtig wäre.
+            if (!headerPasst)
+            {
+                string echt = ErkenneFormatAusKopf(filePath);
+                if (echt.Length > 0)
+                {
+                    detectedFormat = echt;
+                }
+            }
+
             // 2) Strukturelle Heuristik
             bool heuristikKorrupt = IstWahrscheinlichKorrupt(filePath, detectedFormat);
 
@@ -274,6 +287,71 @@ namespace TestImage
             "tif" or "tiff" => "tiff",
             _ => ext
         };
+
+        /// <summary>
+        /// Ermittelt am Dateikopf, was die Datei <b>wirklich</b> ist — unabhängig von
+        /// ihrer Endung.
+        ///
+        /// <b>Warum das nötig war:</b> <see cref="IsHeaderPassendZurErweiterung(string, out string)"/>
+        /// prüft nur, ob die Bytes zur <i>eigenen</i> Endung passen. Passen sie nicht,
+        /// blieb <c>detectedFormat</c> auf „unknown" stehen — man erfuhr also, dass etwas
+        /// nicht stimmt, aber nie was. Für die Frage „welche Endung wäre richtig" ist
+        /// genau das die fehlende Hälfte.
+        ///
+        /// Liefert die übliche Endung ohne Punkt („png", „jpg", …) oder
+        /// <c>string.Empty</c>, wenn kein bekanntes Format erkannt wird.
+        /// </summary>
+        internal static string ErkenneFormatAusKopf(string filePath)
+        {
+            try
+            {
+                var kopf = new byte[16];
+                int gelesen;
+
+                using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                {
+                    gelesen = fs.Read(kopf, 0, kopf.Length);
+                }
+
+                if (gelesen < 2)
+                {
+                    return string.Empty;
+                }
+
+                bool Beginnt(params byte[] muster)
+                {
+                    if (gelesen < muster.Length) return false;
+                    for (int i = 0; i < muster.Length; i++)
+                    {
+                        if (kopf[i] != muster[i]) return false;
+                    }
+                    return true;
+                }
+
+                if (Beginnt(0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)) return "png";
+                if (Beginnt(0xFF, 0xD8, 0xFF)) return "jpg";
+                if (Beginnt((byte)'G', (byte)'I', (byte)'F', (byte)'8')) return "gif";
+                if (Beginnt((byte)'B', (byte)'M')) return "bmp";
+                if (Beginnt(0x00, 0x00, 0x01, 0x00)) return "ico";
+                if (Beginnt((byte)'I', (byte)'I', 42, 0)) return "tiff";
+                if (Beginnt((byte)'M', (byte)'M', 0, 42)) return "tiff";
+
+                // WEBP steckt im RIFF-Behälter: „RIFF" … „WEBP" ab Byte 8.
+                if (gelesen >= 12
+                    && Beginnt((byte)'R', (byte)'I', (byte)'F', (byte)'F')
+                    && kopf[8] == (byte)'W' && kopf[9] == (byte)'E'
+                    && kopf[10] == (byte)'B' && kopf[11] == (byte)'P')
+                {
+                    return "webp";
+                }
+
+                return string.Empty;
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
 
         /// <summary>
         /// Strukturelle Heuristik auf Dateiebene (ohne volle Dekodierung).

@@ -22,6 +22,21 @@ namespace TestImage.Bildersuche
         /// </summary>
         public double Deckkraft { get; set; }
 
+        /// <summary>
+        /// Schriftfarbe der Jahres-/Monatsbeschriftung auf diesem Feld.
+        ///
+        /// Nötig, weil die Fläche nicht ihre Farbe ändert, sondern ihre
+        /// <see cref="Deckkraft"/>. Ein Konverter in der Oberfläche bekäme nur den Pinsel
+        /// zu sehen (<c>#FF64748B</c>) und würde für jedes Feld dasselbe melden — auch
+        /// für die fast weissen. Die tatsächliche Farbe auf dem Schirm entsteht erst
+        /// durch die Mischung mit dem weissen Kartengrund, und die kennt nur diese Klasse.
+        ///
+        /// Als fertiger Pinsel, damit die Oberfläche wie bei <see cref="Deckkraft"/>
+        /// ohne Konverter auskommt.
+        /// </summary>
+        public System.Windows.Media.Brush Beschriftungsfarbe { get; set; } =
+            System.Windows.Media.Brushes.Gray;
+
         public string Tooltip { get; set; } = string.Empty;
     }
 
@@ -43,6 +58,17 @@ namespace TestImage.Bildersuche
 
         /// <summary>Jahreszahl, nur am Jahresanfang gefüllt.</summary>
         public string JahrText { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Farbe des Balkens: grün, wo Bilder liegen — sonst ein neutrales Grau.
+        ///
+        /// Leere Monate bekommen weiterhin einen Sockel, damit man sieht, dass die Stelle
+        /// zum Band gehört. Vorher war dieser Sockel aber grün wie die echten Balken, und
+        /// über ein ganzes leeres Jahr hinweg sah das aus wie eine Reihe kleiner Treffer.
+        /// Grün heisst jetzt: hier liegt etwas.
+        /// </summary>
+        public System.Windows.Media.Brush Farbe { get; set; } =
+            System.Windows.Media.Brushes.Gray;
 
         public string Tooltip { get; set; } = string.Empty;
     }
@@ -159,7 +185,55 @@ namespace TestImage.Bildersuche
             {
                 a.Anteil = (double)a.Anzahl / hoechste;
                 a.Deckkraft = a.Anzahl == 0 ? 0.0 : DeckkraftBasis + DeckkraftSpanne * a.Anteil;
+                a.Beschriftungsfarbe = WaehleSchriftfarbe(a.Deckkraft);
             }
+        }
+
+        /// <summary>Grundfarbe der Felder – dieselbe wie <c>RCT_ZeitFeldFuellung</c> in der XAML.</summary>
+        private static readonly System.Windows.Media.Color Fuellfarbe =
+            System.Windows.Media.Color.FromRgb(0x64, 0x74, 0x8B);
+
+        /// <summary>Kartengrund, auf den die Füllung gelegt wird.</summary>
+        private static readonly System.Windows.Media.Color Kartengrund =
+            System.Windows.Media.Colors.White;
+
+        /// <summary>Gedeckte Beschriftung – die Regel, solange das Feld hell bleibt.</summary>
+        private static readonly System.Windows.Media.Brush SchriftHell =
+            Frier(System.Windows.Media.Color.FromRgb(0x6B, 0x72, 0x80));
+
+        /// <summary>Kräftige Beschriftung für die stark gefüllten Felder.</summary>
+        private static readonly System.Windows.Media.Brush SchriftDunkel =
+            Frier(System.Windows.Media.Color.FromRgb(0x1F, 0x29, 0x37));
+
+        private static System.Windows.Media.Brush Frier(System.Windows.Media.Color c)
+        {
+            var b = new System.Windows.Media.SolidColorBrush(c);
+            b.Freeze();   // eingefroren: wird aus einem Hintergrundfaden erzeugt und geteilt
+            return b;
+        }
+
+        /// <summary>
+        /// Wählt die Schriftfarbe zur tatsächlichen Feldfarbe.
+        ///
+        /// Gerechnet wird die <b>wahrgenommene</b> Helligkeit nach ITU-R BT.709, nicht
+        /// der Mittelwert aus R, G, B: Grün trägt dort mit 0,72 fast das Siebenfache von
+        /// Blau bei. Bei diesem blaugrauen Feld läge ein Mittelwert deutlich daneben.
+        ///
+        /// Die Schwelle 0,78 ist an der Leiste selbst abgelesen: Das am stärksten
+        /// besetzte Feld (Deckkraft 0,50) kommt gemischt auf 0,72 und bekommt damit die
+        /// kräftige Schrift; ab etwa drei Vierteln der Höchstzahl abwärts bleibt es bei
+        /// der gedeckten. So bleibt der Unterschied zwischen Beschriftung und Anzahl
+        /// erhalten, statt alles gleich dunkel einzufärben.
+        /// </summary>
+        private static System.Windows.Media.Brush WaehleSchriftfarbe(double deckkraft)
+        {
+            double r = Kartengrund.R + (Fuellfarbe.R - Kartengrund.R) * deckkraft;
+            double g = Kartengrund.G + (Fuellfarbe.G - Kartengrund.G) * deckkraft;
+            double b = Kartengrund.B + (Fuellfarbe.B - Kartengrund.B) * deckkraft;
+
+            double helligkeit = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255.0;
+
+            return helligkeit < 0.78 ? SchriftDunkel : SchriftHell;
         }
 
         private static string Bilder(int anzahl) => anzahl == 1 ? "1 Bild" : $"{anzahl} Bilder";
@@ -233,6 +307,7 @@ namespace TestImage.Bildersuche
                     Monat = lauf.Month,
                     Anzahl = anzahl,
                     Hoehe = anzahl == 0 ? BalkenSockel : BalkenSockel + (BalkenHoehe - BalkenSockel) * anteil,
+                    Farbe = anzahl == 0 ? BalkenLeer : BalkenGefuellt,
                     IstJahresAnfang = lauf.Month == 1 || i == 0,
                     JahrText = (lauf.Month == 1 || i == 0) ? lauf.Year.ToString() : string.Empty,
                     Tooltip = $"{Monatsnamen[lauf.Month - 1]} {lauf.Year}: {Bilder(anzahl)}"
@@ -241,7 +316,48 @@ namespace TestImage.Bildersuche
                 lauf = lauf.AddMonths(1);
             }
 
+            EntferneGedraengteJahreszahl(liste);
             return liste;
+        }
+
+        /// <summary>Balken mit Bildern.</summary>
+        private static readonly System.Windows.Media.Brush BalkenGefuellt =
+            Frier(System.Windows.Media.Color.FromRgb(0x3A, 0x9B, 0x45));
+
+        /// <summary>Sockel eines leeren Monats – sichtbar, aber erkennbar kein Treffer.</summary>
+        private static readonly System.Windows.Media.Brush BalkenLeer =
+            Frier(System.Windows.Media.Color.FromRgb(0xD8, 0xDC, 0xE0));
+
+        /// <summary>
+        /// Mindestabstand in Monaten zwischen zwei Jahreszahlen.
+        ///
+        /// Beginnt das Band mitten im Jahr — bei 11.2013 etwa —, stehen „2013" und „2014"
+        /// nur zwei Zellen auseinander. Bei rund fünf Punkten je Zelle sind das zehn
+        /// Punkte für eine Beschriftung von gut zwanzig: Die beiden Zahlen überlagern
+        /// sich zu Unlesbarem.
+        /// </summary>
+        private const int MindestAbstandJahreszahl = 5;
+
+        /// <summary>
+        /// Nimmt die Jahreszahl des ersten Feldes weg, wenn gleich danach die nächste
+        /// folgt. Der Trennstrich bleibt — nur die Beschriftung entfällt, und das Jahr
+        /// ist ohnehin am nächsten Januar abzulesen.
+        /// </summary>
+        private static void EntferneGedraengteJahreszahl(List<ZeitBalken> liste)
+        {
+            if (liste.Count == 0 || liste[0].JahrText.Length == 0)
+            {
+                return;
+            }
+
+            for (int i = 1; i < liste.Count && i < MindestAbstandJahreszahl; i++)
+            {
+                if (liste[i].JahrText.Length > 0)
+                {
+                    liste[0].JahrText = string.Empty;
+                    return;
+                }
+            }
         }
     }
 }

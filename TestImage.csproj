@@ -16,8 +16,21 @@
     <EnableRoslynAnalyzers>true</EnableRoslynAnalyzers>
     <SupportedOSPlatformVersion>10.0.18362.0</SupportedOSPlatformVersion>
     <ApplicationIcon>Sternchen.ico</ApplicationIcon>
-    <PlatformTarget>x64</PlatformTarget>
-    <Platforms>AnyCPU;x64</Platforms>
+
+    <!--
+      AnyCPU. Die frühere Festlegung auf x64 stammte von
+      emgu.cv.runtime.windows (OpenCV mit nativen 64-Bit-Teilen); das Paket ist raus.
+
+      Übrig ist als native Abhängigkeit nur Microsoft.ML.OnnxRuntime in
+      ImageMatching.Cnn. Das Paket bringt Teile für x64, x86 und arm64 mit und wählt
+      zur Laufzeit aus — es verlangt keine feste Plattform. Auf 64-Bit-Windows läuft
+      eine AnyCPU-Anwendung ohnehin als 64-Bit-Prozess, an der Bitbreite ändert sich
+      also nichts.
+
+      Wichtiger als die Bitbreite war der Nebeneffekt: <Platforms>AnyCPU;x64</Platforms>
+      erzeugte ZWEI Ausgabeordner, bin\Debug\… und bin\x64\Debug\…. Wer aus dem einen
+      startete, während in den anderen gebaut wurde, testete eine veraltete Datei.
+    -->
   </PropertyGroup>
 
   <ItemGroup>

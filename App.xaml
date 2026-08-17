@@ -20,9 +20,6 @@
             <Converters:ConverterPositionZuFarbe x:Key="ConverterPositionZuFarbe" />
             <Converters:ConverterPositionZuDreiecke x:Key="ConverterPositionZuDreiecke" />
             <Converters:ConverterVisiblityBoolianInvertiert x:Key="ConverterVisiblityBoolianInvertiert" />
-            <Converters:CLconverterBrushesBoolianG5 x:Key="CLconverterBrushesBoolianG5" />
-            <Converters:CLconverterBrushesBoolianG2 x:Key="CLconverterBrushesBoolianG2" />
-            <Converters:CLconverterBrushesBoolianG1 x:Key="CLconverterBrushesBoolianG1" />
             <Converters:CLconverterStringZuMB x:Key="CLconverterStringZuMB" />
             <local:CLconverterImageScallierung x:Key="CLconverterImageScallierung" />
             <local:CLconverterBrushesBoolian x:Key="CLconverterBrushesBoolian" />
@@ -33,6 +30,16 @@
             <local:CLconverterStringZuKleinemImage x:Key="CLconverterStringZuKleinemImage" />
             <local:CLconverterStringZuImage x:Key="CLconverterStringZuImage" />
             <Converters:ConverterVerschobenSegment x:Key="VerschobenSegmentConverter" />
+
+            <!--
+                Eine Farbregel für alle Felder der Prüf-Ampel: grau = kein Urteil,
+                grün = in Ordnung, rot = auffällig. Ersetzt CLconverterBrushesBoolianG1,
+                -G2 und -G5, die dasselbe in drei Fassungen taten.
+            -->
+            <Converters:ConverterAmpelFarbe x:Key="ConverterAmpelFarbe" />
+
+            <!--  Lesbare Schriftfarbe zur jeweiligen Hintergrundfarbe.  -->
+            <Converters:ConverterReadableForeground x:Key="ConverterReadableForeground" />
 
             <!--  Fortschritt im Taskleisten-Symbol (MainWindow.TaskbarItemInfo).  -->
             <Converters:ConverterProzentZuAnteil x:Key="ConverterProzentZuAnteil" />

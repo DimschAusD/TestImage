@@ -1,4 +1,5 @@
-using CommunityToolkit.Mvvm.Input;
+﻿using CommunityToolkit.Mvvm.Input;
+using System;
 
 namespace TestImage
 {
@@ -22,14 +23,44 @@ namespace TestImage
     /// </summary>
     public partial class AufgabeViewModel
     {
+        /// <summary>
+        /// <c>PrüfungLäuft</c>, aber ohne das blosse Anzeigen eines Bildes.
+        ///
+        /// Der Schalter bedeutet zweierlei. Die langen Vorgänge setzen ihn — Byte- und
+        /// SHA-Abgleich, Grau-Abgleich, Verschieben aller Bilder. <b>Das Laden des
+        /// gerade gewählten Bildes setzt ihn aber auch</b>, in beiden Zweigen von
+        /// <c>CommandExecuteKleinesBildGrossesBildLaden</c>.
+        ///
+        /// Ohne diese Unterscheidung blitzte der Fortschrittsstreifen in der Kopfleiste
+        /// bei jedem Pfeildruck auf, mit „Prüfe Bilder …" und laufender Schraffur — für
+        /// einen Vorgang von Millisekunden, der seine eigene Anzeige hat:
+        /// <c>PGB_BildLadenStufen</c> neben der Ampel.
+        ///
+        /// Der Streifen ist für das gedacht, was dauert und was man abbrechen können soll.
+        /// </summary>
+        private bool PruefungOhneBildladen =>
+            PrüfungLäuft && !CommandExecuteKleinesBildGrossesBildLadenCommand.IsRunning;
+
         /// <summary>True, solange irgendein langlaufender Vorgang arbeitet.</summary>
-        public bool AufgabeLäuft => IndexLaeuft || PrüfungLäuft || WasserzeichenAufgabeLäuft;
+        public bool AufgabeLäuft => IndexLaeuft || PruefungOhneBildladen || WasserzeichenAufgabeLäuft;
 
         /// <summary>Fortschritt des laufenden Vorgangs in Prozent, 0 … 100.</summary>
-        public double AufgabeFortschritt =>
-            IndexLaeuft ? IndexFortschritt :
-            PrüfungLäuft ? PercentageValueVerschieben :
-            0;
+        public double AufgabeFortschritt
+        {
+            get
+            {
+                if (IndexLaeuft)
+                {
+                    return IndexFortschritt;
+                }
+
+                // Eine Quelle für alle Prüfbefehle. Vorher gab es daneben noch
+                // ProzentAbgleich — einen fertig formatierten Anzeigetext, den diese
+                // Eigenschaft zurücklesen musste. Er ist entfallen; jede Prüfung meldet
+                // jetzt an PercentageValueVerschieben.
+                return PruefungOhneBildladen ? PercentageValueVerschieben : 0;
+            }
+        }
 
         /// <summary>
         /// True, solange es keinen zählbaren Fortschritt gibt — beim Wasserzeichen-Lernen
@@ -55,9 +86,18 @@ namespace TestImage
                     return WasserzeichenStatus;
                 }
 
-                if (PrüfungLäuft)
+                if (PruefungOhneBildladen)
                 {
-                    return $"Prüfe Bilder … {ProzentAbgleich} %";
+                    // Keine Zahl nennen, solange keine da ist.
+                    //
+                    // Vorher stand hier ProzentAbgleich, der Balken las aber
+                    // PercentageValueVerschieben. Meldete ein Befehl nur den einen der
+                    // beiden Werte, lief der Balken als Schraffur und daneben stand
+                    // „0 %" — zwei Auskünfte über denselben Vorgang, die sich
+                    // widersprachen. Jetzt speisen sich beide aus AufgabeFortschritt.
+                    return AufgabeUnbestimmt
+                        ? "Prüfe Bilder …"
+                        : $"Prüfe Bilder … {AufgabeFortschritt:F0} %";
                 }
 
                 return string.Empty;
@@ -150,7 +190,6 @@ namespace TestImage
         partial void OnIndexFortschrittChanged(double value) => MeldeAufgabeGeaendert();
         partial void OnIndexFortschrittTextChanged(string value) => MeldeAufgabeGeaendert();
         partial void OnPercentageValueVerschiebenChanged(double value) => MeldeAufgabeGeaendert();
-        partial void OnProzentAbgleichChanged(string value) => MeldeAufgabeGeaendert();
         partial void OnWasserzeichenAufgabeLäuftChanged(bool value) => MeldeAufgabeGeaendert();
         partial void OnWasserzeichenStatusChanged(string value) => MeldeAufgabeGeaendert();
     }

@@ -71,12 +71,18 @@ namespace TestImage
         [ObservableProperty]
         public partial int InnerZählerCount { get; set; } = 0;
 
-        [ObservableProperty]
-        public partial string ProzentAbgleich { get; set; } = "0";
+        // ProzentAbgleich ist entfallen. Es war der fertig formatierte Prozenttext für
+        // TXBL_ProzentProgressbar über der Miniaturleiste. Seit dieser Balken in
+        // BRD_AufgabeFortschritt aufgegangen ist, war die Eigenschaft an keine Bindung
+        // mehr geknüpft — sie wurde nur noch geschrieben.
+        //
+        // Schaden angerichtet hat sie trotzdem: Sie war eine zweite Wahrheit über
+        // denselben Fortschritt und lief gegen PercentageValueVerschieben. Der Fortschritt
+        // aller Prüfbefehle steht jetzt allein in PercentageValueVerschieben.
 
         /// <summary>
         /// Gets or sets a value indicating whether the image file is damaged.
-        /// <br>  Converter dazu:  CLconverterBrushesBoolianG1</br>
+        /// <br>  Ampelfarbe: ConverterAmpelFarbe — true heisst auffaellig.</br>
         /// </summary>
         [ObservableProperty]
         public partial bool? IsBildDateiBeschädigt { get; set; } = false;
@@ -84,7 +90,7 @@ namespace TestImage
 
         /// <summary>
         /// Gets or sets a value indicating whether the header matches the extension.
-        /// <br>  Converter dazu:  CLconverterBrushesBoolianG2</br>
+        /// <br>  Ampelfarbe: ConverterAmpelFarbe — positiv formuliert, daher ConverterParameter=Gut.</br>
         /// </summary>
         [ObservableProperty]
         public partial bool? IsHeaderPassendZurErweiterung { get; set; } = false;
@@ -92,7 +98,7 @@ namespace TestImage
 
         /// <summary>
         /// Gets or sets a value indicating whether a frame is present in the image.
-        /// <br>  Converter dazu:  CLconverterBrushesBoolianG2</br>
+        /// <br>  Ampelfarbe: ConverterAmpelFarbe — positiv formuliert, daher ConverterParameter=Gut.</br>
         /// </summary>
         [ObservableProperty]
         public partial bool? IsFrameImBildDrin { get; set; } = false;
@@ -100,14 +106,16 @@ namespace TestImage
 
         /// <summary>
         /// Gets or sets a value indicating whether the Bild download is corrupted.
-        /// <br>    Converter dazu:  CLconverterBrushesBoolianG1</br>
+        /// <br>  Ampelfarbe: ConverterAmpelFarbe — true heisst auffaellig.</br>
         /// </summary>
         [ObservableProperty]
         public partial bool? IsBildDownloadCorrupted { get; set; } = false;
 
         /// <summary>
         /// Gets or sets a value indicating whether the image file is null or missing.
-        /// <br>  Converter dazu:  CLconverterBrushesBoolianG2</br>
+        /// <br>  Ampelfarbe: ConverterAmpelFarbe — true heisst auffaellig.</br>
+        /// <br>  (Die alte Notiz nannte hier G2, gebunden war aber G5. G2 hätte die Farben
+        /// vertauscht: eine 0-Byte-Datei wäre grün gewesen.)</br>
         /// </summary>
         [ObservableProperty]
         public partial bool? IsBildNullDatei { get; set; } = false;
@@ -1049,9 +1057,31 @@ namespace TestImage
         #endregion
 
         #region Command Bild ins Haupt-Verzeichnis zurück verschieben
+
+        /// <summary>
+        /// Ordner eine Ebene über der Datei — das Ziel des Zurückverschiebens.
+        /// <c>null</c>, wenn es keinen gibt (Datei direkt im Wurzelverzeichnis).
+        /// </summary>
+        private static string? ZielOrdnerEineEbeneHoeher(string? bildPfad)
+        {
+            if (string.IsNullOrEmpty(bildPfad))
+            {
+                return null;
+            }
+
+            string? ordner = Path.GetDirectoryName(bildPfad);
+            if (string.IsNullOrEmpty(ordner))
+            {
+                return null;
+            }
+
+            string? darueber = Path.GetDirectoryName(ordner);
+            return string.IsNullOrEmpty(darueber) ? null : darueber;
+        }
+
         private bool CanExecuteBildInsHauptVerzeichnisZuruckVerschiebenCommand()
         {
-            if (SelectedBildchen == null)
+            if (SelectedBildchen == null || string.IsNullOrEmpty(SelectedBildchen.BName))
             {
                 return false;
             }
@@ -1059,10 +1089,38 @@ namespace TestImage
             // !IndexLaeuft aus demselben Grund wie beim Verschieben aller Bilder: Der
             // Index verweist auf Pfade, und was während des Laufs wegwandert, steht
             // hinterher falsch darin.
-            return /*(OcLinkeBilder.Count > 0)*/
-                 !string.IsNullOrEmpty(SelectedBildchen.BName)
-                & File.Exists(SelectedBildchen.BName)
-                & (SelectedBildchen.BildFürLinks == true & (!PrüfungLäuft) & (!IndexLaeuft));
+            if (PrüfungLäuft || IndexLaeuft || !File.Exists(SelectedBildchen.BName))
+            {
+                return false;
+            }
+
+            // Ohne Ordner darüber gibt es kein Ziel.
+            if (ZielOrdnerEineEbeneHoeher(SelectedBildchen.BName) is null)
+            {
+                return false;
+            }
+
+            // Weg 1: In dieser Sitzung von hier weggelegt. Das war bisher die einzige
+            // Bedingung.
+            if (SelectedBildchen.BildFürLinks)
+            {
+                return true;
+            }
+
+            // Weg 2: Die Datei liegt in einer der Ablagen dieser Anwendung — kein_Fav,
+            // KI_Fehler, Doppelt, Besonders, Wasserzeichen.
+            //
+            // Nötig, weil beim Laden eines Ordners jedes Bild BildFürLinks = false
+            // bekommt. Öffnet man ein Bild aus einem kein_Fav-Ordner, war der Knopf
+            // deshalb tot, obwohl gerade dort das Zurücklegen gebraucht wird.
+            //
+            // Die Prüfung ist bewusst am Ordner festgemacht und nicht einfach
+            // weggelassen: Das Ziel ist der Elternordner der Datei, und das ist nur
+            // richtig, solange sie in einer Ablage liegt. Bei einem gewöhnlichen
+            // Künstlerbild würde ↑ es sonst aus dem Künstlerordner herausbefördern —
+            // dass das bisher nicht passierte, lag allein an der Marke.
+            string? eigenerOrdner = Path.GetDirectoryName(SelectedBildchen.BName);
+            return !string.IsNullOrEmpty(eigenerOrdner) && IstAussortiert(eigenerOrdner);
         }
         [RelayCommand(CanExecute = nameof(CanExecuteBildInsHauptVerzeichnisZuruckVerschiebenCommand))]
         private async Task CommandExecuteBildInsHauptVerzeichnisZuruckVerschieben()
@@ -1164,12 +1222,32 @@ namespace TestImage
 
             var source = SelectedBildchen.BName;
             var dateiname = Path.GetFileName(source);
-            var hauptVerzeichnis = Path.GetDirectoryName(Path.GetDirectoryName(source));
+            var hauptVerzeichnis = ZielOrdnerEineEbeneHoeher(source);
+
+            if (hauptVerzeichnis is null)
+            {
+                PrüfungLäuft = false;
+                return;
+            }
+
             var zielVollPfad = Path.Combine(hauptVerzeichnis, dateiname);
 
             try
             {
-                if (!File.Exists(zielVollPfad) && File.Exists(source))
+                if (File.Exists(zielVollPfad))
+                {
+                    // Vorher passierte hier gar nichts: keine Bewegung, keine Meldung,
+                    // der Knopf wirkte kaputt. Umbenannt wird bewusst nicht — ein Bild
+                    // mit angehängter Nummer findet man später nicht wieder.
+                    MessageBox.Show(
+                        "Im Ordner darüber liegt bereits eine Datei mit diesem Namen:\n\n"
+                        + zielVollPfad + "\n\n"
+                        + "Das Bild bleibt deshalb, wo es ist.",
+                        "Nicht zurückverschoben",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
+                else if (File.Exists(source))
                 {
                     await Task.Run(() => File.Move(source, zielVollPfad));
                     CLconverterStringZuKleinemImage.InvalidateCache(source);
@@ -1196,9 +1274,21 @@ namespace TestImage
             }
 
             // === MODEL / COLLECTION UPDATE ===
+            //
+            // Zwei Fälle, und sie sind gegensätzlich. Auseinandergehalten werden sie an
+            // BildFürLinks, weil genau das die Herkunft des Bildes festhält:
+            //
+            //   true  – Das Bild kam aus DIESER Liste und wurde in dieser Sitzung in die
+            //           Ablage gelegt. Zurückverschieben bringt es in den Ordner der
+            //           Liste. Es gehört also weiter dazu: bleiben, Marke löschen.
+            //
+            //   false – Das Bild wurde mit dem Ordner geladen, und der Ordner IST die
+            //           Ablage (ein kein_Fav-Ordner als Drop-Ziel). Zurückverschieben
+            //           bringt es aus dem Listenordner heraus. Es gehört danach nicht
+            //           mehr dazu: entfernen und weitergehen.
 
             var bildchen = OcAufgabens.FirstOrDefault(b => b.BName == source);
-            if (bildchen != null)
+            if (bildchen != null && bildchen.BildFürLinks)
             {
                 var index = OcAufgabens.IndexOf(bildchen);
                 var indexSelected = AufgabenView.CurrentPosition;
@@ -1208,12 +1298,35 @@ namespace TestImage
 
                 OnPropertyChanged(nameof(CountBildchenFürLinks));
                 OcAufgabens.Move(index, indexSelected);
+
+                BildchenVorher = string.Empty;
+
+                AufgabenView.MoveCurrentToPosition(AufgabenView.CurrentPosition);
+                AufgabenView.Refresh();
+            }
+            else if (bildchen != null)
+            {
+                // Stelle vorher merken: Nach dem Entfernen rückt genau das nächste Bild
+                // auf diesen Platz. Das ist das „CurrentIndex + 1", nur ohne rechnen.
+                int stelle = AufgabenView.CurrentPosition;
+
+                OcAufgabens.Remove(bildchen);
+                OnPropertyChanged(nameof(CountBildchenFürLinks));
+                BildchenVorher = string.Empty;
+
+                // Kein Refresh hier: Das Entfernen kommt über die ObservableCollection
+                // ohnehin in der Ansicht an, und ein Refresh würde die Auswahl auf den
+                // Anfang zurückwerfen — also genau das zunichte machen, was gleich folgt.
+                //
+                // War es das letzte Bild, bleibt nur das neue Ende. Ist die Liste leer,
+                // gibt es nichts mehr auszuwählen.
+                int neueStelle = Math.Min(stelle, AufgabenView.Count - 1);
+                if (neueStelle >= 0)
+                {
+                    AufgabenView.MoveCurrentToPosition(neueStelle);
+                }
             }
 
-            BildchenVorher = string.Empty;
-
-            AufgabenView.MoveCurrentToPosition(AufgabenView.CurrentPosition);
-            AufgabenView.Refresh();
             UpdateAlleBilderVerschoben();
 
         }
@@ -1333,6 +1446,13 @@ namespace TestImage
                 return;
             }
 
+            // Ladebalken auf Anfang.
+            //
+            // Ohne das stand dort noch der Endwert des vorigen Bildes — der Balken
+            // erschien also gefüllt und sprang dann auf die erste Stufe zurück. Er zeigte
+            // beim Start jedes Bildes „fertig".
+            ProgressValue = LadestufeStart;
+
             // Zeit stoppen
             var stopwatch = Stopwatch.StartNew();
 
@@ -1384,12 +1504,9 @@ namespace TestImage
                 PrüfungLäuft = true;
                 IsDisplayImageLoading = true;
 
-                // Lade Balcke
-                ProgressValue = 1;
-
                 // 1. Stufe: Kleines Vorschaubild laden (сто Pixel)
                 var kl = await Task.Run(() => MieneServices.CreateBitmap(path, 100));
-                ProgressValue = 1;
+                ProgressValue = LadestufeVorschauGeladen;
 
                 // Farbsignatur aus dem Vorschaubild – nicht aus dem grossen Bild.
                 BildFarbsignatur = await Task.Run(() => Bildersuche.Farbsignatur.Erstelle(kl));
@@ -1401,8 +1518,12 @@ namespace TestImage
                     DisplayImage = kl;
                 });
 
-                // Lade Balcke
-                ProgressValue = 2;
+                ProgressValue = LadestufeVorschauSichtbar;
+
+                // Bewertung erst NACH dem Anzeigen: Sie ändert nichts am Bild und darf es
+                // deshalb nicht aufhalten. Läuft auch ohne Häkchen, siehe
+                // AufgabeViewModel.Bildbewertung.cs.
+                await BewerteAusVorschauAsync(path, kl);
 
                 stopwatch = Stopwatch.StartNew();
 
@@ -1423,12 +1544,16 @@ namespace TestImage
                     DisplayImage = gr;
                 });
 
-                // SWgrossesBild 
+                // SWgrossesBild
                 SWgrossesBild = stopwatch.Elapsed.TotalMilliseconds.ToString("F3") + " ms";
 
+                ProgressValue = LadestufeGrossSichtbar;
 
-                // Lade Balcke
-                ProgressValue = 6;
+                await BewerteKantendichteAsync(gr);
+
+                // Ohne Häkchen folgt keine Prüfung mehr — dann ist hier wirklich Schluss,
+                // und der Balken darf ans Ende springen.
+                ProgressValue = LadestufeFertig;
 
                 IsDisplayImageLoading = false;
                 PrüfungLäuft = false;
@@ -1484,7 +1609,7 @@ namespace TestImage
 
                 // 1. Stufe: Kleines Vorschaubild laden (сто Pixel)
                 var kl = await Task.Run(() => MieneServices.CreateBitmap(SelectedBildchen.BName, 100));
-                ProgressValue = 1;
+                ProgressValue = LadestufeVorschauGeladen;
 
                 // Farbsignatur aus dem Vorschaubild – nicht aus dem grossen Bild.
                 BildFarbsignatur = await Task.Run(() => Bildersuche.Farbsignatur.Erstelle(kl));
@@ -1494,18 +1619,25 @@ namespace TestImage
                     DisplayImage = kl;
                 });
 
-                //  ProgressValue = пятьдесят; // Vorschau ist da
+                ProgressValue = LadestufeVorschauSichtbar;
+
+                // Bewertung erst NACH dem Anzeigen – siehe AufgabeViewModel.Bildbewertung.cs.
+                await BewerteAusVorschauAsync(SelectedBildchen.BName, kl);
 
                 // Künstliche Verzögerung, damit man den Fortschritt sieht
                 //await Task.Delay(20);
 
                 // 2. Stufe: Volles Bild laden
                 var gr = await Task.Run(() => MieneServices.CreateBitmap(SelectedBildchen.BName, decodeWidth, decodeHeight));
-                ProgressValue = 2;
+
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
                     DisplayImage = gr;
                 });
+
+                ProgressValue = LadestufeGrossSichtbar;
+
+                await BewerteKantendichteAsync(gr);
 
                 SWgrossesBild = stopwatch.Elapsed.TotalMilliseconds.ToString("F3") + " ms";
 
@@ -1585,6 +1717,7 @@ namespace TestImage
                     IsBildDownloadCorrupted = r.DownloadKorrupt;
                     IsBildNullDatei = r.IstNullDatei;
                     ErkanntesFormat = r.DetektiertesFormat;
+                    SetzeHeaderText(SelectedBildchen.BName, r.HeaderPasst, r.DetektiertesFormat);
 
                     Debug.WriteLine($"Header={r.HeaderPasst}, Frame={r.HatFrame}, " +
                                     $"Korrupt={r.DownloadKorrupt}, Null={r.IstNullDatei}, Format={r.DetektiertesFormat}");
@@ -1592,7 +1725,13 @@ namespace TestImage
                 catch (Exception ex)
                 {
                     Debug.WriteLine($"Bildprüfung Fehler: {ex}");
-                    HeaderPasstZurErweiterung = false;
+
+                    // Hier stand HeaderPasstZurErweiterung — eine zweite Eigenschaft fast
+                    // gleichen Namens, an die nichts gebunden war. Das Ampelfeld bindet
+                    // IsHeaderPassendZurErweiterung und behielt im Fehlerfall deshalb den
+                    // Wert des vorigen Bildes.
+                    IsHeaderPassendZurErweiterung = false;
+                    HeaderText = "Prüfung fehlgeschlagen: " + ex.Message;
                     IsFrameImBildDrin = false;
                     IsBildDownloadCorrupted = true;
                     IsBildNullDatei = false;
@@ -1601,7 +1740,7 @@ namespace TestImage
                 finally
                 {
                     PrüfungLäuft = false;
-                    ProgressValue = 7;
+                    ProgressValue = LadestufeFertig;
                 }
 
             }
@@ -1611,8 +1750,10 @@ namespace TestImage
 
         }
 
-        [ObservableProperty]
-        public partial bool HeaderPasstZurErweiterung { get; set; }
+        // HeaderPasstZurErweiterung ist entfallen. Eine zweite Eigenschaft fast gleichen
+        // Namens neben IsHeaderPassendZurErweiterung, an die nichts gebunden war. Sie
+        // wurde nur im Fehlerzweig der Bildprüfung gesetzt — das Ampelfeld behielt dort
+        // also die Farbe des vorigen Bildes.
 
         [ObservableProperty]
         public partial string ErkanntesFormat { get; set; } = "unknown";
@@ -1627,6 +1768,27 @@ namespace TestImage
 
         [ObservableProperty]
         public partial bool IsDisplayImageLoading { get; set; }
+
+        /// <summary>
+        /// Stufen des Bildladens für PGB_BildLadenStufen.
+        ///
+        /// <b>Vier echte Stufen, in beiden Zweigen dieselben.</b> Vorher lief die Zählung
+        /// bis 7, während der Balken auf 6 begrenzt war — und dazwischen fehlten 3 bis 6
+        /// ganz. Die gehörten zu den fünf einzelnen Prüfaufrufen, die inzwischen ein
+        /// einziger <c>PruefeBildDatei</c> erledigt; die Stufen verschwanden mit ihnen,
+        /// die Zählung blieb stehen.
+        ///
+        /// Als benannte Werte statt blosser Zahlen, damit <c>Maximum</c> in der XAML und
+        /// die Zuweisungen hier nicht wieder auseinanderlaufen.
+        /// </summary>
+        private const int LadestufeStart = 0;
+
+        private const int LadestufeVorschauGeladen = 1;
+        private const int LadestufeVorschauSichtbar = 2;
+        private const int LadestufeGrossSichtbar = 3;
+
+        /// <summary>Muss zu <c>Maximum</c> von PGB_BildLadenStufen passen.</summary>
+        private const int LadestufeFertig = 4;
 
         [ObservableProperty]
         public partial int ProgressValue { get; set; }
@@ -2088,7 +2250,6 @@ namespace TestImage
                         await Application.Current.Dispatcher.InvokeAsync(() =>
                         {
                             LabelDropContent = "Rest " + pgs.Restzeit + "  ( " + pgs.StückPerSecond.ToString("F0") + " Stk/Sek )";
-                            ProzentAbgleich = pgs.Percent.ToString("F2");
                         });
                     }
 
@@ -2431,7 +2592,6 @@ namespace TestImage
                                 await Application.Current.Dispatcher.InvokeAsync(() =>
                                 {
                                     LabelDropContent = "Rest " + pgs.Restzeit + "  ( " + pgs.StückPerSecond.ToString("F0") + " Stk/Sek )";
-                                    ProzentAbgleich = pgs.Percent.ToString("F2");
                                 });
                             }
 
@@ -2847,12 +3007,9 @@ namespace TestImage
             DateTime started = DateTime.Now;
             IProgress<CLProgressStückzahl> progressStück = new Progress<CLProgressStückzahl>(value =>
             {
-                //PercentageValueVerschieben = value.Percent);
                 // Wird auf dem UI-Thread ausgeführt – sichere, zentrale Aktualisierung
                 PercentageValueVerschieben = value.Percent;
                 LabelDropContent = "Rest " + value.Restzeit + "  ( " + value.StückPerSecond.ToString("F0") + " Stk/Sek )";
-                ProzentAbgleich = value.Percent.ToString("F2");
-
             });
 
 
