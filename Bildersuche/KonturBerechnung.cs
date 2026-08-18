@@ -13,11 +13,14 @@ namespace TestImage.Bildersuche
     /// 3x3-Weichzeichner, Faltung, und am Ende eine harte Schwelle – jedes Pixel ist
     /// entweder Kante (weiss) oder nicht (schwarz).
     ///
-    /// Gegenüber der Vorlage kommt nur der <see cref="CancellationToken"/> dazu: Hier
+    /// Gegenüber der Vorlage kommt der <see cref="CancellationToken"/> dazu: Hier
     /// läuft die Rechnung beim Schieben des Reglers immer wieder neu an, und der
     /// vorherige Durchlauf muss dann aussteigen können. Abgebrochen wird per
     /// Rückgabewert <c>null</c>, nicht per Ausnahme — beim Ziehen des Reglers ist der
     /// Abbruch der Normalfall und keine Ausnahmesituation.
+    ///
+    /// Die zweite Abweichung ist der Vergleich mit der Schwelle: <c>&gt;</c> statt
+    /// <c>&gt;=</c>. Begründung an der Stelle selbst.
     /// </summary>
     internal static class KonturBerechnung
     {
@@ -101,7 +104,19 @@ namespace TestImage.Bildersuche
                     }
 
                     double betrag = Math.Sqrt(gx * gx + gy * gy);
-                    byte wert = betrag >= schwelle ? (byte)255 : (byte)0;
+
+                    // Grösser, nicht grösser-gleich.
+                    //
+                    // Die Vorlage prüfte >=. Damit lieferte Schwelle 0 ein durchgehend
+                    // weisses Bild: Eine glatte Fläche hat den Betrag 0, und 0 >= 0 gilt.
+                    // Der unterste Reglerwert war damit nicht die feinste Einstellung,
+                    // sondern gar keine.
+                    //
+                    // Mit > heisst Schwelle 0 „alles zeigen, was überhaupt ein Gefälle
+                    // hat" — glatte Flächen bleiben schwarz. Bei allen anderen Werten
+                    // unterscheiden sich die beiden Prüfungen nur für Pixel, deren Betrag
+                    // die Schwelle exakt trifft.
+                    byte wert = betrag > schwelle ? (byte)255 : (byte)0;
 
                     int i = y * schritt + x * 4;
                     ausgabe[i] = wert;       // B

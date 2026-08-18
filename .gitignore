@@ -361,3 +361,8 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+# Nativer OpenCV-Teil von emgu.cv.runtime.windows (45 MB).
+# Das Paket ist raus, das Projekt verweist nirgends darauf und die Datei
+# wurde nie in die Ausgabe kopiert. Hier eingetragen, damit sie nicht
+# unbemerkt zurueckkommt, falls Emgu noch einmal probiert wird.
+cvextern.dll
