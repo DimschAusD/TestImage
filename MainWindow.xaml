@@ -130,227 +130,27 @@
             Visibility="{Binding IsDublettenAnsicht, Converter={StaticResource CLconverterVisiblityBoolian}}" />
 
 
-        <!--  Host-Cluster: Webcam-/Mikrofon-/Screen-Share-Indikatoren, oben rechts neben dem Umschalt-Button, in BEIDEN Modi sichtbar.  -->
-        <StackPanel
-            x:Name="STP_IndikatorCluster"
-            Grid.Row="0"
-            Margin="0,7,136,0"
-            HorizontalAlignment="Right"
-            VerticalAlignment="Top"
-            Panel.ZIndex="100"
-            Orientation="Horizontal">
+        <!--
+            HIER STANDEN: STP_IndikatorCluster (Webcam/Mikrofon/Bildschirm),
+            BTN_DublettenAnsicht und BTN_BildmodusToggle.
 
-            <!--  Webcam-Indikator  -->
-            <Border
-                Width="22"
-                Height="22"
-                Margin="0,0,4,0"
-                CornerRadius="4"
-                ToolTip="Webcam — grün = wird gerade aufgenommen">
-                <Border.Style>
-                    <Style TargetType="{x:Type Border}">
-                        <Setter Property="Background" Value="#22000000" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsWebcamAktiv}" Value="True">
-                                <Setter Property="Background" Value="#3300C853" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <TextBlock
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    FontFamily="Segoe MDL2 Assets"
-                    FontSize="12">
-                    <TextBlock.Style>
-                        <Style TargetType="{x:Type TextBlock}">
-                            <Setter Property="Text" Value="&#xE714;" />
-                            <Setter Property="Foreground" Value="#FF888888" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsWebcamAktiv}" Value="True">
-                                    <Setter Property="Foreground" Value="#FF00C853" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-            </Border>
+            Alle drei schwebten mit Panel.ZIndex="100" über den Ansichten, und ihre Plätze
+            hingen an ausgerechneten Rändern von rechts: 136, 100 und 64. Wurde einer
+            breiter, musste man die anderen von Hand nachschieben.
 
-            <!--  Mikrofon-Indikator  -->
-            <Border
-                Width="22"
-                Height="22"
-                Margin="0,0,4,0"
-                CornerRadius="4"
-                ToolTip="Mikrofon — grün = wird gerade aufgenommen">
-                <Border.Style>
-                    <Style TargetType="{x:Type Border}">
-                        <Setter Property="Background" Value="#22000000" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsMikrofonAktiv}" Value="True">
-                                <Setter Property="Background" Value="#3300C853" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <TextBlock
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    FontFamily="Segoe MDL2 Assets"
-                    FontSize="12">
-                    <TextBlock.Style>
-                        <Style TargetType="{x:Type TextBlock}">
-                            <Setter Property="Text" Value="&#xE720;" />
-                            <Setter Property="Foreground" Value="#FF888888" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsMikrofonAktiv}" Value="True">
-                                    <Setter Property="Foreground" Value="#FF00C853" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-            </Border>
+            Jetzt gehören sie den Ansichten selbst:
 
-            <!--  Screen-Share-Indikator  -->
-            <Border
-                Width="22"
-                Height="22"
-                Margin="0,0,6,0"
-                CornerRadius="4"
-                ToolTip="Bildschirmaufnahme — grün = wird gerade geteilt">
-                <Border.Style>
-                    <Style TargetType="{x:Type Border}">
-                        <Setter Property="Background" Value="#22000000" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsScreenShareAktiv}" Value="True">
-                                <Setter Property="Background" Value="#3300C853" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <TextBlock
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    FontFamily="Segoe MDL2 Assets"
-                    FontSize="12">
-                    <TextBlock.Style>
-                        <Style TargetType="{x:Type TextBlock}">
-                            <Setter Property="Text" Value="&#xE7F4;" />
-                            <Setter Property="Foreground" Value="#FF888888" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsScreenShareAktiv}" Value="True">
-                                    <Setter Property="Foreground" Value="#FF00C853" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-            </Border>
+              Normalansicht    STP_KopfleisteRechts — Anzeigen, Bildmodus, Dubletten
+              Vollbildansicht  STP_VollbildWerkzeuge — Anzeigen, Bildmodus (schwebend,
+                               weil es dort keine Kopfleiste gibt)
+              Dubletten        GRD_Kopf — Anzeigen
 
-        </StackPanel>
+            Die drei Anzeigen stecken in Ansichten/IndikatorLeiste.xaml und sind damit
+            nur einmal geschrieben. Der Bildmodus-Umschalter existiert zweimal, weil er
+            in der hellen Kopfleiste und über dem Bild verschieden aussehen muss; beide
+            hängen am selben Command, F11 ist unberührt.
+        -->
 
-        <!--  Schwebender Button: Byte-Duplikate aufräumen (eigene Ansicht)  -->
-        <Button
-            x:Name="BTN_DublettenAnsicht"
-            Grid.Row="0"
-            Width="28"
-            Height="28"
-            Margin="0,4,64,0"
-            HorizontalAlignment="Right"
-            VerticalAlignment="Top"
-            Panel.ZIndex="100"
-            Command="{Binding CommandExecuteDublettenAnsichtOeffnenCommand}"
-            Content="&#xE8C8;"
-            Cursor="Hand"
-            Focusable="False"
-            FontFamily="Segoe MDL2 Assets"
-            FontSize="14"
-            ToolTip="Byte-Duplikate in anderen Ordnern aufräumen">
-            <Button.Style>
-                <Style TargetType="{x:Type Button}">
-                    <Setter Property="Opacity" Value="0.4" />
-                    <Setter Property="Background" Value="#88000000" />
-                    <Setter Property="Foreground" Value="White" />
-                    <Setter Property="BorderThickness" Value="0" />
-                    <Setter Property="Template">
-                        <Setter.Value>
-                            <ControlTemplate TargetType="{x:Type Button}">
-                                <Border
-                                    Padding="4"
-                                    Background="{TemplateBinding Background}"
-                                    CornerRadius="6">
-                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                </Border>
-                            </ControlTemplate>
-                        </Setter.Value>
-                    </Setter>
-                    <Style.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Opacity" Value="0.9" />
-                            <Setter Property="Background" Value="#CC334155" />
-                        </Trigger>
-                        <!--  In der Dubletten-Ansicht selbst überflüssig — dort führt "Zurück" heraus.  -->
-                        <DataTrigger Binding="{Binding IsDublettenAnsicht}" Value="True">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Button.Style>
-        </Button>
-
-        <!--  Schwebender Toggle-Button: Bildmodus umschalten (F11)  -->
-        <Button
-            x:Name="BTN_BildmodusToggle"
-            Grid.Row="0"
-            Width="28"
-            Height="28"
-            Margin="0,4,100,0"
-            HorizontalAlignment="Right"
-            VerticalAlignment="Top"
-            Panel.ZIndex="100"
-            Command="{Binding CommandExecuteImageMaximierenToggleCommand}"
-            Cursor="Hand"
-            Focusable="False"
-            FontFamily="Segoe MDL2 Assets"
-            FontSize="14"
-            ToolTip="Bildmodus umschalten (F11)">
-            <Button.Style>
-                <Style TargetType="{x:Type Button}">
-                    <Setter Property="Content" Value="&#xE740;" />
-                    <Setter Property="Opacity" Value="0.4" />
-                    <Setter Property="Background" Value="#88000000" />
-                    <Setter Property="Foreground" Value="White" />
-                    <Setter Property="BorderThickness" Value="0" />
-                    <Setter Property="Template">
-                        <Setter.Value>
-                            <ControlTemplate TargetType="{x:Type Button}">
-                                <Border
-                                    Padding="4"
-                                    Background="{TemplateBinding Background}"
-                                    CornerRadius="6">
-                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                </Border>
-                            </ControlTemplate>
-                        </Setter.Value>
-                    </Setter>
-                    <Style.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Opacity" Value="0.9" />
-                            <Setter Property="Background" Value="#CC007ACC" />
-                        </Trigger>
-                        <DataTrigger Binding="{Binding IsImageMaximiert}" Value="True">
-                            <Setter Property="Content" Value="&#xE73F;" />
-                            <Setter Property="Opacity" Value="0.6" />
-                        </DataTrigger>
-                        <!--  In der Dubletten-Ansicht kein Bildmodus-Wechsel.  -->
-                        <DataTrigger Binding="{Binding IsDublettenAnsicht}" Value="True">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Button.Style>
-        </Button>
         <!--<RibbonButton
             x:Name="RDBTN_BildNachRechts"
             Grid.Row="1"

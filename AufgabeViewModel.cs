@@ -4617,38 +4617,14 @@ namespace TestImage
         }
 
         /// <summary>Lädt eine kleine, eingefrorene Vorschau für einen Treffer.</summary>
-        private static ImageSource? LadeThumb(string pfad)
-        {
-            if (string.IsNullOrEmpty(pfad))
-            {
-                return null;
-            }
-
-            // Gemeinsamer Cache mit der Miniaturleiste (beide 120px): schon geladene
-            // Thumbnails werden wiederverwendet, neue landen dort für die Leiste.
-            if (CLconverterStringZuKleinemImage.TryHoleAusCache(pfad, out var vorhanden))
-            {
-                return vorhanden;
-            }
-
-            try
-            {
-                var bmp = new BitmapImage();
-                bmp.BeginInit();
-                bmp.CacheOption = BitmapCacheOption.OnLoad;
-                bmp.UriSource = new Uri(pfad);
-                bmp.DecodePixelWidth = 120;
-                bmp.EndInit();
-                bmp.Freeze();
-
-                CLconverterStringZuKleinemImage.LegeInCache(pfad, bmp);
-                return bmp;
-            }
-            catch
-            {
-                return null;
-            }
-        }
+        /// <summary>
+        /// Gemeinsamer Cache mit der Miniaturleiste (beide 120px): schon geladene
+        /// Thumbnails werden wiederverwendet, neue landen dort für die Leiste.
+        ///
+        /// Die Rechnung selbst steht in <see cref="MiniaturLader.Dekodiere"/> — sie war
+        /// hier und im Konverter Zeile für Zeile dieselbe.
+        /// </summary>
+        private static ImageSource? LadeThumb(string pfad) => MiniaturLader.Dekodiere(pfad);
 
         [RelayCommand]
         private void CommandExecuteUebersicht()

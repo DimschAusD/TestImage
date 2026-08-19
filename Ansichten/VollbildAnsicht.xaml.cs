@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Threading;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -14,6 +16,17 @@ namespace TestImage.Ansichten
     /// </summary>
     public partial class VollbildAnsicht : UserControl
     {
+        /// <summary>
+        /// Eine Kachel des Filmstrips hat eine andere Datei bekommen — Miniatur anfordern,
+        /// alten Auftrag zurücknehmen. Wortgleich zur Normalansicht; die Begründung steht
+        /// in <see cref="MiniaturLader"/>.
+        /// </summary>
+        private void Miniatur_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            MiniaturLader.Abmelden(e.OldValue as MeinBildchen);
+            MiniaturLader.Anfordern(e.NewValue as MeinBildchen);
+        }
+
         public VollbildAnsicht()
         {
             InitializeComponent();
@@ -22,8 +35,43 @@ namespace TestImage.Ansichten
             Listbox_SchwebeMiniaturen.IsVisibleChanged += (s, e) =>
             {
                 if ((bool)e.NewValue)
+                {
                     HorizontalListBoxBehavior.CenterNow(Listbox_SchwebeMiniaturen);
+                    MiniaturenNachfordern();
+                }
             };
+
+            // Miniaturen nachfordern, wie in der Normalansicht. Begründung dort und in
+            // MiniaturLader.FordereSichtbareAn.
+            Listbox_SchwebeMiniaturen.AddHandler(
+                ScrollViewer.ScrollChangedEvent,
+                new ScrollChangedEventHandler((_, _) => MiniaturenNachfordern()));
+
+            if (Listbox_SchwebeMiniaturen.Items is INotifyCollectionChanged beobachtbar)
+            {
+                beobachtbar.CollectionChanged += (_, _) => MiniaturenNachfordern();
+            }
+        }
+
+        private bool _nachforderungSteht;
+
+        /// <summary>Gesammeltes Nachfordern der sichtbaren Miniaturen, bei Background-Rang.</summary>
+        private void MiniaturenNachfordern()
+        {
+            if (_nachforderungSteht)
+            {
+                return;
+            }
+
+            _nachforderungSteht = true;
+
+            Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    _nachforderungSteht = false;
+                    MiniaturLader.FordereSichtbareAn(Listbox_SchwebeMiniaturen);
+                }),
+                DispatcherPriority.Background);
         }
 
         private void Vollbild_DragEnter(object sender, DragEventArgs e)

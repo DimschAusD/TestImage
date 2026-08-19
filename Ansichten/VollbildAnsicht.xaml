@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:Converters="clr-namespace:TestImage.Converters"
     xmlns:Converters1="clr-namespace:TestImageViewer.Converters"
+    xmlns:ansichten="clr-namespace:TestImage.Ansichten"
     xmlns:bildersuche="clr-namespace:TestImage.Bildersuche"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
@@ -291,8 +292,15 @@
                     <Grid Width="100" Height="72">
                         <!--  Bild komplett sichtbar, kein Zuschnitt  -->
                         <Border ClipToBounds="True" CornerRadius="5">
+                            <!--
+                                Wie in der Miniaturleiste der Normalansicht: Bindung auf die
+                                Eigenschaft, gefüllt von MiniaturLader im Hintergrund. Der
+                                Konverter dekodierte im UI-Faden, während man scrollte.
+                            -->
                             <Image
-                                Source="{Binding BName, Converter={StaticResource CLconverterStringZuKleinemImage}}"
+                                x:Name="IMG_SchwebeMiniatur"
+                                DataContextChanged="Miniatur_DataContextChanged"
+                                Source="{Binding Miniatur}"
                                 d:Source="/Images/HeavyO.jpg"
                                 Stretch="Uniform" />
                         </Border>
@@ -514,5 +522,69 @@
                     Text="Alle Bilder im selben Ordner werden geladen" />
             </StackPanel>
         </Border>
+
+        <!--
+            Aufnahme-Anzeigen und Umschalter, oben rechts.
+
+            Hier ist Schweben richtig: Die Ansicht ist ein Bild ohne Kopfleiste, jeder
+            reservierte Streifen ginge vom Bild ab. Der Umschalter ist eine zweite
+            Instanz — er hängt am selben Command wie BTN_BildmodusToggle in der
+            Normalansicht, behält aber die dunkle Pille, die über einem Bild lesbar ist.
+            Das Symbol steht fest auf „verkleinern": In dieser Ansicht ist der Bildmodus
+            immer an.
+
+            ZIndex über den Klickzonen, damit ein Klick auf den Knopf nicht zum Blättern
+            führt; unter dem Drop-Overlay (300), das alles verdecken soll.
+        -->
+        <StackPanel
+            x:Name="STP_VollbildWerkzeuge"
+            Margin="0,8,10,0"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Top"
+            Panel.ZIndex="200"
+            Orientation="Horizontal">
+
+            <ansichten:IndikatorLeiste x:Name="CTL_Indikatoren" VerticalAlignment="Center" />
+
+            <Button
+                x:Name="BTN_BildmodusVollbild"
+                Width="28"
+                Height="28"
+                VerticalAlignment="Center"
+                Command="{Binding CommandExecuteImageMaximierenToggleCommand}"
+                Content="&#xE73F;"
+                Cursor="Hand"
+                Focusable="False"
+                FontFamily="Segoe MDL2 Assets"
+                FontSize="14"
+                ToolTip="Bildmodus verlassen (F11)">
+                <Button.Style>
+                    <Style TargetType="{x:Type Button}">
+                        <Setter Property="Opacity" Value="0.6" />
+                        <Setter Property="Background" Value="#88000000" />
+                        <Setter Property="Foreground" Value="White" />
+                        <Setter Property="BorderThickness" Value="0" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="{x:Type Button}">
+                                    <Border
+                                        Padding="4"
+                                        Background="{TemplateBinding Background}"
+                                        CornerRadius="6">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Opacity" Value="0.9" />
+                                <Setter Property="Background" Value="#CC007ACC" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+        </StackPanel>
     </Grid>
 </UserControl>

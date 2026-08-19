@@ -2,6 +2,7 @@
     x:Class="TestImage.Ansichten.DublettenAnsicht"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ansichten="clr-namespace:TestImage.Ansichten"
     xmlns:bildersuche="clr-namespace:TestImage.Bildersuche"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="clr-namespace:TestImage"
@@ -135,6 +136,7 @@
         <Grid x:Name="GRD_Kopf" Margin="14,12,14,8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition x:Name="COL_KopfText" Width="*" />
+                <ColumnDefinition x:Name="COL_KopfIndikatoren" Width="Auto" />
                 <ColumnDefinition x:Name="COL_KopfZurück" Width="Auto" />
             </Grid.ColumnDefinitions>
 
@@ -151,9 +153,20 @@
                     Text="Sucht im Dubletten-Ordner alle Dateien, die byte-identisch auch im Referenzbestand liegen. Gelöscht wird erst nach Auswahl und Rückfrage – und nur in den Papierkorb. Der Referenzbestand bleibt unangetastet." />
             </StackPanel>
 
+            <!--
+                Aufnahme-Anzeigen. Sie lagen bis hierher im MainWindow und schwebten über
+                allen drei Ansichten. Damit sie hier nicht verschwinden, steht dasselbe
+                Steuerelement auch in dieser Kopfzeile.
+            -->
+            <ansichten:IndikatorLeiste
+                x:Name="CTL_Indikatoren"
+                Grid.Column="1"
+                Margin="12,0,10,0"
+                VerticalAlignment="Top" />
+
             <Button
                 x:Name="BTN_DublettenZurueck"
-                Grid.Column="1"
+                Grid.Column="2"
                 VerticalAlignment="Top"
                 Command="{Binding CommandExecuteDublettenAnsichtSchliessenCommand}"
                 Style="{StaticResource ButtonSekundär}"

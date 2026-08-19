@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:Converters="clr-namespace:TestImage.Converters"
     xmlns:Converters1="clr-namespace:TestImageViewer.Converters"
+    xmlns:ansichten="clr-namespace:TestImage.Ansichten"
     xmlns:bildersuche="clr-namespace:TestImage.Bildersuche"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
@@ -16,6 +17,50 @@
     mc:Ignorable="d">
 
     <UserControl.Resources>
+
+        <!--
+            Knöpfe der Kopfleiste: hell, neutral, nur ein feiner Rahmen.
+
+            Die beiden Knöpfe kamen aus dem MainWindow, wo sie als dunkle, halbdurch-
+            sichtige Pillen über dem Bild schwebten. Über einem Bild ist das richtig — in
+            einer hellen Kopfleiste nicht. Gleiche Anmutung wie BTN_IndexSuchleiste links.
+        -->
+        <Style x:Key="KopfleisteKnopf" TargetType="{x:Type Button}">
+            <Setter Property="Width" Value="24" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Margin" Value="4,0,0,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="#FF6B6B6B" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border
+                            x:Name="BRD_KnopfFlaeche"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="#33000000"
+                            BorderThickness="1"
+                            CornerRadius="5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="BRD_KnopfFlaeche" Property="Background" Value="#11000000" />
+                                <Setter TargetName="BRD_KnopfFlaeche" Property="BorderBrush" Value="#55000000" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="BRD_KnopfFlaeche" Property="Background" Value="#22000000" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!--
             Entwurfsdaten für das Monatsband: 28 Monate über drei Jahre. Als Ressource,
             weil zwei ItemsControls dieselbe Reihe brauchen — die Jahreszeile oben und die
@@ -282,60 +327,60 @@
                     Grid.Column="1"
                     Orientation="Vertical">
 
-                <!--  Grobe Leiste – nur eine der beiden Übersichten ist sichtbar  -->
-                <Grid
+                    <!--  Grobe Leiste – nur eine der beiden Übersichten ist sichtbar  -->
+                    <Grid
                     x:Name="GRD_Zeitleiste"
                     d:Visibility="Collapsed"
                     Visibility="{Binding ZeitBandBevorzugt, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}">
 
-                <ItemsControl
+                        <ItemsControl
                     x:Name="IC_Zeitleiste"
                     ItemsSource="{Binding Zeitleiste}">
-                    <d:ItemsControl.ItemsSource>
-                        <x:Array Type="{x:Type bildersuche:ZeitAbschnitt}">
-                            <bildersuche:ZeitAbschnitt
+                            <d:ItemsControl.ItemsSource>
+                                <x:Array Type="{x:Type bildersuche:ZeitAbschnitt}">
+                                    <bildersuche:ZeitAbschnitt
                                 Anzahl="45"
                                 Beschriftung="2018"
                                 Deckkraft="0.13" />
-                            <bildersuche:ZeitAbschnitt
+                                    <bildersuche:ZeitAbschnitt
                                 Anzahl="120"
                                 Beschriftung="2019"
                                 Deckkraft="0.24" />
-                            <bildersuche:ZeitAbschnitt
+                                    <bildersuche:ZeitAbschnitt
                                 Anzahl="88"
                                 Beschriftung="2020"
                                 Deckkraft="0.19" />
-                            <bildersuche:ZeitAbschnitt
+                                    <bildersuche:ZeitAbschnitt
                                 Anzahl="200"
                                 Beschriftung="2021"
                                 Deckkraft="0.35" />
-                            <bildersuche:ZeitAbschnitt
+                                    <bildersuche:ZeitAbschnitt
                                 Anzahl="15"
                                 Beschriftung="2022"
                                 Deckkraft="0.08" />
-                            <bildersuche:ZeitAbschnitt
+                                    <bildersuche:ZeitAbschnitt
                                 Anzahl="301"
                                 Beschriftung="2023"
                                 Deckkraft="0.50" />
-                        </x:Array>
-                    </d:ItemsControl.ItemsSource>
+                                </x:Array>
+                            </d:ItemsControl.ItemsSource>
 
-                    <!--  Gleich breite Felder – funktioniert für zwölf Monate wie für n Jahre  -->
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <UniformGrid Rows="1" />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
+                            <!--  Gleich breite Felder – funktioniert für zwölf Monate wie für n Jahre  -->
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Rows="1" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
 
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Grid x:Name="GRD_ZeitFeld" ToolTip="{Binding Tooltip}">
-                                <!--
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid x:Name="GRD_ZeitFeld" ToolTip="{Binding Tooltip}">
+                                        <!--
                                     Deckkraft kommt fertig aus dem ViewModel, damit hier kein
                                     Konverter nötig ist. Volle Deckkraft ist bewusst nicht
                                     vorgesehen — die Beschriftung muss lesbar bleiben.
                                 -->
-                                <Rectangle
+                                        <Rectangle
                                     x:Name="RCT_ZeitFeldFuellung"
                                     Margin="1,0"
                                     Fill="#FF64748B"
@@ -343,8 +388,8 @@
                                     RadiusX="3"
                                     RadiusY="3" />
 
-                                <StackPanel x:Name="STP_ZeitFeld" Orientation="Vertical">
-                                    <!--
+                                        <StackPanel x:Name="STP_ZeitFeld" Orientation="Vertical">
+                                            <!--
                                         Schriftfarbe kommt fertig aus dem ViewModel, wie
                                         die Deckkraft daneben. Grund: Die Fläche ändert
                                         nicht ihre Farbe, sondern ihre Deckkraft — die
@@ -352,7 +397,7 @@
                                         Mischung mit dem weissen Kartengrund, und die
                                         sieht ein Konverter hier nicht.
                                     -->
-                                    <TextBlock
+                                            <TextBlock
                                         x:Name="TXT_ZeitFeldName"
                                         HorizontalAlignment="Center"
                                         FontFamily="Segoe UI"
@@ -360,7 +405,7 @@
                                         d:Foreground="Gray"
                                         Foreground="{Binding Beschriftungsfarbe}"
                                         Text="{Binding Beschriftung}" />
-                                    <TextBlock
+                                            <TextBlock
                                         x:Name="TXT_ZeitFeldAnzahl"
                                         HorizontalAlignment="Center"
                                         FontFamily="Segoe UI"
@@ -368,14 +413,14 @@
                                         FontWeight="SemiBold"
                                         Foreground="#FF1F2937"
                                         Text="{Binding Anzahl}" />
-                                </StackPanel>
-                            </Grid>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-                </Grid>
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Grid>
 
-                <!--
+                    <!--
                     Feines Band: ein Balken je Monat über den ganzen Zeitraum, die Jahre
                     als Abschnitte mit Trennstrich und Jahreszahl. Zeigt, wo innerhalb
                     eines Jahres die Bilder liegen — das kann die grobe Leiste darüber nicht.
@@ -384,24 +429,24 @@
                     ohne Rechnerei genau über ihrem ersten Monat. Beschriftungen dürfen
                     dabei über die Nachbarzellen hinausragen; WPF-Panels schneiden nicht ab.
                 -->
-                <StackPanel
+                    <StackPanel
                     x:Name="STP_ZeitBand"
                     d:Visibility="Visible"
                     Orientation="Vertical"
                     Visibility="{Binding ZeitBandBevorzugt, Converter={StaticResource CLconverterVisiblityBoolian}}">
 
-                    <ItemsControl
+                        <ItemsControl
                         x:Name="IC_ZeitBandJahre"
                         d:ItemsSource="{StaticResource ZeitBandBeispiel}"
                         ItemsSource="{Binding ZeitBand}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <UniformGrid Rows="1" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <!--
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Rows="1" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <!--
                                     Der Canvas ist hier kein Zierrat, sondern das Mittel
                                     zum Zweck.
 
@@ -422,8 +467,8 @@
                                     die Wunschbreite des Bandes nicht auf. Eine feste
                                     Breite am TextBlock hätte das getan: 148 mal 34 Punkte.
                                 -->
-                                <Canvas x:Name="CNV_ZeitBandJahr" Height="13">
-                                <TextBlock
+                                    <Canvas x:Name="CNV_ZeitBandJahr" Height="13">
+                                        <TextBlock
                                     x:Name="TXT_ZeitBandJahr"
                                     Canvas.Left="2"
                                     Canvas.Top="0"
@@ -431,55 +476,55 @@
                                     FontSize="10"
                                     Foreground="#FF6B6B6B"
                                     Text="{Binding JahrText}" />
-                                </Canvas>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                                    </Canvas>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
 
-                    <ItemsControl
+                        <ItemsControl
                         x:Name="IC_ZeitBand"
                         Height="20"
                         Margin="0,1,0,0"
                         d:ItemsSource="{StaticResource ZeitBandBeispiel}"
                         ItemsSource="{Binding ZeitBand}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <UniformGrid Rows="1" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Grid x:Name="GRD_ZeitBandZelle" ToolTip="{Binding Tooltip}">
-                                    <!--  Durchsichtiger Grund, damit die ganze Zelle den ToolTip auslöst  -->
-                                    <Rectangle x:Name="RCT_ZeitBandFlaeche" Fill="Transparent" />
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Rows="1" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid x:Name="GRD_ZeitBandZelle" ToolTip="{Binding Tooltip}">
+                                        <!--  Durchsichtiger Grund, damit die ganze Zelle den ToolTip auslöst  -->
+                                        <Rectangle x:Name="RCT_ZeitBandFlaeche" Fill="Transparent" />
 
-                                    <!--  Trennstrich am Jahreswechsel  -->
-                                    <Rectangle
+                                        <!--  Trennstrich am Jahreswechsel  -->
+                                        <Rectangle
                                         x:Name="RCT_ZeitBandTrenner"
                                         Width="1"
                                         HorizontalAlignment="Left"
                                         Fill="#FFD0D0D0"
                                         Visibility="{Binding IstJahresAnfang, Converter={StaticResource CLconverterVisiblityBoolian}}" />
 
-                                    <!--
+                                        <!--
                                         Farbe kommt aus dem ViewModel: Grün heisst „hier
                                         liegen Bilder". Leere Monate behalten ihren Sockel,
                                         aber in Grau — vorher sah eine Reihe leerer Monate
                                         aus wie viele kleine Treffer.
                                     -->
-                                    <Rectangle
+                                        <Rectangle
                                         x:Name="RCT_ZeitBandBalken"
                                         Margin="1,0"
                                         VerticalAlignment="Bottom"
                                         d:Fill="#FF3A9B45"
                                         Fill="{Binding Farbe}"
                                         Height="{Binding Hoehe}" />
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
 
-                </StackPanel>
+                    </StackPanel>
                 </StackPanel>
             </Grid>
         </Border>
@@ -547,13 +592,29 @@
                         BorderBrush="Transparent"
                         BorderThickness="0">
                         <Grid>
+                            <!--
+                                Bindet auf die Eigenschaft, nicht mehr über einen Konverter
+                                auf den Pfad.
+
+                                Der Konverter dekodierte im UI-Faden, sobald eine Kachel
+                                sichtbar wurde — bei einem Zug an der Bildlaufleiste also
+                                dutzendfach hintereinander, und bei grossen Dateien stand
+                                dabei die Oberfläche. Miniatur wird von MiniaturLader im
+                                Hintergrund gefüllt; die Kachel ist dafür kurz leer.
+
+                                DataContextChanged statt Loaded: Beim Recycling behält die
+                                Kachel ihr Image und bekommt nur eine andere Datei
+                                zugewiesen — Loaded feuert dann nicht.
+                            -->
                             <Image
+                                x:Name="IMG_Miniatur"
                                 Width="80"
                                 Height="80"
                                 Margin="2"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
-                                Source="{Binding BName, Converter={StaticResource CLconverterStringZuKleinemImage}}"
+                                DataContextChanged="Miniatur_DataContextChanged"
+                                Source="{Binding Miniatur}"
                                 Stretch="Uniform" />
                             <!--  Badge: Bild wurde verschoben  -->
                             <Border
@@ -914,183 +975,317 @@
 
 
         <!--
-            Konturansicht: Kantenbild statt Originalbild im grossen Bild, Schwelle am
-            Regler.
+            Der Streifen über dem Bild. Links der laufende Vorgang, rechts die Anzeigeart.
 
-            Eigene Zeile über dem Bild statt schwebend darüber. Vorher lag die Karte über
-            der rechten oberen Ecke des Bildes und verdeckte genau den Ausschnitt, den man
-            beim Kantenbild anschauen will.
+            Zwei Spalten statt beider Elemente in einer Zelle mit „links" und „rechts":
+            Genau die Bauart hatte die Ansicht vorher, und sie überdeckt lautlos, sobald
+            der Platz knapp wird. Hier schrumpft stattdessen die Sternspalte, wenn die
+            Kontur-Karte aufklappt.
 
-            Die Zeile ist rund 36 Punkte hoch und bleibt es: Die Karte wächst beim
-            Aufklappen nach links, nicht nach unten. Das Bild behält seine Höhe, egal wie
-            oft umgeschaltet wird.
+            Die Zeile ist rund 36 Punkte hoch und bleibt es — beide Stücke wachsen nur
+            seitlich. Das Bild behält seine Höhe.
         -->
-        <Border
-            x:Name="BRD_KonturKarte"
+        <Grid
+            x:Name="GRD_StreifenUeberBild"
             Grid.Row="1"
-            Grid.Column="1"
-            Margin="0,4,5,0"
-            HorizontalAlignment="Right"
-            VerticalAlignment="Top"
-            d:Padding="10,5,10,5"
-            Background="White"
-            BorderBrush="#FFCBD5E1"
-            BorderThickness="1"
-            CornerRadius="8"
-            Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}">
+            Grid.Column="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="COL_StreifenVorgang" Width="*" />
+                <ColumnDefinition x:Name="COL_StreifenAnsicht" Width="Auto" />
+            </Grid.ColumnDefinitions>
 
             <!--
-                Ruhezustand: nur der Symbolknopf. Erst beim Einschalten kommen Regler und
-                Kästchen dazu, und die Karte wird nach links breiter. Keine feste Breite,
-                sonst wäre sie auch im Ruhezustand so breit wie aufgeklappt.
+                Eine Anzeige für alle langlaufenden Vorgänge — Indexieren, Byte-/SHA-/
+                Grau-Abgleich, Wasserzeichen lernen.
+
+                Sie hängt am ViewModel, nicht am Werkzeugfenster der Bildersuche, und
+                bleibt deshalb sichtbar, wenn man das Fenster zumacht.
+
+                Die Werte kommen aus der Fassade in AufgabeViewModel.LaufendeAufgabe.cs,
+                nicht von einem einzelnen Vorgang. Der frühere zweite Balken über der
+                Miniaturleiste (GRD_PruefFortschritt) ist dafür entfallen; sein
+                Abbrechen-Knopf hatte ohnehin kein Command.
+
+                Dass hier immer nur ein Vorgang stehen kann, sichern die CanExecute-
+                Sperren der schweren Befehle — sonst liefe einer davon unsichtbar weiter.
+
+                Stand vorher in STP_KopfleisteLinks.
             -->
-            <Border.Style>
-                <Style TargetType="{x:Type Border}">
-                    <Setter Property="Padding" Value="5" />
-                    <Style.Triggers>
-                        <!--
-                            Aufgeklappt nur seitlich mehr Luft. Oben und unten bleiben es
-                            5, damit die Karte genau so hoch bleibt wie zugeklappt — sonst
-                            würde die Zeile beim Umschalten springen und das Bild mit ihr.
-                        -->
-                        <DataTrigger Binding="{Binding ZeigeKontur}" Value="True">
-                            <Setter Property="Padding" Value="10,5,10,5" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Border.Style>
-
-            <!--
-                Waagerecht, und die Einstellungen stehen VOR dem Schalter.
-
-                Beides zusammen lässt die Karte nach links auswachsen: Sie ist
-                rechtsbündig, also bleibt der Schalter beim Aufklappen an seinem Platz und
-                der neue Inhalt schiebt sich nach links davor. Wächse sie nach unten,
-                würde die Zeile höher und das Bild bei jedem Umschalten kürzer.
-            -->
-            <StackPanel x:Name="STP_KonturKarte" Orientation="Horizontal">
-
-                <!--
-                    Reglerbereich nur zeigen, wenn die Kontur auch an ist.
-
-                    Der Rahmen darum trägt die Laufanzeige: Sie unterstreicht die ganze
-                    Reihe, statt unter einem einzelnen Bedienelement zu hängen. Gerechnet
-                    wird am Bild, nicht am Regler — und unter dessen Spur sah der Balken
-                    aus wie eine zweite Skala desselben Reglers.
-
-                    Feste Höhe 26 wie der Schalter daneben: Sie hält die Bedienelemente
-                    mittig und lässt unter ihnen Platz für den Balken.
-                -->
-                <Grid
-                    x:Name="GRD_KonturEinstellungen"
-                    Height="26"
-                    Margin="0,0,10,0"
-                    VerticalAlignment="Center"
-                    d:Visibility="Visible"
-                    Visibility="{Binding ZeigeKontur, Converter={StaticResource CLconverterVisiblityBoolian}}">
+            <Border
+                x:Name="BRD_AufgabeFortschritt"
+                Grid.Column="0"
+                Width="280"
+                Height="38"
+                Margin="0,4,0,0"
+                Padding="8,2,4,2"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                d:Visibility="Visible"
+                Background="White"
+                BorderBrush="#FFCBD5E1"
+                BorderThickness="1"
+                CornerRadius="6"
+                Visibility="{Binding AufgabeLäuft, Converter={StaticResource CLconverterVisiblityBoolian}}" Grid.ColumnSpan="2">
+                <Grid x:Name="GRD_AufgabeFortschritt">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition x:Name="COL_AufgabeText" Width="*" />
+                        <ColumnDefinition x:Name="COL_AufgabeAbbrechen" Width="Auto" />
+                    </Grid.ColumnDefinitions>
 
                     <StackPanel
-                        x:Name="STP_KonturEinstellungen"
+                        x:Name="STP_AufgabeFortschritt"
+                        Grid.Column="0"
                         VerticalAlignment="Center"
-                        Orientation="Horizontal">
-
+                        Orientation="Vertical">
                         <TextBlock
-                            x:Name="TXT_KonturSchwelleLabel"
-                            VerticalAlignment="Center"
+                            x:Name="TXT_AufgabeFortschritt"
+                            d:Text="Indexiere 1.240/5.310 – noch ~4 min"
+                            FontFamily="Segoe UI"
                             FontSize="11"
-                            Foreground="Gray"
-                            Text="Schwelle" />
-
-                        <!--
-                            Feste Breite, rechtsbündig: Sonst würde der Sprung von „9" auf
-                            „90" auf „255" alles dahinter verschieben.
-                        -->
-                        <TextBlock
-                            x:Name="TXT_KonturSchwelleWert"
-                            Width="22"
-                            Margin="5,0,0,0"
-                            VerticalAlignment="Center"
-                            FontSize="11"
-                            FontWeight="SemiBold"
                             Foreground="#FF1F2937"
-                            Text="{Binding KonturSchwelle, StringFormat=\{0:F0\}}"
-                            TextAlignment="Right" />
+                            Text="{Binding AufgabeText}"
+                            TextTrimming="CharacterEllipsis" />
 
                         <!--
-                            Feste Breite: Ein Regler hat waagerecht keine eigene
-                            Wunschbreite und würde sonst auf null zusammenfallen.
+                            IsIndeterminate: In der Anlaufphase gibt es nichts zu zählen —
+                            CLIP lädt seine Modelle, und das Wasserzeichen-Lernen meldet
+                            gar keinen Prozentwert. Ein Balken auf null sähe dort aus wie
+                            ein Hänger.
                         -->
-                        <Slider
-                            x:Name="SLD_KonturSchwelle"
-                            Width="140"
-                            Margin="8,0,0,0"
-                            VerticalAlignment="Center"
-                            IsSnapToTickEnabled="True"
-                            Maximum="255"
-                            Minimum="0"
-                            TickFrequency="1"
-                            ToolTip="Niedrig = viele Kanten, hoch = nur kräftige Kanten. Vorgabe 90."
-                            Value="{Binding KonturSchwelle, Mode=TwoWay}" />
-
-                        <CheckBox
-                            x:Name="CHK_KonturWeichzeichnen"
-                            Margin="12,0,0,0"
-                            VerticalAlignment="Center"
-                            VerticalContentAlignment="Center"
-                            Content="Weichzeichnen"
-                            FontSize="11"
-                            Foreground="#FF555555"
-                            IsChecked="{Binding KonturWeichzeichnen, Mode=TwoWay}"
-                            ToolTip="Vorher glätten – weniger Rauschkanten, dafür weichere Konturen." />
+                        <ProgressBar
+                            x:Name="PGB_AufgabeFortschritt"
+                            Height="3"
+                            Margin="0,3,0,0"
+                            d:Value="35"
+                            Background="#FFE5E7EB"
+                            BorderThickness="0"
+                            Foreground="#FF3A9B45"
+                            IsIndeterminate="{Binding AufgabeUnbestimmt}"
+                            Maximum="100"
+                            Value="{Binding AufgabeFortschritt, Mode=OneWay}" />
                     </StackPanel>
+
+                    <Button
+                        x:Name="BTN_AufgabeAbbrechen"
+                        Grid.Column="1"
+                        Width="20"
+                        Height="20"
+                        Margin="6,0,0,0"
+                        VerticalAlignment="Center"
+                        Command="{Binding CommandExecuteAufgabeAbbrechenCommand}"
+                        Cursor="Hand"
+                        ToolTip="Laufenden Vorgang abbrechen"
+                        Visibility="{Binding AufgabeAbbrechbar, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                        <Button.Style>
+                            <Style TargetType="{x:Type Button}">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="Foreground" Value="#FF6B6B6B" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="{x:Type Button}">
+                                            <Border
+                                                x:Name="BRD_AbbrechenFlaeche"
+                                                Background="{TemplateBinding Background}"
+                                                CornerRadius="4">
+                                                <TextBlock
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center"
+                                                    FontFamily="Segoe MDL2 Assets"
+                                                    FontSize="10"
+                                                    Foreground="{TemplateBinding Foreground}"
+                                                    Text="&#xE711;" />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="BRD_AbbrechenFlaeche" Property="Background" Value="#FFF3F4F6" />
+                                                    <Setter Property="Foreground" Value="#FFB03030" />
+                                                </Trigger>
+                                                <Trigger Property="IsPressed" Value="True">
+                                                    <Setter TargetName="BRD_AbbrechenFlaeche" Property="Background" Value="#FFE9EBEF" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!--
+                Konturansicht: Kantenbild statt Originalbild im grossen Bild, Schwelle am
+                Regler.
+
+                Vorher lag die Karte über der rechten oberen Ecke des Bildes und verdeckte
+                genau den Ausschnitt, den man beim Kantenbild anschauen will.
+            -->
+            <Border
+                x:Name="BRD_KonturKarte"
+                Grid.Column="1"
+                Margin="0,4,5,0"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                d:Padding="10,5,10,5"
+                Background="White"
+                BorderBrush="#FFCBD5E1"
+                BorderThickness="1"
+                CornerRadius="8"
+                Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}">
+
+                <!--
+                    Ruhezustand: nur der Symbolknopf. Erst beim Einschalten kommen Regler und
+                    Kästchen dazu, und die Karte wird nach links breiter. Keine feste Breite,
+                    sonst wäre sie auch im Ruhezustand so breit wie aufgeklappt.
+                -->
+                <Border.Style>
+                    <Style TargetType="{x:Type Border}">
+                        <Setter Property="Padding" Value="5" />
+                        <Style.Triggers>
+                            <!--
+                                Aufgeklappt nur seitlich mehr Luft. Oben und unten bleiben es
+                                5, damit die Karte genau so hoch bleibt wie zugeklappt — sonst
+                                würde die Zeile beim Umschalten springen und das Bild mit ihr.
+                            -->
+                            <DataTrigger Binding="{Binding ZeigeKontur}" Value="True">
+                                <Setter Property="Padding" Value="10,5,10,5" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+
+                <!--
+                    Waagerecht, und die Einstellungen stehen VOR dem Schalter.
+
+                    Beides zusammen lässt die Karte nach links auswachsen: Sie ist
+                    rechtsbündig, also bleibt der Schalter beim Aufklappen an seinem Platz und
+                    der neue Inhalt schiebt sich nach links davor. Wächse sie nach unten,
+                    würde die Zeile höher und das Bild bei jedem Umschalten kürzer.
+                -->
+                <StackPanel x:Name="STP_KonturKarte" Orientation="Horizontal">
 
                     <!--
-                        Anzeige, dass gerechnet wird; bei grossen Bildern dauert es kurz.
+                        Reglerbereich nur zeigen, wenn die Kontur auch an ist.
 
-                        Liegt über der Reihe statt darin: So kostet der Balken keine
-                        Breite. Käme er und ginge er in der Reihe, änderte sich jedes Mal
-                        die Breite der Karte — und weil sie rechtsbündig ist und nach
-                        links wächst, rutschte alles davor hin und her.
+                        Der Rahmen darum trägt die Laufanzeige: Sie unterstreicht die ganze
+                        Reihe, statt unter einem einzelnen Bedienelement zu hängen. Gerechnet
+                        wird am Bild, nicht am Regler — und unter dessen Spur sah der Balken
+                        aus wie eine zweite Skala desselben Reglers.
+
+                        Feste Höhe 26 wie der Schalter daneben: Sie hält die Bedienelemente
+                        mittig und lässt unter ihnen Platz für den Balken.
                     -->
-                    <ProgressBar
-                        x:Name="PGB_KonturLäuft"
-                        Height="3"
-                        VerticalAlignment="Bottom"
+                    <Grid
+                        x:Name="GRD_KonturEinstellungen"
+                        Height="26"
+                        Margin="0,0,10,0"
+                        VerticalAlignment="Center"
                         d:Visibility="Visible"
-                        IsIndeterminate="True"
-                        Visibility="{Binding KonturLäuft, Converter={StaticResource CLconverterVisiblityBoolian}}" />
-                </Grid>
+                        Visibility="{Binding ZeigeKontur, Converter={StaticResource CLconverterVisiblityBoolian}}">
 
-                <ToggleButton
-                    x:Name="TGL_KonturAnzeigen"
-                    Height="26"
-                    Padding="6,0"
-                    Cursor="Hand"
-                    FontSize="12"
-                    FontWeight="SemiBold"
-                    IsChecked="{Binding ZeigeKontur, Mode=TwoWay}"
-                    SnapsToDevicePixels="True"
-                    ToolTip="Statt des Bildes sein Kantenbild anzeigen (Sobel). Macht auch schwache Aufdrucke sichtbar.">
-                    <StackPanel x:Name="STP_KonturSchalter" Orientation="Horizontal">
-                        <TextBlock
-                            x:Name="IC_KonturSchalter"
+                        <StackPanel
+                            x:Name="STP_KonturEinstellungen"
                             VerticalAlignment="Center"
-                            FontFamily="Segoe MDL2 Assets"
-                            FontSize="12"
-                            Text="&#xE9A9;" />
+                            Orientation="Horizontal">
 
-                        <!--  Beschriftung erst im aufgeklappten Zustand – spart im Ruhezustand die halbe Breite  -->
-                        <TextBlock
-                            x:Name="TXT_KonturSchalter"
-                            Margin="6,0,0,0"
-                            VerticalAlignment="Center"
+                            <TextBlock
+                                x:Name="TXT_KonturSchwelleLabel"
+                                VerticalAlignment="Center"
+                                FontSize="11"
+                                Foreground="Gray"
+                                Text="Schwelle" />
+
+                            <!--
+                                Feste Breite, rechtsbündig: Sonst würde der Sprung von „9" auf
+                                „90" auf „255" alles dahinter verschieben.
+                            -->
+                            <TextBlock
+                                x:Name="TXT_KonturSchwelleWert"
+                                Width="22"
+                                Margin="5,0,0,0"
+                                VerticalAlignment="Center"
+                                FontSize="11"
+                                FontWeight="SemiBold"
+                                Foreground="#FF1F2937"
+                                Text="{Binding KonturSchwelle, StringFormat=\{0:F0\}}"
+                                TextAlignment="Right" />
+
+                            <!--
+                                Feste Breite: Ein Regler hat waagerecht keine eigene
+                                Wunschbreite und würde sonst auf null zusammenfallen.
+                            -->
+                            <Slider
+                                x:Name="SLD_KonturSchwelle"
+                                Width="140"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"
+                                IsSnapToTickEnabled="True"
+                                Maximum="255"
+                                Minimum="0"
+                                TickFrequency="1"
+                                ToolTip="Niedrig = viele Kanten, hoch = nur kräftige Kanten. Vorgabe 90."
+                                Value="{Binding KonturSchwelle, Mode=TwoWay}" />
+
+                            <CheckBox
+                                x:Name="CHK_KonturWeichzeichnen"
+                                Margin="12,0,0,0"
+                                VerticalAlignment="Center"
+                                VerticalContentAlignment="Center"
+                                Content="Weichzeichnen"
+                                FontSize="11"
+                                Foreground="#FF555555"
+                                IsChecked="{Binding KonturWeichzeichnen, Mode=TwoWay}"
+                                ToolTip="Vorher glätten – weniger Rauschkanten, dafür weichere Konturen." />
+                        </StackPanel>
+
+                        <!--
+                            Anzeige, dass gerechnet wird; bei grossen Bildern dauert es kurz.
+
+                            Liegt über der Reihe statt darin: So kostet der Balken keine
+                            Breite. Käme er und ginge er in der Reihe, änderte sich jedes Mal
+                            die Breite der Karte — und weil sie rechtsbündig ist und nach
+                            links wächst, rutschte alles davor hin und her.
+                        -->
+                        <ProgressBar
+                            x:Name="PGB_KonturLäuft"
+                            Height="3"
+                            VerticalAlignment="Bottom"
                             d:Visibility="Visible"
-                            Text="Kontur"
-                            Visibility="{Binding ZeigeKontur, Converter={StaticResource CLconverterVisiblityBoolian}}" />
-                    </StackPanel>
-                </ToggleButton>
-            </StackPanel>
-        </Border>
+                            IsIndeterminate="True"
+                            Visibility="{Binding KonturLäuft, Converter={StaticResource CLconverterVisiblityBoolian}}" />
+                    </Grid>
+
+                    <ToggleButton
+                        x:Name="TGL_KonturAnzeigen"
+                        Height="26"
+                        Padding="6,0"
+                        Cursor="Hand"
+                        FontSize="12"
+                        FontWeight="SemiBold"
+                        IsChecked="{Binding ZeigeKontur, Mode=TwoWay}"
+                        SnapsToDevicePixels="True"
+                        ToolTip="Statt des Bildes sein Kantenbild anzeigen (Sobel). Macht auch schwache Aufdrucke sichtbar.">
+                        <StackPanel x:Name="STP_KonturSchalter" Orientation="Horizontal">
+                            <TextBlock
+                                x:Name="IC_KonturSchalter"
+                                VerticalAlignment="Center"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="12"
+                                Text="&#xE9A9;" />
+
+                            <!--  Beschriftung erst im aufgeklappten Zustand – spart im Ruhezustand die halbe Breite  -->
+                            <TextBlock
+                                x:Name="TXT_KonturSchalter"
+                                Margin="6,0,0,0"
+                                VerticalAlignment="Center"
+                                d:Visibility="Visible"
+                                Text="Kontur"
+                                Visibility="{Binding ZeigeKontur, Converter={StaticResource CLconverterVisiblityBoolian}}" />
+                        </StackPanel>
+                    </ToggleButton>
+                </StackPanel>
+            </Border>
+        </Grid>
 
         <!--
             Werkzeugspalte rechts. Drei Zeilen: Rückgängig oben, Blätterfläche in der
@@ -1418,6 +1613,30 @@
                 Text="{Binding InnerZählerCount, StringFormat=' IC  \{0:D\} '}"
                 TextWrapping="NoWrap"
                 d:LayoutOverrides="Height" />
+
+            <!--
+                Aufnahme-Anzeigen und die beiden Ansichts-Knöpfe. Sie lagen bis hierher im
+                MainWindow und schwebten mit ausgerechneten Rändern (136, 100, 64 von
+                rechts) über allem. Jetzt stehen sie in der Reihe und halten ihren Abstand
+                selbst; die Reihenfolge ist dieselbe wie vorher.
+            -->
+            <ansichten:IndikatorLeiste x:Name="CTL_Indikatoren" Margin="10,0,0,0" VerticalAlignment="Center" />
+
+            <Button
+                x:Name="BTN_BildmodusToggle"
+                VerticalAlignment="Center"
+                Command="{Binding CommandExecuteImageMaximierenToggleCommand}"
+                Content="&#xE740;"
+                Style="{StaticResource KopfleisteKnopf}"
+                ToolTip="Bildmodus einschalten (F11)" />
+
+            <Button
+                x:Name="BTN_DublettenAnsicht"
+                VerticalAlignment="Center"
+                Command="{Binding CommandExecuteDublettenAnsichtOeffnenCommand}"
+                Content="&#xE8C8;"
+                Style="{StaticResource KopfleisteKnopf}"
+                ToolTip="Byte-Duplikate in anderen Ordnern aufräumen" />
 
         </StackPanel>
         <!--
@@ -2991,119 +3210,14 @@
             </Button>
 
             <!--
-                Eine Anzeige für alle langlaufenden Vorgänge — Indexieren, Byte-/SHA-/
-                Grau-Abgleich, Wasserzeichen lernen.
+                HIER STAND BRD_AufgabeFortschritt.
 
-                Sie hängt am ViewModel, nicht am Werkzeugfenster der Bildersuche, und
-                bleibt deshalb sichtbar, wenn man das Fenster zumacht.
-
-                Die Werte kommen aus der Fassade in AufgabeViewModel.LaufendeAufgabe.cs,
-                nicht von einem einzelnen Vorgang. Der frühere zweite Balken über der
-                Miniaturleiste (GRD_PruefFortschritt) ist dafür entfallen; sein
-                Abbrechen-Knopf hatte ohnehin kein Command.
-
-                Dass hier immer nur ein Vorgang stehen kann, sichern die CanExecute-
-                Sperren der schweren Befehle — sonst liefe einer davon unsichtbar weiter.
+                Der Streifen sitzt jetzt in GRD_StreifenUeberBild, in der Zeile über dem
+                Bild. Grund: Diese Zeile ist wegen der Kontur-Karte ohnehin 36 Punkte hoch
+                und links leer — der Streifen kostet dort keinen Punkt zusätzlich. Und die
+                Kopfleiste hier war mit label (190) plus zwei Knöpfen plus 280 für den
+                Streifen die engste Reihe der Ansicht.
             -->
-            <Border
-                x:Name="BRD_AufgabeFortschritt"
-                Width="280"
-                Height="28"
-                Margin="8,0,0,0"
-                Padding="8,2,4,2"
-                VerticalAlignment="Center"
-                d:Visibility="Visible"
-                Background="White"
-                BorderBrush="#FFCBD5E1"
-                BorderThickness="1"
-                CornerRadius="6"
-                Visibility="{Binding AufgabeLäuft, Converter={StaticResource CLconverterVisiblityBoolian}}">
-                <Grid x:Name="GRD_AufgabeFortschritt">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition x:Name="COL_AufgabeText" Width="*" />
-                        <ColumnDefinition x:Name="COL_AufgabeAbbrechen" Width="Auto" />
-                    </Grid.ColumnDefinitions>
-
-                    <StackPanel
-                        x:Name="STP_AufgabeFortschritt"
-                        Grid.Column="0"
-                        VerticalAlignment="Center"
-                        Orientation="Vertical">
-                        <TextBlock
-                            x:Name="TXT_AufgabeFortschritt"
-                            d:Text="Indexiere 1.240/5.310 – noch ~4 min"
-                            FontFamily="Segoe UI"
-                            FontSize="11"
-                            Foreground="#FF1F2937"
-                            Text="{Binding AufgabeText}"
-                            TextTrimming="CharacterEllipsis" />
-
-                        <!--
-                            IsIndeterminate: In der Anlaufphase gibt es nichts zu zählen —
-                            CLIP lädt seine Modelle, und das Wasserzeichen-Lernen meldet
-                            gar keinen Prozentwert. Ein Balken auf null sähe dort aus wie
-                            ein Hänger.
-                        -->
-                        <ProgressBar
-                            x:Name="PGB_AufgabeFortschritt"
-                            Height="3"
-                            Margin="0,3,0,0"
-                            d:Value="35"
-                            Background="#FFE5E7EB"
-                            BorderThickness="0"
-                            Foreground="#FF3A9B45"
-                            IsIndeterminate="{Binding AufgabeUnbestimmt}"
-                            Maximum="100"
-                            Value="{Binding AufgabeFortschritt, Mode=OneWay}" />
-                    </StackPanel>
-
-                    <Button
-                        x:Name="BTN_AufgabeAbbrechen"
-                        Grid.Column="1"
-                        Width="20"
-                        Height="20"
-                        Margin="6,0,0,0"
-                        VerticalAlignment="Center"
-                        Command="{Binding CommandExecuteAufgabeAbbrechenCommand}"
-                        Cursor="Hand"
-                        ToolTip="Laufenden Vorgang abbrechen"
-                        Visibility="{Binding AufgabeAbbrechbar, Converter={StaticResource CLconverterVisiblityBoolian}}">
-                        <Button.Style>
-                            <Style TargetType="{x:Type Button}">
-                                <Setter Property="Background" Value="Transparent" />
-                                <Setter Property="Foreground" Value="#FF6B6B6B" />
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="{x:Type Button}">
-                                            <Border
-                                                x:Name="BRD_AbbrechenFlaeche"
-                                                Background="{TemplateBinding Background}"
-                                                CornerRadius="4">
-                                                <TextBlock
-                                                    HorizontalAlignment="Center"
-                                                    VerticalAlignment="Center"
-                                                    FontFamily="Segoe MDL2 Assets"
-                                                    FontSize="10"
-                                                    Foreground="{TemplateBinding Foreground}"
-                                                    Text="&#xE711;" />
-                                            </Border>
-                                            <ControlTemplate.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="BRD_AbbrechenFlaeche" Property="Background" Value="#FFF3F4F6" />
-                                                    <Setter Property="Foreground" Value="#FFB03030" />
-                                                </Trigger>
-                                                <Trigger Property="IsPressed" Value="True">
-                                                    <Setter TargetName="BRD_AbbrechenFlaeche" Property="Background" Value="#FFE9EBEF" />
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                            </Style>
-                        </Button.Style>
-                    </Button>
-                </Grid>
-            </Border>
 
             <!--
                 Die Bildersuche lief bis hier als Popup unter dem Knopf. Sie sitzt jetzt

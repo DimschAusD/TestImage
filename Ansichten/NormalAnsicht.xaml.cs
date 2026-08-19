@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -16,6 +18,22 @@ namespace TestImage.Ansichten
     /// </summary>
     public partial class NormalAnsicht : UserControl
     {
+        /// <summary>
+        /// Eine Kachel der Bildleiste hat eine andere Datei zugewiesen bekommen.
+        ///
+        /// Feuert bei der ersten Erzeugung und — anders als <c>Loaded</c> — auch beim
+        /// Recycling, wo die Kachel bestehen bleibt und nur ihren DataContext wechselt.
+        ///
+        /// Der alte Auftrag wird abgemeldet: Beim Ziehen der Bildlaufleiste laufen sonst
+        /// Dutzende Anforderungen für Bilder auf, die längst wieder aus dem Sichtfenster
+        /// gescrollt sind, und blockieren die, die gerade zu sehen sind.
+        /// </summary>
+        private void Miniatur_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            MiniaturLader.Abmelden(e.OldValue as MeinBildchen);
+            MiniaturLader.Anfordern(e.NewValue as MeinBildchen);
+        }
+
         public NormalAnsicht()
         {
             InitializeComponent();
@@ -40,8 +58,54 @@ namespace TestImage.Ansichten
             Listbox_MiniaturBilder.IsVisibleChanged += (_, e) =>
             {
                 if (e.NewValue is true)
+                {
                     HorizontalListBoxBehavior.CenterNow(Listbox_MiniaturBilder);
+                    MiniaturenNachfordern();
+                }
             };
+
+            // Miniaturen nachfordern: beim Scrollen und bei jeder Änderung der Liste.
+            //
+            // DataContextChanged an der Kachel allein reichte nicht — ohne Scrollen blieben
+            // die Kacheln leer. Warum es dort ausfällt, weiss ich nicht abschliessend;
+            // diese Nachforderung macht die Frage gegenstandslos, weil sie billig und
+            // beliebig oft wiederholbar ist.
+            Listbox_MiniaturBilder.AddHandler(
+                ScrollViewer.ScrollChangedEvent,
+                new ScrollChangedEventHandler((_, _) => MiniaturenNachfordern()));
+
+            if (Listbox_MiniaturBilder.Items is INotifyCollectionChanged beobachtbar)
+            {
+                beobachtbar.CollectionChanged += (_, _) => MiniaturenNachfordern();
+            }
+        }
+
+        private bool _nachforderungSteht;
+
+        /// <summary>
+        /// Stösst das Nachfordern der sichtbaren Miniaturen an — gesammelt, nicht je
+        /// Ereignis.
+        ///
+        /// Beim Einlesen eines Ordners kommen tausende Änderungsmeldungen; ohne das Sammeln
+        /// liefe die Schleife tausendfach. Und <c>Background</c> statt sofort, weil die
+        /// Behälter erst nach dem Layout existieren — vorher fände die Schleife nichts.
+        /// </summary>
+        private void MiniaturenNachfordern()
+        {
+            if (_nachforderungSteht)
+            {
+                return;
+            }
+
+            _nachforderungSteht = true;
+
+            Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    _nachforderungSteht = false;
+                    MiniaturLader.FordereSichtbareAn(Listbox_MiniaturBilder);
+                }),
+                DispatcherPriority.Background);
         }
 
         /// <summary>

@@ -42,7 +42,7 @@ namespace TestImage
         {
             if (value is not string pfad || string.IsNullOrEmpty(pfad))
             {
-                return MachePlatzhalter();
+                return HolePlatzhalter();
             }
 
             if (_cache.TryGetValue(pfad, out var cached))
@@ -65,16 +65,30 @@ namespace TestImage
             }
             catch
             {
-                return MachePlatzhalter();
+                return HolePlatzhalter();
             }
         }
 
+        private static ImageSource? _platzhalter;
+
         /// <summary>
-        /// Erzeugt ein Platzhalter-Bild für den Fall, dass kein Pfad vorliegt oder das
-        /// Bild nicht geladen werden kann: ein 200×200 transparentes Feld mit gelbem
-        /// Rahmen. Wird nicht in den Cache gelegt (nur echte Thumbnails werden gecacht).
+        /// Der Platzhalter für den Fall, dass kein Pfad vorliegt oder das Bild nicht
+        /// geladen werden kann: ein 200×200 transparentes Feld mit gelbem Rahmen.
+        ///
+        /// Einmal erzeugt und eingefroren. Eingefroren, weil ihn auch
+        /// <see cref="MiniaturLader"/> braucht — der arbeitet auf Hintergrundfäden, und
+        /// ein nicht eingefrorenes Bild darf den Faden nicht wechseln. Vorher entstand bei
+        /// jedem Aufruf ein neues; nötig war das nie, der Inhalt ist immer derselbe.
         /// </summary>
-        private static RenderTargetBitmap MachePlatzhalter()
+        internal static ImageSource HolePlatzhalter()
+            => _platzhalter ??= MachePlatzhalter();
+
+        /// <summary>
+        /// Zeichnet den Platzhalter. Wird nicht in den Thumbnail-Cache gelegt — dort
+        /// gehören nur echte Miniaturen hinein, sonst bliebe ein einmal misslungenes Bild
+        /// für die ganze Sitzung als Platzhalter stehen.
+        /// </summary>
+        private static ImageSource MachePlatzhalter()
         {
             int width = 200, height = 200;
             var dv = new DrawingVisual();
@@ -86,6 +100,7 @@ namespace TestImage
             }
             var rtb = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
             rtb.Render(dv);
+            rtb.Freeze();
             return rtb;
         }
 

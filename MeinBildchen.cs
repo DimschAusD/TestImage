@@ -21,5 +21,17 @@ namespace TestImage
         /// <summary>Begründung für den Tooltip des Wasserzeichen-Badges.</summary>
         [ObservableProperty]
         private string _wasserzeichenGrund = string.Empty;
+
+        /// <summary>
+        /// Die 120-Pixel-Miniatur für die Bildleiste, oder <c>null</c>, solange sie noch
+        /// nicht geladen ist.
+        ///
+        /// Gefüllt wird sie von <see cref="MiniaturLader"/>, sobald eine Kachel diese Datei
+        /// zugewiesen bekommt. Vorher band die Leiste über einen Konverter auf
+        /// <see cref="BName"/> — und dekodierte damit im UI-Faden, während man scrollte.
+        /// Die Kachel ist jetzt kurz leer, statt dass die Leiste ruckelt.
+        /// </summary>
+        [ObservableProperty]
+        public partial System.Windows.Media.ImageSource? Miniatur { get; set; }
     }
 }
