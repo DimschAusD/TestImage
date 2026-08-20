@@ -297,12 +297,34 @@
                                 Eigenschaft, gefüllt von MiniaturLader im Hintergrund. Der
                                 Konverter dekodierte im UI-Faden, während man scrollte.
                             -->
-                            <Image
-                                x:Name="IMG_SchwebeMiniatur"
-                                DataContextChanged="Miniatur_DataContextChanged"
-                                Source="{Binding Miniatur}"
-                                d:Source="/Images/HeavyO.jpg"
-                                Stretch="Uniform" />
+                            <Grid x:Name="GRD_SchwebeKachel">
+
+                                <!--
+                                    Platzhalter, solange die Miniatur noch nicht da ist —
+                                    wie in der Normalansicht, aber dunkel: Hier liegt die
+                                    Kachel auf schwarzem Grund, ein heller Fleck würde
+                                    blenden.
+                                -->
+                                <Border x:Name="BRD_SchwebePlatzhalter" Background="#FF2A2A2A">
+                                    <Border.Style>
+                                        <Style TargetType="{x:Type Border}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Miniatur}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                </Border>
+
+                                <Image
+                                    x:Name="IMG_SchwebeMiniatur"
+                                    DataContextChanged="Miniatur_DataContextChanged"
+                                    Source="{Binding Miniatur}"
+                                    d:Source="/Images/HeavyO.jpg"
+                                    Stretch="Uniform" />
+                            </Grid>
                         </Border>
                         <!--  Vignette unten (Kontrast für Stern-Icon)  -->
                         <Rectangle

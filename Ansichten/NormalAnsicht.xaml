@@ -606,6 +606,40 @@
                                 Kachel ihr Image und bekommt nur eine andere Datei
                                 zugewiesen — Loaded feuert dann nicht.
                             -->
+                            <!--
+                                Platzhalter, solange die Miniatur noch nicht da ist.
+
+                                Ohne ihn ist eine ungeladene Kachel schlicht leer und
+                                nicht von einer Lücke zu unterscheiden. Der graue Grund
+                                sagt „hier kommt gleich ein Bild".
+
+                                Über einen DataTrigger auf null statt über einen
+                                Konverter: Es gibt im Projekt keinen für „null zu
+                                Sichtbarkeit", und für eine einzige Stelle lohnt keiner.
+                            -->
+                            <Border
+                                x:Name="BRD_MiniaturPlatzhalter"
+                                Width="80"
+                                Height="80"
+                                Margin="2"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Background="#FFF1F2F4"
+                                BorderBrush="#FFE2E5E9"
+                                BorderThickness="1"
+                                CornerRadius="4">
+                                <Border.Style>
+                                    <Style TargetType="{x:Type Border}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Miniatur}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                            </Border>
+
                             <Image
                                 x:Name="IMG_Miniatur"
                                 Width="80"
