@@ -923,7 +923,7 @@ namespace TestImage
         {
             //throw new NotImplementedException();
             // Läuft
-            // Gegekontrolle certutil -hashfile "C:\Users\Bill-6e\Desktop\ZL4\Test 1\he17_同人CG集2025-09-10\At home by DavidMnr on DeviantArt[1].jpg" SHA256
+            // Gegenkontrolle von Hand: certutil -hashfile "C:\Beispiel\Bilder\beispiel.jpg" SHA256
             if (string.IsNullOrWhiteSpace(bName) || !File.Exists(bName))
             {
                 throw new FileNotFoundException("Datei nicht gefunden", bName);

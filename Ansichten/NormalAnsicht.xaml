@@ -178,9 +178,43 @@
             x:Name="STP_Statuszeile"
             Grid.Row="4"
             Grid.Column="1"
-            Height="90"
             Margin="5,0,10,0"
             Orientation="Vertical">
+
+            <!--
+                Wo bin ich: der Ordner des gewählten Bildes.
+
+                Gekürzt auf die letzten beiden Stufen, vollständig im Tooltip. Der ganze
+                Pfad wäre hier meist länger als die Zeile, und abgeschnitten würde
+                ausgerechnet das Ende fehlen — der Ordnername, um den es geht.
+
+                Hängt an SelectedBildchen, nicht am eingelesenen Ordner: Nach dem
+                Verschieben eines Bildes ins kein_Fav steht hier dessen neuer Ort, und
+                das ist die ehrlichere Antwort auf „wo bin ich".
+            -->
+            <StackPanel
+                x:Name="STP_OrdnerPfad"
+                Margin="0,0,0,2"
+                Orientation="Horizontal"
+                ToolTip="{Binding SelectedBildchen.BName, Converter={StaticResource ConverterPfadZuOrdner}}">
+                <TextBlock
+                    x:Name="IC_OrdnerPfad"
+                    Margin="0,0,5,0"
+                    VerticalAlignment="Center"
+                    FontFamily="Segoe MDL2 Assets"
+                    FontSize="11"
+                    Foreground="#FF9CA3AF"
+                    Text="&#xE8B7;" />
+                <TextBlock
+                    x:Name="TXT_OrdnerPfad"
+                    VerticalAlignment="Center"
+                    d:Text="…\Bilder\Sammlung"
+                    FontWeight="SemiBold"
+                    Foreground="#FF4B5563"
+                    Text="{Binding SelectedBildchen.BName, Converter={StaticResource ConverterPfadZuOrdner}, ConverterParameter=Kurz}"
+                    TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+
             <StackPanel Orientation="Horizontal">
 
                 <!--  Erste Zeile: Position + Gesamt  -->
@@ -189,8 +223,14 @@
                 <!--  Zweite Zeile: Name  -->
                 <TextBlock Margin="0,0,0,2"><Run Foreground="Gray" Text="  Name: " /><Run Text=" " /><Run Text="{Binding SelectedBildchen.BName, Converter={StaticResource ConverterFullPathToNameConverter}}" /></TextBlock>
 
-                <!--  Dritte Zeile: weitere Metadaten  -->
-                <TextBlock><Run Text="  " /><Run Text=" " /><Run Foreground="LightBlue" Text="{Binding Version}" /></TextBlock>
+                <!--
+                    Fassung der Anwendung.
+
+                    Vorher hellblau — auf dem hellgrauen Grund der Statuszeile praktisch
+                    unsichtbar. Jetzt dasselbe Grau wie „Name:" davor: lesbar, aber
+                    zurückhaltend. Ausführlich steht sie in der Tastenhilfe (F1).
+                -->
+                <TextBlock x:Name="TXT_Version"><Run Text="  " /><Run Text=" " /><Run Foreground="#FF9CA3AF" Text="{Binding Version}" /></TextBlock>
 
             </StackPanel>
 
@@ -3058,8 +3098,7 @@
                 local:FileDragDropHelper.IsFileDragDropEnabled="True"
                 AllowDrop="True"
                 Background="#FFCEE067"
-                Content="{Binding LabelDropContent}"
-                ToolTip="{Binding Version}" />
+                Content="{Binding LabelDropContent}" />
             <Button
                 x:Name="BTN_BilderAktualisieren"
                 Width="28"

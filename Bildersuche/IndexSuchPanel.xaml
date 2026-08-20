@@ -1550,12 +1550,12 @@
 
                     <d:ItemsControl.ItemsSource>
                         <x:Array Type="{x:Type bs:IndexOrdnerEintrag}">
-                            <bs:IndexOrdnerEintrag Bilder="1157" Pfad="C:\Bilder\ZL4\he17_CG" />
-                            <bs:IndexOrdnerEintrag Bilder="387" Pfad="C:\Bilder\ZL4\Doppelt" />
+                            <bs:IndexOrdnerEintrag Bilder="1157" Pfad="C:\Beispiel\Bilder\Sammlung" />
+                            <bs:IndexOrdnerEintrag Bilder="387" Pfad="C:\Beispiel\Bilder\Doppelt" />
                             <bs:IndexOrdnerEintrag
                                 Bilder="0"
                                 Existiert="False"
-                                Pfad="U:\Sicherung\Explorer7-2" />
+                                Pfad="X:\Beispiel\Nicht_erreichbar" />
                         </x:Array>
                     </d:ItemsControl.ItemsSource>
 

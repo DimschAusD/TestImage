@@ -394,6 +394,32 @@
                         Foreground="#FFE6E6E6"
                         Text="Übersicht schliessen (F1 nur im Bildmodus)" />
                 </Grid>
+
+                <!--
+                    Fassung der Anwendung, als Fussnote unter der Tastenliste.
+
+                    Hier ist ihr Platz: Wer wissen will, was für ein Programm das ist und
+                    welcher Stand läuft, schaut in die Hilfe — und um den Platz
+                    konkurriert hier nichts. In der Statuszeile steht sie zusätzlich,
+                    dort aber klein und grau fürs Nebenbei-Lesen.
+
+                    Eigene Trennlinie darüber, damit sie nicht wie ein weiterer
+                    Tastenbefehl gelesen wird.
+                -->
+                <Border
+                    x:Name="BRD_HilfeFusstrenner"
+                    Height="1"
+                    Margin="0,16,0,10"
+                    Background="#33FFFFFF" />
+
+                <TextBlock
+                    x:Name="TXT_HilfeVersion"
+                    FontFamily="Consolas"
+                    FontSize="12"
+                    Foreground="#FF9AA0A6"
+                    Text="{Binding Version}"
+                    TextWrapping="Wrap"
+                    d:Text="v2x.0.129.332 Beta 2026-07-18 (.NETCore net10.0)" />
             </StackPanel>
         </Border>
         <VisualStateManager.VisualStateGroups>

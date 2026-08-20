@@ -26,8 +26,9 @@ namespace TestImage
         // v2x.0.195.838 Beta 2026-04-23 (.NETCore v10.0)
         // v2x.0.175.654 Beta 2026-04-24 (.NETCore v10.0)
         // v2x.0.172.205 Beta 2026-06-27 (.NETCore net10.0)
+        // v2x.0.129.332 Beta 2026-07-18 (.NETCore net10.0)
         [ObservableProperty]
-        public partial string Version { get; set; } = "v2x.0.129.332 Beta 2026-07-18 (.NETCore net10.0)";
+        public partial string Version { get; set; } = "v2x.0.80.860 Beta 2026-08-20 (.NETCore net10.0)";
 
 
         [ObservableProperty]
@@ -180,6 +181,7 @@ namespace TestImage
 
 
 
+
         public AufgabeViewModel()
         {
             _geraeteTimer = new System.Windows.Threading.DispatcherTimer
@@ -200,9 +202,9 @@ namespace TestImage
             ocAufgabensKlein.Add(new MeinBildchen() { BName = @".\.\HeavyO.jpg", BildFürLinks = true });
             //OcLinkeBilder = new ObservableCollection<MeinBildchen>();
             //{
-            //    @"C:\Users\Bill-6e\Desktop\ZL4\Test 1\20200619_184646.jpg"
+            //    @"C:\Beispiel\Bilder\beispiel.jpg"
             //};
-            //BName = @"C:\Users\Bill-6e\Desktop\ZL4\Test 1\20200619_184646.jpg"
+            //BName = @"C:\Beispiel\Bilder\beispiel.jpg"
             ocAufgabens.Add(new MeinBildchen() { BName = @".\.\HeavyO.jpg", BildFürLinks = false });
             ocAufgabens.Add(new MeinBildchen() { BName = @".\.\HeavyO.jpg", BildFürLinks = true });
 
@@ -1366,7 +1368,8 @@ namespace TestImage
 
             // Datei ins Haupt-Verzeichnis zurück verschieben
             var dateiname = Path.GetFileName(BildchenVorher);
-            // "C:\Users\Bill-6e\Desktop\ZL4\Test 1\he17_同人CG集2025-09-10\kein_Fav\Printemps by DavidMnr on DeviantArt[1].jpg"
+            // Beispiel: C:\Beispiel\Bilder\Sammlung\kein_Fav\beispiel.jpg
+            // Zweimal GetDirectoryName führt von der Datei über kein_Fav in den Ordner darüber.
             var keinFavVerzeichnis = Path.GetDirectoryName(Path.GetDirectoryName(BildchenVorher));
             string zielVollPfad = Path.Combine(keinFavVerzeichnis, dateiname);
             if (File.Exists(BildchenVorher) & !File.Exists(zielVollPfad))

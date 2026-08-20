@@ -55,8 +55,9 @@ namespace TestImage
         private const double AnteilStreuung = 0.30;
 
         /// <summary>
-        /// Nachgeprüft am Ordner <c>cyberdelta271</c> (29 normale Bilder gegen 11, die
-        /// der Nutzer wegen Unschärfe in <c>Fehler_Bilder</c> aussortiert hatte):
+        /// Nachgeprüft an einem echten Ordner: 29 behaltene Bilder gegen 11, die der
+        /// Nutzer wegen Unschärfe von Hand in einen Unterordner <c>Fehler_Bilder</c>
+        /// aussortiert hatte.
         ///
         /// <code>
         /// normal         Median 0,0422   niedrigster 0,0279
@@ -82,8 +83,8 @@ namespace TestImage
         ///
         /// <b>Wozu, wenn doch mit dem Ordner verglichen wird:</b> Der Vergleich hat einen
         /// blinden Fleck. Sind <i>alle</i> Bilder eines Ordners gleich schlecht, liegt
-        /// der Median tief und keines fällt auf. Genau das zeigte der Ordner
-        /// <c>cyberdelta271\Fehler_Bilder</c> — dort blieb die Ampel grün, obwohl jedes
+        /// der Median tief und keines fällt auf. Genau das zeigte der oben erwähnte
+        /// Unterordner <c>Fehler_Bilder</c> — dort blieb die Ampel grün, obwohl jedes
         /// einzelne Bild Ausschuss ist.
         ///
         /// <b>Warum 0,1 und nicht die gemessene Grenze:</b> Die aussortierten Bilder dort
