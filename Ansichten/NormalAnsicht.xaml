@@ -10,7 +10,6 @@
     xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
     xmlns:local="clr-namespace:TestImage"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:svg1="clr-namespace:SVGImage.SVG;assembly=DotNetProjects.SVGImage"
     xmlns:sys="clr-namespace:System;assembly=mscorlib"
     d:DesignHeight="700"
     d:DesignWidth="800"
@@ -879,7 +878,7 @@
                     Command="{Binding CommandExecuteBildInsHauptVerzeichnisZuruckVerschiebenCommand, Mode=OneWay}"
                     Content="Button"
                     Label="In die Liste"
-                    LargeImageSource="/Images/PfeilNachOben.png"
+                    LargeImageSource="{StaticResource di_PfeilOben}"
                     MouseOverBorderBrush="{DynamicResource {x:Static SystemColors.ActiveCaptionBrushKey}}"
                     PressedBackground="#FFCACFFE">
 
@@ -1042,7 +1041,7 @@
             Command="{Binding CommandExecuteBildNachRechtsCommand}"
             Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
             Label="Weiter"
-            LargeImageSource="/Images/PfeilNachRechts.png"
+            LargeImageSource="{StaticResource di_PfeilRechts}"
             MouseOverBackground="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}"
             MouseOverBorderBrush="Transparent"
             PressedBackground="{DynamicResource {x:Static SystemColors.ControlBrushKey}}" />-->
@@ -1411,7 +1410,7 @@
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     IsHitTestVisible="False"
-                    Source="/Images/PfeilNachRechts.png">
+                    Source="{StaticResource di_PfeilRechts}">
 
                     <Image.Style>
                         <Style TargetType="{x:Type Image}">
@@ -1458,7 +1457,7 @@
                         Command="{Binding CommandExecuteVerschiebenZurückCommand, Mode=OneWay}"
                         Foreground="Red"
                         Label="X"
-                        LargeImageSource="/Images/Rueckwerts.png"
+                        LargeImageSource="{StaticResource di_Rueckwerts}"
                         MouseOverBackground="#FFB7F393"
                         MouseOverBorderBrush="#FF49AF0C"
                         PressedBackground="#FFCACFFE" />
@@ -1511,7 +1510,7 @@
                         FontFamily="Segoe UI Symbol"
                         KeyTip="&#xE019;"
                         Label="Kein Fav"
-                        LargeImageSource="/Images/PfeilNachUnten.png"
+                        LargeImageSource="{StaticResource di_PfeilUnten}"
                         MouseOverBorderBrush="{DynamicResource {x:Static SystemColors.ActiveCaptionBrushKey}}"
                         PressedBackground="#FFCACFFE">
                         <RibbonButton.MouseOverBackground>
@@ -1587,7 +1586,7 @@
                         BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkDarkBrushKey}}"
                         Command="{Binding CommandExecuteAlleBilderInsKeinFavVerschiebenCancelCommand, Mode=OneWay}"
                         Foreground="Red"
-                        LargeImageSource="/Images/Abbrechen.png"
+                        LargeImageSource="{StaticResource di_Abbrechen}"
                         MouseOverBackground="#FFB7F393"
                         PressedBackground="#FFCACFFE"
                         Visibility="{Binding CommandExecuteAlleBilderInsKeinFavVerschiebenCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}, Mode=OneWay}" />
@@ -1675,7 +1674,7 @@
                 Label="X"
                 MouseOverBackground="#FFB7F393"
                 PressedBackground="#FFCACFFE"
-                SmallImageSource="/Images/Abbrechen.png"
+                SmallImageSource="{StaticResource di_Abbrechen}"
                 Visibility="{Binding IsEnabled, Converter={StaticResource CLconverterVisiblityBoolian}, ElementName=BTN_AbbrechenKonsistenz}" />
             <TextBlock
                 x:Name="textBlock1"
@@ -1774,7 +1773,7 @@
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     IsHitTestVisible="False"
-                    Source="{StaticResource ResourceKey=di_Ebene_1}">
+                    Source="{StaticResource di_PfeilLinks}">
 
                     <Image.Style>
                         <Style TargetType="{x:Type Image}">
@@ -2864,7 +2863,7 @@
                     MouseOverBackground="#FFB7F393"
                     MouseOverBorderBrush="{DynamicResource {x:Static SystemColors.ActiveCaptionBrushKey}}"
                     PressedBackground="#FFCACFFE"
-                    SmallImageSource="/Images/Scallieren.png" />
+                    SmallImageSource="{StaticResource di_Scallieren}" />
 
             </StackPanel>
             <!--
@@ -2938,7 +2937,7 @@
                     Margin="8,2,2,2"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Top"
-                    d:SmallImageSource="/Images/EinGleicherKlein.png"
+                    d:SmallImageSource="{StaticResource di_EinGleicher}"
                     Background="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}"
                     BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkDarkBrushKey}}"
                     Command="{Binding CommandExecuteSuchenGleichesBildByteVergleichCommand, Mode=OneWay}"
@@ -2946,7 +2945,7 @@
                     MouseOverBackground="#FFB7F393"
                     MouseOverBorderBrush="{DynamicResource {x:Static SystemColors.ActiveCaptionBrushKey}}"
                     PressedBackground="#FFCACFFE"
-                    SmallImageSource="{svg1:SvgIcon Source=/Images/EinGleicher.svg}"
+                    SmallImageSource="{StaticResource di_EinGleicher}"
                     ToolTip="Byte-Abgleich, gleiches Bild">
                     <RibbonButton.ContextMenu>
                         <ContextMenu>
@@ -2958,8 +2957,8 @@
                                     <Image
                                         Width="16"
                                         Height="16"
-                                        d:Source="/Images/VieleGleicheKlein.png"
-                                        Source="{svg1:SvgIcon Source=/Images/vielegleiche.svg}" />
+                                        d:Source="{StaticResource di_VieleGleiche}"
+                                        Source="{StaticResource di_VieleGleiche}" />
                                 </MenuItem.Icon>
                             </MenuItem>
                             <!--  Icon="{svg1:SvgIcon Source=Images/EinGleicher.svg}" d:Icon="/Images/Gleich.png"  -->
@@ -2971,8 +2970,8 @@
                                     <Image
                                         Width="16"
                                         Height="16"
-                                        d:Source="/Images/VieleGleicheKlein.png"
-                                        Source="{svg1:SvgIcon Source=/Images/vielegleiche.svg}" />
+                                        d:Source="{StaticResource di_VieleGleiche}"
+                                        Source="{StaticResource di_VieleGleiche}" />
                                 </MenuItem.Icon>
                             </MenuItem>
 
@@ -2993,7 +2992,7 @@
                     MouseOverBackground="#FFB7F393"
                     MouseOverBorderBrush="{DynamicResource {x:Static SystemColors.ActiveCaptionBrushKey}}"
                     PressedBackground="#FFCACFFE"
-                    SmallImageSource="/Images/Abbrechenn.png"
+                    SmallImageSource="{StaticResource di_AbbrechenOrange}"
                     ToolTip="Byte Abgleich, Abbrechen"
                     Visibility="{Binding CommandExecuteSuchenGleichesBildByteVergleichCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}, Mode=OneWay}" />
                 <RibbonButton
@@ -3008,7 +3007,7 @@
                     MouseOverBackground="#FFB7F393"
                     MouseOverBorderBrush="#FF49AF0C"
                     PressedBackground="#FFCACFFE"
-                    SmallImageSource="/Images/Abbrechen.png"
+                    SmallImageSource="{StaticResource di_Abbrechen}"
                     ToolTip="Byte-Abgleich (alle) Abbrechen"
                     Visibility="{Binding CommandExecuteAlleBilderMiteinanderAufByteGleichheitPrüfenCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}, Mode=OneWay}" />
 
@@ -3023,7 +3022,7 @@
                     MouseOverBackground="#FFB7F393"
                     MouseOverBorderBrush="#FF49AF0C"
                     PressedBackground="#FFCACFFE"
-                    SmallImageSource="/Images/Abbrechen.png"
+                    SmallImageSource="{StaticResource di_Abbrechen}"
                     ToolTip="Alle SHA256 Abgleich, Abbrechen"
                     Visibility="{Binding CommandExecuteAlleBilderSHA256AbgleichPrüfenCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}, Mode=OneWay}" />
 
@@ -3036,7 +3035,7 @@
                     Width="30"
                     Height="22"
                     Margin="2,0,0,0"
-                    d:SmallImageSource="/Images/UngefährGleichKlein.png"
+                    d:SmallImageSource="{StaticResource di_UngefaehrGleich}"
                     Background="{x:Null}"
                     BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkDarkBrushKey}}"
                     Command="{Binding CommandExecuteSuchenUngefährGleichesBildCommand, Mode=OneWay}"
@@ -3044,7 +3043,7 @@
                     MouseOverBackground="#FFB7F393"
                     MouseOverBorderBrush="{DynamicResource {x:Static SystemColors.ActiveCaptionBrushKey}}"
                     PressedBackground="#FFCACFFE"
-                    SmallImageSource="/Images/UngefährGleich.png"
+                    SmallImageSource="{StaticResource di_UngefaehrGleich}"
                     ToolTip="Grau Abgleich (HammingDistance &gt; 10)">
 
                     <RibbonButton.ContextMenu>

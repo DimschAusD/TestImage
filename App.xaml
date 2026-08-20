@@ -8,7 +8,17 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="/Images/PfeilNachLinks.xaml" />
+
+                <!--
+                    Alle Symbole der Anwendung in einem Wörterbuch.
+
+                    Hier standen vorher einzelne Dateien aus dem Inkscape-Export. Deren
+                    Schlüssel heissen alle „Ebene_1", weil der Konverter den Ebenennamen
+                    übernimmt — bei mehr als einer Datei gewinnt stillschweigend die
+                    zuletzt eingebundene, und alle Symbole zeigen dieselbe Zeichnung.
+                    Eine Datei mit sprechenden Schlüsseln kann das nicht.
+                -->
+                <ResourceDictionary Source="/Images/Symbole.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
             <!--  App-weite Converter: auch von den Ansichts-UserControls (Normal/Vollbild) nutzbar.  -->
