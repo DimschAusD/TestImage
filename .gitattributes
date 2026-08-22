@@ -9,6 +9,26 @@
 * text=auto eol=crlf
 
 ###############################################################################
+# Die CLIP-Begleitdateien sind erzeugt und werden nie von Hand geändert.
+#
+# -text   Keine Zeilenenden-Umwandlung. Sie sollen Byte für Byte so bleiben,
+#         wie sie exportiert wurden — sonst stimmen Prüfsummen nicht mehr mit
+#         der Quelle überein. (Der Tokenizer selbst käme mit beidem zurecht,
+#         er liest über File.ReadLines.)
+#
+# -diff   Für den Vergleich als binär behandeln. Zusammen sind es 1,35 MB
+#         Text; ohne diese Angabe steht das komplett im Diff. Genau daran ist
+#         die KI-Commit-Nachricht von GitHub Desktop gescheitert — 741 990
+#         Tokens gegen ein Limit von 128 000.
+#
+# linguist-generated
+#         GitHub klappt sie in Pull Requests zu und lässt sie aus der
+#         Sprachstatistik heraus.
+###############################################################################
+models/clip-vocab.json  -text -diff linguist-generated
+models/clip-merges.txt  -text -diff linguist-generated
+
+###############################################################################
 # Set default behavior for command prompt diff.
 #
 # This is need for earlier builds of msysgit that does not have it on by

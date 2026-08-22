@@ -395,9 +395,9 @@ namespace TestImage
         {
             if (restKorrekturen <= 0) return;
 
-            // versuch: 0 – auch eine Nachmessung darf auf den Behälter warten. Vorher
-            // stand hier MaxVersuche, womit ein gerade wiederverwendeter oder noch nicht
-            // erzeugter Behälter die Kette sofort abbrach.
+            // versuch: 0, nicht MaxVersuche – auch eine Nachmessung darf auf den Behälter
+            // warten. Mit aufgebrauchtem Vorrat bricht ein gerade wiederverwendeter oder
+            // noch nicht erzeugter Behälter die Kette sofort ab.
             lb.Dispatcher.BeginInvoke(
                 () => RolleZurMitte(lb, ausgewaehlt, dauerMs, restKorrekturen - 1, versuch: 0),
                 DispatcherPriority.ContextIdle);

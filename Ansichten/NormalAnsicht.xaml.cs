@@ -228,13 +228,15 @@ namespace TestImage.Ansichten
 
             if (image != null && image.Source is BitmapSource bmp)
             {
-                double scaleX = image.ActualWidth / bmp.PixelWidth;
-                double scaleY = image.ActualHeight / bmp.PixelHeight;
-                txtScale.Text = $"  ScaleX: {scaleX:F2}, ScaleY: {scaleY:F2}  ";
+                // Eine Zahl statt zweier: Bei Stretch.Uniform sind beide Achsen gleich
+                // skaliert, bei Stretch.None stehen beide auf 1. „ScaleX: 0,42, ScaleY:
+                // 0,42" nannte denselben Wert zweimal und las sich wie Debug-Ausgabe.
+                double massstab = image.ActualWidth / bmp.PixelWidth;
+                TXT_Bildmassstab.Text = $"{massstab * 100:F0} %";
             }
             else
             {
-                txtScale.Text = " 0 ";
+                TXT_Bildmassstab.Text = "—";
             }
 
             scdd.ScrollToHorizontalOffset(0);

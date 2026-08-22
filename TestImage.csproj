@@ -34,17 +34,10 @@
   </PropertyGroup>
 
   <!--
-    HIER STANDEN rund vierzig Einträge für Symbol-Dateien.
-
-    Die Zeichnungen liegen jetzt in Images\Symbole.xaml — einem Wörterbuch mit dreizehn
-    DrawingImage, zusammen 13 KB. Abgelöst hat es 2 MB PNG, die als 2419 x 2419 im
-    Projekt lagen und mit 16 bis 70 Pixeln angezeigt wurden.
-
     Symbole.xaml braucht keinen eigenen Eintrag: Die Standardregeln des SDK nehmen
     .xaml-Dateien als Page auf, und genau darüber findet App.xaml sie.
   -->
   <ItemGroup>
-    <None Remove="HeavyO.jpg" />
     <None Remove="Images\HeavyO.jpg" />
     <None Remove="Images\KIFehler.png" />
   </ItemGroup>
@@ -57,34 +50,71 @@
     </Resource>
   </ItemGroup>
 
+  <!--
+    WebcamMikroMonitor.Common ist hier entfallen. Die drei benutzten Klassen liegen jetzt
+    als Geraete\GeraeteWaechter, GeraeteNutzung und AnwendungsNameHelper im Projekt selbst.
+
+    Grund: Das Projekt lag ausserhalb dieses Repos und in gar keinem — wer TestImage klonte,
+    bekam einen Verweis ins Leere.
+  -->
+  <!--
+    Die beiden Matching-Projekte liegen in Unterordnern dieses Projekts. Sie dürfen nicht
+    zusätzlich über die Standard-Globs in TestImage selbst kompiliert werden — sonst gäbe
+    es jeden Typ zweimal. Gleiches Muster wie in BildKonturBerechnen.csproj.
+  -->
   <ItemGroup>
-    <ProjectReference Include="..\WebcamMikroMonitor\WebcamMikroMonitor.Common\WebcamMikroMonitor.Common.csproj" />
-    <ProjectReference Include="..\BildKonturBerechnen\ImageMatching.Core\ImageMatching.Core.csproj" />
-    <ProjectReference Include="..\BildKonturBerechnen\ImageMatching.Cnn\ImageMatching.Cnn.csproj" />
+    <Compile Remove="ImageMatching.Core\**;ImageMatching.Cnn\**" />
+    <EmbeddedResource Remove="ImageMatching.Core\**;ImageMatching.Cnn\**" />
+    <None Remove="ImageMatching.Core\**;ImageMatching.Cnn\**" />
+    <Page Remove="ImageMatching.Core\**;ImageMatching.Cnn\**" />
+    <Resource Remove="ImageMatching.Core\**;ImageMatching.Cnn\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="ImageMatching.Core\ImageMatching.Core.csproj" />
+    <ProjectReference Include="ImageMatching.Cnn\ImageMatching.Cnn.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
 
     <!--
-      Hier stand DotNetProjects.SVGImage. Es wurde für vier Symbole gebraucht, die
-      jetzt als Zeichnungen in Images\Symbole.xaml liegen; im C#-Code kam es nie vor.
-      Mit dem Paket sind auch die beiden xmlns:svg1-Deklarationen in den Ansichten weg.
+      Kein DotNetProjects.SVGImage nötig: Die Symbole liegen als Zeichnungen in
+      Images\Symbole.xaml.
     -->
     <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.142" />
     <PackageReference Include="System.Drawing.Common" Version="10.0.11" />
   </ItemGroup>
 
+  <!--
+    Die Begleitdateien liegen im Repo (zusammen 1,3 MB) und sind immer da.
+  -->
   <ItemGroup>
-    <Resource Include="HeavyO.jpg" />
+    <ClipModel Include="models\clip-vocab.json" />
+    <ClipModel Include="models\clip-merges.txt" />
   </ItemGroup>
 
+  <!--
+    Die beiden Gewichtsdateien nur aufnehmen, wenn sie tatsaechlich vorliegen.
+
+    Sie stehen in der .gitignore, weil GitHub Dateien ueber 100 MB ablehnt — 335 MB und
+    242 MB. Ohne die Bedingung braeche der Build bei einem frischen Klon mit einem
+    Kopierfehler ab, statt mit einem Satz zu sagen, was fehlt.
+  -->
   <ItemGroup>
-    <ClipModel Include="..\BildKonturBerechnen\models\clip-vit-b32-vision.onnx" />
-    <ClipModel Include="..\BildKonturBerechnen\models\clip-text.onnx" />
-    <ClipModel Include="..\BildKonturBerechnen\models\clip-vocab.json" />
-    <ClipModel Include="..\BildKonturBerechnen\models\clip-merges.txt" />
+    <ClipModel Include="models\clip-vit-b32-vision.onnx" Condition="Exists('models\clip-vit-b32-vision.onnx')" />
+    <ClipModel Include="models\clip-text.onnx" Condition="Exists('models\clip-text.onnx')" />
   </ItemGroup>
+
+  <!--
+    Ohne die Gewichtsdateien laeuft alles ausser der Bildersuche ueber CLIP. Deshalb eine
+    Warnung und kein Fehler: Wer nur den Betrachter bauen will, soll das koennen.
+  -->
+  <Target Name="PruefeClipModelle" BeforeTargets="Build">
+    <Warning
+      Condition="!Exists('models\clip-vit-b32-vision.onnx') Or !Exists('models\clip-text.onnx')"
+      Text="CLIP-Modelle fehlen in models\. Die Begriffssuche bleibt aus, alles Uebrige laeuft. Woher man sie bekommt: models\LIESMICH.md" />
+  </Target>
 
   <Target Name="CopyClipModels" AfterTargets="Build">
     <Copy SourceFiles="@(ClipModel)" DestinationFolder="$(OutputPath)models" SkipUnchangedFiles="true" />

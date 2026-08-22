@@ -88,13 +88,10 @@ namespace TestImage
 
                 if (PruefungOhneBildladen)
                 {
-                    // Keine Zahl nennen, solange keine da ist.
-                    //
-                    // Vorher stand hier ProzentAbgleich, der Balken las aber
-                    // PercentageValueVerschieben. Meldete ein Befehl nur den einen der
-                    // beiden Werte, lief der Balken als Schraffur und daneben stand
-                    // „0 %" — zwei Auskünfte über denselben Vorgang, die sich
-                    // widersprachen. Jetzt speisen sich beide aus AufgabeFortschritt.
+                    // Keine Zahl nennen, solange keine da ist. Text und Balken müssen
+                    // beide aus AufgabeFortschritt lesen — greift der Text auf eine
+                    // andere Quelle (ProzentAbgleich, PercentageValueVerschieben),
+                    // läuft der Balken als Schraffur, während daneben „0 %" steht.
                     return AufgabeUnbestimmt
                         ? "Prüfe Bilder …"
                         : $"Prüfe Bilder … {AufgabeFortschritt:F0} %";

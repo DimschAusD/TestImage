@@ -10,13 +10,9 @@
             <ResourceDictionary.MergedDictionaries>
 
                 <!--
-                    Alle Symbole der Anwendung in einem Wörterbuch.
-
-                    Hier standen vorher einzelne Dateien aus dem Inkscape-Export. Deren
-                    Schlüssel heissen alle „Ebene_1", weil der Konverter den Ebenennamen
-                    übernimmt — bei mehr als einer Datei gewinnt stillschweigend die
-                    zuletzt eingebundene, und alle Symbole zeigen dieselbe Zeichnung.
-                    Eine Datei mit sprechenden Schlüsseln kann das nicht.
+                    Alle Symbole der Anwendung in einem Wörterbuch — und es bleibt bei
+                    diesem einen. Bei doppelten Schlüsseln gewinnt hier stillschweigend
+                    das zuletzt eingebundene; Näheres im Kopf von Symbole.xaml.
                 -->
                 <ResourceDictionary Source="/Images/Symbole.xaml" />
             </ResourceDictionary.MergedDictionaries>

@@ -14,7 +14,7 @@ using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using TestImage.Bildersuche;
-using WebcamMikroMonitor.Common.Devices;
+using TestImage.Geraete;
 
 namespace TestImage
 {
@@ -57,6 +57,7 @@ namespace TestImage
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteBildInsBesondersVerschiebenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteAlleBilderMiteinanderAufByteGleichheitPrüfenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteAlleBilderNeuEinlesenCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteOrdnerEineEbeneHochCommand))]
         // Gegenstück zur Sperre im Indexieren: Läuft ein Abgleich, ist der Index-Knopf aus.
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteOrdnerIndexierenCommand))]
         public partial bool PrüfungLäuft { get; set; } = false;
@@ -121,8 +122,16 @@ namespace TestImage
         [ObservableProperty]
         public partial bool? IsBildNullDatei { get; set; } = false;
 
+        /// <summary>
+        /// Meldungstext der Karte BRD_MeldungKarte im Streifen über dem Bild: „nix .jpg"
+        /// bei einer abgelegten Nicht-Bilddatei, Restzeiten und Durchsätze der Sammelläufe.
+        ///
+        /// Leer heisst „nichts zu melden" — die Karte blendet sich dann aus. Deshalb hier
+        /// auch kein Startwert mehr; „⓵ mvvmDrop" hätte sonst beim Programmstart im
+        /// Streifen gestanden.
+        /// </summary>
         [ObservableProperty]
-        public partial string LabelDropContent { get; set; } = "⓵ mvvmDrop";
+        public partial string LabelDropContent { get; set; } = string.Empty;
 
         [ObservableProperty]
         public partial ImageSource Bildchen { get; set; } = null;
@@ -165,9 +174,9 @@ namespace TestImage
 
         private void GeraeteTimerTick(object? sender, EventArgs e)
         {
-            IsWebcamAktiv = DeviceMonitor.IstAktiv("webcam");
-            IsMikrofonAktiv = DeviceMonitor.IstAktiv("microphone");
-            IsScreenShareAktiv = DeviceMonitor.IstAktiv("screenCapture");
+            IsWebcamAktiv = GeraeteWaechter.IstAktiv("webcam");
+            IsMikrofonAktiv = GeraeteWaechter.IstAktiv("microphone");
+            IsScreenShareAktiv = GeraeteWaechter.IstAktiv("screenCapture");
         }
 
         #region UI_Output
@@ -198,17 +207,13 @@ namespace TestImage
             ocAufgabens.CollectionChanged += (_, _) => _bildListeVeraltet = true;
 
             ocAufgabensKlein = new ObservableCollection<MeinBildchen>();
-            ocAufgabensKlein.Add(new MeinBildchen() { BName = @".\.\HeavyO.jpg", BildFürLinks = false });
-            ocAufgabensKlein.Add(new MeinBildchen() { BName = @".\.\HeavyO.jpg", BildFürLinks = true });
-            //OcLinkeBilder = new ObservableCollection<MeinBildchen>();
-            //{
-            //    @"C:\Beispiel\Bilder\beispiel.jpg"
-            //};
-            //BName = @"C:\Beispiel\Bilder\beispiel.jpg"
-            ocAufgabens.Add(new MeinBildchen() { BName = @".\.\HeavyO.jpg", BildFürLinks = false });
-            ocAufgabens.Add(new MeinBildchen() { BName = @".\.\HeavyO.jpg", BildFürLinks = true });
 
-            //  DisplayImage = MieneServices.CreateBitmap(SelectedBildchen?.BName);
+            // Beide Listen beginnen leer.
+            //
+            // Hier standen vier Beispieleinträge auf @".\.\HeavyO.jpg" — ein Dateipfad
+            // relativ zum Arbeitsverzeichnis. Das Bild ist aber als Resource in die
+            // Assembly eingebettet und lag nie neben der .exe; die Einträge zeigten
+            // also ins Leere und erschienen beim Start als Platzhalter-Kacheln.
 
 
             AufgabenView = CollectionViewSource.GetDefaultView(ocAufgabens) as ListCollectionView;
@@ -383,10 +388,21 @@ namespace TestImage
         }
 
 
+        /// <summary>
+        /// Zweite Sicherung gegen den Stillstand bei Position -1: Gibt es überhaupt Bilder
+        /// und steht die Ansicht auf keinem, führt der Pfeil nach rechts zum ersten.
+        ///
+        /// <c>CurrentPosition &lt; 0</c> muss deshalb erlaubt bleiben. Verlangt diese
+        /// Bedingung <c>&gt;= 0</c>, ist -1 eine Sackgasse — der Pfeil nach links verlangt
+        /// <c>&gt; 0</c>, also sperren dann beide Richtungen.
+        /// </summary>
         private bool CanExecuteBildNachRechtsCommand()
         {
-            return !PrüfungLäuft && AufgabenView != null && AufgabenView.CurrentPosition >= 0
-                 && AufgabenView.CurrentPosition < AufgabenView.Count - 1;
+            return !PrüfungLäuft
+                 && AufgabenView != null
+                 && AufgabenView.Count > 0
+                 && (AufgabenView.CurrentPosition < 0
+                     || AufgabenView.CurrentPosition < AufgabenView.Count - 1);
         }
 
 
@@ -408,9 +424,17 @@ namespace TestImage
                 }
             }
 
-            // Kein aktuelles Element → nichts zu tun
-            if (AufgabenView.CurrentPosition < 0 || AufgabenView.Count == 0)
+            if (AufgabenView.Count == 0)
             {
+                return;
+            }
+
+            // Kein aktuelles Element: zum ersten Bild, nicht bloss return. Ein return
+            // macht die Position -1 endgültig — sie löst sich weder durch Blättern noch
+            // durch Warten auf.
+            if (AufgabenView.CurrentPosition < 0)
+            {
+                AufgabenView.MoveCurrentToFirst();
                 return;
             }
 
@@ -437,6 +461,26 @@ namespace TestImage
         }
 
 
+        /// <summary>
+        /// Wirft Einträge weg, deren Datei es nicht mehr gibt — etwa weil sie im Explorer
+        /// gelöscht wurde, während die Anwendung lief.
+        /// </summary>
+        /// <returns>True, wenn etwas entfernt wurde.</returns>
+        /// <remarks>
+        /// <b>Warum die Position danach wiederhergestellt wird — das war ein Hänger:</b>
+        ///
+        /// <c>Clear()</c> setzt die Position der Ansicht auf <c>-1</c>, und das
+        /// Wiederfüllen holt sie nicht zurück; sie bleibt bei -1 (nachgemessen). Die
+        /// Blätterbefehle prüfen aber
+        /// <c>CurrentPosition &gt;= 0</c> beziehungsweise <c>&gt; 0</c> — bei -1 sind
+        /// <b>beide</b> gesperrt.
+        ///
+        /// Und da diese Aufräumung nur <i>innerhalb</i> der Blätterbefehle läuft, konnte
+        /// sich der Zustand nicht mehr lösen: Der Kommentar „nächste Aktion bewusst im
+        /// nächsten Klick" ging von einem nächsten Klick aus, den die gesperrten Knöpfe
+        /// nie zugelassen hätten. Wer eine Datei im Explorer löschte und dann blätterte,
+        /// stand fest.
+        /// </remarks>
         private bool RemoveMissingFilesBulk()
         {
             var neueListe = OcAufgabens
@@ -448,16 +492,33 @@ namespace TestImage
                 return false; // nichts geändert
             }
 
-            OcAufgabens.Clear();
+            // Position merken, bevor Clear() sie auf -1 setzt.
+            int alterIndex = AufgabenView?.CurrentPosition ?? -1;
 
             PrüfungLäuft = true;
-
-            foreach (var item in neueListe)
+            try
             {
-                OcAufgabens.Add(item);
+                OcAufgabens.Clear();
+
+                foreach (var item in neueListe)
+                {
+                    OcAufgabens.Add(item);
+                }
+            }
+            finally
+            {
+                // Im finally, weil ein hängengebliebenes PrüfungLäuft alle schweren
+                // Befehle sperrt — nicht nur das Blättern.
+                PrüfungLäuft = false;
             }
 
-            PrüfungLäuft = false;
+            // Wieder auf eine gültige Stelle setzen: dieselbe wie vorher, oder das letzte
+            // Bild, wenn die Liste jetzt kürzer ist als der alte Index.
+            if (AufgabenView != null && OcAufgabens.Count > 0)
+            {
+                int ziel = Math.Clamp(alterIndex, 0, OcAufgabens.Count - 1);
+                AufgabenView.MoveCurrentToPosition(ziel);
+            }
 
             return true;
 
@@ -491,8 +552,16 @@ namespace TestImage
                 }
                 else
                 {
-                    //    return aufgabe.BName.IndexOf(FilterText, StringComparison.OrdinalIgnoreCase) >= 0;
-                    return aufgabe.BName.IndexOf(FilterText, StringComparison.OrdinalIgnoreCase) >= 0;
+                    // Nur der Dateiname mit Endung, nicht der ganze Pfad.
+                    //
+                    // Mit BName wurde der volle Pfad durchsucht, und damit traf jeder
+                    // Ordnername mit: In C:\Bilder\Künstler\kein_Fav\ lieferte die Eingabe
+                    // „kein" sämtliche Bilder des Ordners, obwohl kein einziger Dateiname
+                    // das Wort enthält. Dasselbe galt für den Laufwerksbuchstaben und den
+                    // Künstlernamen — nach dem zu filtern ergab nie eine Auswahl, sondern
+                    // liess immer alles stehen.
+                    string dateiname = Path.GetFileName(aufgabe.BName) ?? string.Empty;
+                    return dateiname.IndexOf(FilterText, StringComparison.OrdinalIgnoreCase) >= 0;
                 }
             }
         }
@@ -513,6 +582,33 @@ namespace TestImage
         /// </summary>
         public Task OnFileDrop(string[] filepaths)
             => OnFileDrop(filepaths, verwerfeSuchtreffer: true);
+
+        /// <summary>
+        /// Erklärt, warum eine abgelegte Datei nicht angezeigt wird — für BRD_MeldungKarte.
+        ///
+        /// Die Liste der Endungen kommt von der Prüfung selbst und wird nicht zweitgeschrieben:
+        /// Kommt dort ein Format dazu, steht es sofort in der Meldung.
+        ///
+        /// Der Ordner-Fall ist eigens genannt, weil er der wahrscheinlichste Fehlgriff ist.
+        /// Ein Ordner hat keine Endung, und „Datei ohne Endung kann nicht angezeigt werden"
+        /// hätte niemandem geholfen.
+        /// </summary>
+        private static string MeldungNichtAnzeigbar(string pfad, string[] endungen)
+        {
+            string erlaubt = string.Join(", ", endungen.Select(e => e.TrimStart('.').ToUpperInvariant()));
+
+            if (Directory.Exists(pfad))
+            {
+                return $"Das ist ein Ordner – ziehe eine Bilddatei hierher ({erlaubt}).";
+            }
+
+            string endung = Path.GetExtension(pfad).TrimStart('.');
+            string was = string.IsNullOrEmpty(endung)
+                ? "Eine Datei ohne Endung"
+                : endung.ToUpperInvariant() + "-Dateien";
+
+            return $"{was} kann diese Anwendung nicht anzeigen. Möglich sind {erlaubt}.";
+        }
 
         /// <param name="verwerfeSuchtreffer">
         /// False für interne Aufrufe: Beim Öffnen eines Suchtreffers aus einem anderen
@@ -547,7 +643,7 @@ namespace TestImage
                 // Nachschauen ob es eine pdf ist
                 if (!extensions.Contains(Path.GetExtension(fullDateiName).ToLower()))
                 {
-                    LabelDropContent = "nix .jpg";
+                    LabelDropContent = MeldungNichtAnzeigbar(fullDateiName, extensions);
                     //KnalNenFehlerSoundRein();
                     return;
                 }
@@ -569,7 +665,10 @@ namespace TestImage
                     }
                 }
 
-                LabelDropContent = Path.GetFileName(fullDateiName);
+                // Leeren statt den Dateinamen zu setzen: Der steht in der Statuszeile
+                // unter dem Bild. Nicht einfach weglassen — sonst bliebe hier die Meldung
+                // des vorigen Vorgangs stehen, etwa eine alte Restzeit oder „nix .jpg".
+                LabelDropContent = string.Empty;
                 DropDateiName = fullDateiName;
 
                 // Das abgelegte Bild sofort zeigen, bevor der Ordner durchlaufen wird.
@@ -700,6 +799,24 @@ namespace TestImage
         public ListCollectionView AufgabenViewKlein { get; }
 
         /// <summary>
+        /// Setzt alles zurück, was das gerade angezeigte Bild beschreibt.
+        ///
+        /// Nötig, weil diese Werte allein von CommandExecuteKleinesBildGrossesBildLaden
+        /// gefüllt werden, und das läuft nur bei einem Auswahlwechsel. Bleibt gar nichts
+        /// mehr zum Auswählen übrig — ein Filter blendet alles aus —, gibt es keinen
+        /// Wechsel mehr, und die Werte des letzten Bildes bleiben stehen.
+        ///
+        /// -1 ist bei den Abmessungen der Startwert und heisst hier wie dort „unbekannt".
+        /// </summary>
+        private void LeereBildAnzeige()
+        {
+            DisplayImage = null;
+            OriginalImageWidth = -1;
+            OriginalImageHeight = -1;
+            BildFarbsignatur = null;
+        }
+
+        /// <summary>
         /// Anzahl der Bildchen mit BildFürLinks == true.
         /// </summary>
         public int CountBildchenFürLinks => ocAufgabens.Count(x => x.BildFürLinks);
@@ -730,7 +847,47 @@ namespace TestImage
                         AufgabenView.Filter += PersonViewSource_Filter;
                     }
 
+                    // Die Bildfläche nachziehen.
+                    //
+                    // Sie hängt allein an CommandExecuteKleinesBildGrossesBildLaden, und
+                    // das läuft nur bei einem Auswahlwechsel in der Liste. Filtert man
+                    // alles weg, gibt es keinen Wechsel mehr — CanExecute verlangt eine
+                    // vorhandene Datei und schaltet ab. Das zuletzt geladene Bild blieb
+                    // deshalb stehen, während Liste und Leiste leer waren.
+                    // Auch hier melden, nicht nur im Setter von SelectedBildchen: Filtert
+                    // man von leer auf leer weiter — „fff" zu „ffff" —, wechselt die
+                    // Auswahl nicht, die Ansicht bleibt aber leer.
+                    CommandExecuteBildListeToggleCommand?.NotifyCanExecuteChanged();
 
+                    // Den Cache der Schnell-Liste verwerfen.
+                    //
+                    // Er wird sonst nur von ocAufgabens.CollectionChanged verworfen, und
+                    // ein Filterwechsel rührt die Quellliste gar nicht an. Befüllt wird
+                    // die Liste aber aus AufgabenView, also gefiltert — ohne diese Zeile
+                    // zeigte ein offenes Kachelpanel nach dem Leeren des Filters weiter
+                    // die alte, engere Auswahl.
+                    _bildListeVeraltet = true;
+
+                    if (IsBildListeOffen)
+                    {
+                        // Ohne await: Der Setter ist nicht async, und FuelleBildListeAsync
+                        // bricht einen noch laufenden Aufbau selbst ab und fängt seine
+                        // Abbruch-Ausnahme. Beim Tippen im Filter lösen die Zwischenstände
+                        // damit reihum ab, statt sich zu stapeln.
+                        _ = FuelleBildListeAsync();
+                    }
+
+                    if (AufgabenView.IsEmpty)
+                    {
+                        LeereBildAnzeige();
+                    }
+                    else if (AufgabenView.CurrentItem is null)
+                    {
+                        // Umgekehrter Fall: Der Filter gibt wieder Bilder frei, aber das
+                        // vorherige ist nicht mehr dabei. MoveCurrentToFirst löst den
+                        // Auswahlwechsel aus, an dem das Laden hängt.
+                        AufgabenView.MoveCurrentToFirst();
+                    }
                 }
             }
         }
@@ -803,9 +960,11 @@ namespace TestImage
                 CommandExecuteBildLinksCommand?.NotifyCanExecuteChanged();
                 CommandExecuteBildInsHauptVerzeichnisZuruckVerschiebenCommand?.NotifyCanExecuteChanged();
                 CommandExecuteBildInsKeinFavVerzeichnisVerschiebenCommand?.NotifyCanExecuteChanged();
+                CommandExecuteOrdnerEineEbeneHochCommand?.NotifyCanExecuteChanged();
                 CommandExecuteBildStretchAnpassenCommand?.NotifyCanExecuteChanged();
                 CommandExecuteAlleBilderInsKeinFavVerschiebenCommand?.NotifyCanExecuteChanged();
                 CommandExecuteSuchleisteToggleCommand?.NotifyCanExecuteChanged();
+                CommandExecuteBildListeToggleCommand?.NotifyCanExecuteChanged();
 
             }
         }
@@ -1408,6 +1567,161 @@ namespace TestImage
 
         #endregion
 
+        #region Command Ordner eine Ebene höher
+
+        /// <summary>
+        /// Bildendungen, die <see cref="OnFileDrop(string[])"/> annimmt.
+        /// </summary>
+        private static readonly string[] AnzeigbareEndungen =
+            { ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp" };
+
+        /// <summary>
+        /// Das Bild aus <paramref name="ordner"/>, das in der Ansicht auf
+        /// <paramref name="bezugsName"/> folgen würde — also die Stelle, an der das
+        /// weggelegte Bild vorher stand.
+        ///
+        /// Das Bild in der Ablage stammt aus genau diesem Ordner, sein Name sortiert dort
+        /// also weiterhin an seiner alten Stelle mit. Gesucht wird der erste Name, der
+        /// dahinter liegt; gibt es keinen, war das Bild das letzte des Ordners, dann das
+        /// letzte vorhandene. Ohne <paramref name="bezugsName"/> das erste.
+        ///
+        /// Sortiert mit demselben <see cref="NaturalStringComparer"/> und über denselben
+        /// Schlüssel wie die Ansicht — Dateiname ohne Endung.
+        ///
+        /// Der gleiche Vergleicher ist hier keine Kosmetik: <see cref="OnFileDrop(string[])"/>
+        /// wählt die übergebene Datei aus, und daran hängt der Ladebefehl für das grosse
+        /// Bild. Eine anders sortierte Auswahl landet an der falschen Stelle, und ein
+        /// Nachfassen mit MoveCurrentTo kommt zu spät: Der Ladebefehl läuft dann bereits
+        /// und lehnt als AsyncRelayCommand den zweiten Anlauf ab — die Miniaturleiste
+        /// spränge, die Bildfläche zeigte das andere Bild.
+        ///
+        /// <c>null</c>, wenn der Ordner kein Bild enthält oder nicht lesbar ist.
+        /// </summary>
+        private static string? NachfolgerInAnsichtsordnung(string ordner, string? bezugsName)
+        {
+            try
+            {
+                var vergleicher = new NaturalStringComparer();
+
+                var kandidaten = Directory.EnumerateFiles(ordner)
+                    .Where(d => AnzeigbareEndungen.Contains(Path.GetExtension(d).ToLowerInvariant()))
+                    .OrderBy(d => Path.GetFileNameWithoutExtension(d), vergleicher)
+                    .ToList();
+
+                if (kandidaten.Count == 0)
+                {
+                    return null;
+                }
+
+                if (string.IsNullOrEmpty(bezugsName))
+                {
+                    return kandidaten[0];
+                }
+
+                // Streng grösser, nicht grösser-gleich: Trägt der Ordner zufällig einen
+                // gleichnamigen Eintrag, ist das nicht das weggelegte Bild — der
+                // Nachfolger ist dann trotzdem der richtige Landeplatz.
+                int nachfolger = kandidaten.FindIndex(
+                    d => vergleicher.Compare(Path.GetFileNameWithoutExtension(d), bezugsName) > 0);
+
+                return nachfolger >= 0 ? kandidaten[nachfolger] : kandidaten[^1];
+            }
+            catch (IOException)
+            {
+                return null;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Nur eingeschaltet, wenn das Bild in einer der Ablagen dieser Anwendung liegt —
+        /// <c>kein_Fav</c>, <c>KI_Fehler</c>, <c>Doppelt</c>, <c>Besonders</c>,
+        /// <c>Wasserzeichen</c>. Die Liste steht als <c>AussortiertOrdner</c> in
+        /// AufgabeViewModel.IndexOrdner.cs.
+        ///
+        /// Ohne diese Bedingung führte der Knopf aus einem gewöhnlichen Künstlerordner
+        /// heraus in dessen Elternordner — dieselbe Falle, gegen die auch
+        /// <see cref="CanExecuteBildInsHauptVerzeichnisZuruckVerschiebenCommand"/> den
+        /// Ordnernamen prüft.
+        ///
+        /// Bewusst ohne Zugriff auf die Platte: CanExecute wird bei jedem Bildwechsel
+        /// ausgewertet, und ein Verzeichnislauf je Wechsel wäre auf Netzlaufwerken
+        /// spürbar. Ob im Ordner darüber wirklich Bilder liegen, klärt erst der Klick.
+        /// </summary>
+        private bool CanExecuteOrdnerEineEbeneHoch()
+        {
+            if (PrüfungLäuft || IndexLaeuft || SelectedBildchen == null)
+            {
+                return false;
+            }
+
+            string? ordner = Path.GetDirectoryName(SelectedBildchen.BName);
+            if (string.IsNullOrEmpty(ordner) || !IstAussortiert(ordner))
+            {
+                return false;
+            }
+
+            return !string.IsNullOrEmpty(Path.GetDirectoryName(ordner));
+        }
+
+        /// <summary>
+        /// Verlässt die Ablage und zeigt den Ordner darüber an — das „.." des
+        /// Dateimanagers, beschränkt auf die Ablagen dieser Anwendung.
+        ///
+        /// Gewählt wird dort das Bild, das dem weggelegten folgt, nicht das erste des
+        /// Ordners: Man kommt an der Stelle heraus, an der man aufgehört hat.
+        /// </summary>
+        [RelayCommand(CanExecute = nameof(CanExecuteOrdnerEineEbeneHoch))]
+        private async Task CommandExecuteOrdnerEineEbeneHoch()
+        {
+            string? ordner = Path.GetDirectoryName(SelectedBildchen?.BName);
+            string? darueber = string.IsNullOrEmpty(ordner) ? null : Path.GetDirectoryName(ordner);
+            if (string.IsNullOrEmpty(darueber))
+            {
+                return;
+            }
+
+            // An der Stelle landen, an der das weggelegte Bild vorher stand — nicht am
+            // Anfang. In einem Ordner mit tausend Bildern ist der Weg zurück sonst weit.
+            string? zielBild = NachfolgerInAnsichtsordnung(
+                darueber,
+                Path.GetFileNameWithoutExtension(SelectedBildchen?.BName));
+
+            if (zielBild == null)
+            {
+                SucheStatus = $"Kein Bild in {Path.GetFileName(darueber)} – dort gibt es nichts anzuzeigen.";
+                return;
+            }
+
+            // VOR dem Einlesen, sonst sortiert die Ansicht den neuen Ordner nicht so, wie
+            // erstesBild es annimmt: Nach „Treffer übernehmen" steht CustomSort auf null,
+            // damit die Rangfolge der Trefferliste stehen bleibt (siehe
+            // CommandExecuteTrefferInListeUebernehmen). Hier wird ein ganzer Ordner frisch
+            // geladen — die Rangfolge ist hinfällig, und ohne Vergleicher stünde der
+            // Ordner in Einlesereihenfolge.
+            AufgabenView.CustomSort ??= new NaturalStringComparer();
+
+            // OnFileDrop liest den Ordner der übergebenen Datei ein und wählt sie danach
+            // aus. Der öffentliche Weg (verwerfeSuchtreffer: true) ist hier richtig: Der
+            // Ordner wechselt tatsächlich, alte Suchtreffer führten zurück in die Ablage.
+            await OnFileDrop(new[] { zielBild });
+
+            // Notnagel für den Fall, dass ein gesetzter Filter genau dieses Bild
+            // ausblendet. Dann fände OnFileDrop es nicht und die Ansicht stünde auf -1 —
+            // von dort käme man ohne Zutun nicht mehr weiter. Im Normalfall läuft dieser
+            // Zweig nicht, und nur deshalb entsteht hier kein zweiter Ladeauftrag.
+            if (AufgabenView.CurrentItem == null && AufgabenView.Count > 0)
+            {
+                AufgabenView.MoveCurrentToFirst();
+                SelectedBildchen = AufgabenView.CurrentItem as MeinBildchen;
+            }
+        }
+
+        #endregion
+
         #region Command Datei im Explorer anzeigen
 
         private bool CanExecuteDateiImExplorerÖffnen()
@@ -1729,10 +2043,9 @@ namespace TestImage
                 {
                     Debug.WriteLine($"Bildprüfung Fehler: {ex}");
 
-                    // Hier stand HeaderPasstZurErweiterung — eine zweite Eigenschaft fast
-                    // gleichen Namens, an die nichts gebunden war. Das Ampelfeld bindet
-                    // IsHeaderPassendZurErweiterung und behielt im Fehlerfall deshalb den
-                    // Wert des vorigen Bildes.
+                    // IsHeaderPassendZurErweiterung, nicht HeaderPasstZurErweiterung: Das
+                    // Ampelfeld bindet diese hier. Auf die zweite Eigenschaft fast gleichen
+                    // Namens zu schreiben lässt im Fehlerfall den Wert des vorigen Bildes stehen.
                     IsHeaderPassendZurErweiterung = false;
                     HeaderText = "Prüfung fehlgeschlagen: " + ex.Message;
                     IsFrameImBildDrin = false;
@@ -1766,8 +2079,13 @@ namespace TestImage
 
 
 
+        /// <summary>
+        /// Das grosse Bild. <c>null</c>, solange keines geladen ist — etwa wenn ein Filter
+        /// alles ausblendet. Der Kontur-Zweig prüft darauf, AnzeigeBild ist ebenfalls
+        /// nullable; nur die Deklaration behauptete bisher das Gegenteil.
+        /// </summary>
         [ObservableProperty]
-        public partial BitmapSource DisplayImage { get; set; }
+        public partial BitmapSource? DisplayImage { get; set; }
 
         [ObservableProperty]
         public partial bool IsDisplayImageLoading { get; set; }
@@ -3250,6 +3568,7 @@ namespace TestImage
 
         /// <summary>True, wenn die Schnell-Liste (alle Miniaturen im Popup) eingeblendet ist.</summary>
         [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteBildListeToggleCommand))]
         public partial bool IsBildListeOffen { get; set; }
 
         /// <summary>Die Zeilen der Schnell-Liste (je <see cref="BildListeSpalten"/> Kacheln) – ermöglicht zeilenweise Virtualisierung.</summary>
@@ -3805,15 +4124,12 @@ namespace TestImage
             {
                 ClipLaedt = false;
 
-                // Den eigenen Hinweis wieder zurücknehmen.
+                // Den eigenen Hinweis selbst zurücknehmen: Nur einer der sechs Aufrufer
+                // setzt danach eigenen Text, sonst bliebe „Lade KI-Modell …" stehen,
+                // während das Lade-Symbol darunter längst weg ist.
                 //
-                // Vorher stand hier die Annahme, die aufrufenden Commands setzten danach
-                // ihren eigenen Text. Das trifft nur auf einen von sechs Aufrufern zu –
-                // bei allen anderen blieb „Lade KI-Modell …" oben stehen, während das
-                // Lade-Symbol darunter längst verschwunden war.
-                //
-                // Der Vergleich stellt sicher, dass nur der eigene Text weggeräumt wird:
-                // Hat inzwischen jemand anders etwas gesetzt, bleibt das stehen.
+                // Der Vergleich räumt nur den eigenen Text weg — hat inzwischen jemand
+                // anders etwas gesetzt, bleibt das stehen.
                 if (SucheStatus == ClipLadeHinweis)
                 {
                     SucheStatus = string.Empty;
@@ -3898,6 +4214,7 @@ namespace TestImage
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteBildInsKIFehlerVerschiebenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteVerschiebenZurückCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteFavSortierenCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteOrdnerEineEbeneHochCommand))]
         public partial bool IndexLaeuft { get; set; }
 
         /// <summary>Fortschritt der Indexierung in Prozent (0..100).</summary>
@@ -4021,8 +4338,19 @@ namespace TestImage
             await AnalysiereAktuellesBildAsync();
         }
 
+        /// <summary>
+        /// Die Schnell-Liste füllt sich aus <c>AufgabenView</c>, also gefiltert. Ist die
+        /// Ansicht leer, öffnete der Knopf ein leeres Kachelpanel.
+        ///
+        /// <c>IsBildListeOffen ||</c> ist kein Beiwerk, sondern die Falltür: Ohne diesen
+        /// Teil bliebe ein bereits offenes Panel offen und der Knopf gesperrt, sobald ein
+        /// Filter alles ausblendet — zumachen ginge dann nicht mehr.
+        /// </summary>
+        private bool CanExecuteBildListeToggle() =>
+            IsBildListeOffen || (AufgabenView is not null && !AufgabenView.IsEmpty);
+
         /// <summary>Blendet die Schnell-Liste (alle Miniaturen im Popup) ein/aus.</summary>
-        [RelayCommand]
+        [RelayCommand(CanExecute = nameof(CanExecuteBildListeToggle))]
         private async Task CommandExecuteBildListeToggle()
         {
             IsBildListeOffen = !IsBildListeOffen;

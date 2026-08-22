@@ -366,3 +366,9 @@ FodyWeavers.xsd
 # wurde nie in die Ausgabe kopiert. Hier eingetragen, damit sie nicht
 # unbemerkt zurueckkommt, falls Emgu noch einmal probiert wird.
 cvextern.dll
+
+# CLIP-Modelle. Nicht ins Repo, und zwar nicht aus Bequemlichkeit:
+# GitHub lehnt einzelne Dateien ueber 100 MB ab, diese beiden sind
+# 335 MB und 242 MB gross. Woher man sie bekommt, steht in models\LIESMICH.md.
+# Die kleinen Begleitdateien (clip-vocab.json, clip-merges.txt) liegen im Repo.
+models/*.onnx

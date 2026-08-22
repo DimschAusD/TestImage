@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using ImageMatching.Core;
@@ -13,6 +14,65 @@ namespace TestImage.Bildersuche
     /// </summary>
     public static class WpfImaging
     {
+        /// <summary>
+        /// Liest nur den Dateikopf und liefert die Abmessungen, ohne Bildpunkte
+        /// auszupacken. <c>(0, 0)</c>, wenn die Datei nicht lesbar ist.
+        ///
+        /// Der eigene <see cref="FileStream"/> ist Absicht: Ein Decoder auf einem URI
+        /// hält die Datei offen, bis der Sammler ihn abräumt — und diese Anwendung
+        /// verschiebt und löscht Bilder laufend.
+        /// </summary>
+        private static (int Breite, int Hoehe) LiesAbmessungen(string path)
+        {
+            try
+            {
+                using FileStream strom = File.OpenRead(path);
+                BitmapDecoder decoder = BitmapDecoder.Create(
+                    strom,
+                    BitmapCreateOptions.DelayCreation,
+                    BitmapCacheOption.None);
+
+                BitmapFrame rahmen = decoder.Frames[0];
+                return (rahmen.PixelWidth, rahmen.PixelHeight);
+            }
+            catch (Exception)
+            {
+                // Unlesbar oder unbekanntes Format: dann eben wie bisher voll auspacken,
+                // die reguläre Ladestrecke meldet den Fehler gleich danach.
+                return (0, 0);
+            }
+        }
+
+        /// <summary>
+        /// Setzt die Zielgrösse am Decoder, damit gar nicht erst voll ausgepackt wird.
+        ///
+        /// Ohne das packt der JPEG-Decoder bei einem 4000 x 3000 alle zwölf Millionen
+        /// Bildpunkte aus, und erst danach wirft ein TransformedBitmap 98 % davon weg.
+        /// Mit gesetzter Zielgrösse verkleinert schon der Decoder — bei JPEG in der
+        /// Frequenzdarstellung, das ist ein Vielfaches billiger.
+        ///
+        /// Nur die längere Kante wird begrenzt, damit das Seitenverhältnis bleibt, und
+        /// nur nach unten: Ein bereits kleines Bild darf der Decoder nicht aufblasen.
+        /// </summary>
+        private static void SetzeZielgroesse(BitmapImage bmp, string path, int maxSize)
+        {
+            (int breite, int hoehe) = LiesAbmessungen(path);
+
+            if (breite <= 0 || hoehe <= 0 || Math.Max(breite, hoehe) <= maxSize)
+            {
+                return;
+            }
+
+            if (breite >= hoehe)
+            {
+                bmp.DecodePixelWidth = maxSize;
+            }
+            else
+            {
+                bmp.DecodePixelHeight = maxSize;
+            }
+        }
+
         /// <summary>Lädt eine Bilddatei und liefert sie als Graustufenbild.</summary>
         public static GrayImage LoadGray(string path, int maxSize = 256)
         {
@@ -20,6 +80,7 @@ namespace TestImage.Bildersuche
             bmp.BeginInit();
             bmp.CacheOption = BitmapCacheOption.OnLoad; // Datei nicht gesperrt halten
             bmp.UriSource = new Uri(path);
+            SetzeZielgroesse(bmp, path, maxSize);
             bmp.EndInit();
             bmp.Freeze();
             return ToGray(bmp, maxSize);
@@ -59,6 +120,7 @@ namespace TestImage.Bildersuche
             bmp.BeginInit();
             bmp.CacheOption = BitmapCacheOption.OnLoad;
             bmp.UriSource = new Uri(path);
+            SetzeZielgroesse(bmp, path, maxSize);
             bmp.EndInit();
             bmp.Freeze();
             return ToRgb(bmp, maxSize);

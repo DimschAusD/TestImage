@@ -3,25 +3,15 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!--
-        ALLE SYMBOLE DER ANWENDUNG, in einem Wörterbuch.
+        ALLE SYMBOLE DER ANWENDUNG, in einem Wörterbuch. Neue kommen hier hinein, nicht
+        in eine zweite Datei: SVG-Konverter benennen den Schlüssel nach der Ebene, und
+        Inkscape nennt sie immer „Ebene 1". Zwei solche Wörterbücher in MergedDictionaries
+        melden keinen Fehler — bei doppelten Schlüsseln gewinnt das zuletzt eingebundene,
+        und alle Symbole zeigen dieselbe Zeichnung.
 
-        WARUM EINE DATEI UND NICHT EINE JE SYMBOL:
-
-        Der Inkscape-Export nennt seine Ebene „Ebene 1", und der Konverter macht daraus
-        den Schlüssel — jede exportierte Datei bekommt also `Ebene_1` und `di_Ebene_1`.
-        Bindet man zwei solche Wörterbücher in MergedDictionaries ein, meldet WPF keinen
-        Fehler: Bei doppelten Schlüsseln gewinnt schlicht das zuletzt eingebundene. Alle
-        Symbole zeigen dann dieselbe Zeichnung. Mit einer Datei kann das nicht passieren.
-
-        WARUM ZEICHNUNGEN UND KEINE PNG:
-
-        Die abgelösten PNG lagen als 2419 x 2419 im Projekt und wurden mit 16 bis 70
-        Pixeln angezeigt — zusammen rund 2 MB für Formen, die aus drei bis zwölf Punkten
-        bestehen. Hier sind es ein paar hundert Byte je Symbol, und sie bleiben bei jeder
-        Auflösung und jeder Bildschirmskalierung scharf.
-
-        ALLE FORMEN SIND HIER GESCHRIEBEN, nicht konvertiert: Dreieck, Kreuz,
-        Gleichheitszeichen, Wellen, Balken. Damit ist auch die Herkunftsfrage erledigt.
+        Zeichnungen statt PNG: ein paar hundert Byte je Symbol, scharf bei jeder
+        Auflösung und Bildschirmskalierung. Alle Formen sind hier von Hand geschrieben,
+        nicht konvertiert — damit ist auch die Herkunftsfrage erledigt.
 
         MASSSYSTEM: Jedes Symbol zeichnet in einem Feld von 512 x 512. Die Anzeigegrösse
         bestimmt allein das Element, das es benutzt.
@@ -44,6 +34,59 @@
     <DrawingImage x:Key="di_PfeilOben">
         <DrawingImage.Drawing>
             <GeometryDrawing Brush="#FF101010" Geometry="M 64,384 L 256,128 L 448,384 Z" />
+        </DrawingImage.Drawing>
+    </DrawingImage>
+
+    <!--
+        ORDNER-SYMBOLE
+
+        Die Lasche links oben ist der Grund, warum gezeichnet und nicht als Schriftzeichen:
+        Ohne sie liest sich die Form als Blatt, nicht als Ordner. Segoe UI Symbol und
+        Segoe MDL2 Assets haben keinen Ordner mit Lasche.
+
+        Gelb ist Absicht (Ordner-Konvention), trägt die Aussage aber NICHT allein — der
+        Inhalt ist schwarz und bleibt ohne Farbsehen erkennbar. Die dunkle Kontur ist
+        ebenso wenig Zierrat: Diese Knöpfe werden beim Überfahren hellgrün, und Gelb auf
+        Hellgrün ist die am schlechtesten trennbare Paarung, die es gibt.
+
+        Der Umriss steht nur einmal da und wird von beiden Symbolen benutzt — eine
+        geänderte Ordnerform trifft damit automatisch alle.
+    -->
+    <PathGeometry x:Key="geo_OrdnerUmriss" Figures="M 40,132 L 196,132 L 240,186 L 472,186 L 472,438 L 40,438 Z" />
+
+    <Pen
+        x:Key="pen_OrdnerKontur"
+        Brush="#FF5A4100"
+        LineJoin="Round"
+        Thickness="22" />
+
+    <!--  Leerer Ordner — Grundlage für Knöpfe, die ihren eigenen Inhalt daraufsetzen  -->
+    <DrawingImage x:Key="di_Ordner">
+        <DrawingImage.Drawing>
+            <GeometryDrawing
+                Brush="#FFFFC83D"
+                Geometry="{StaticResource geo_OrdnerUmriss}"
+                Pen="{StaticResource pen_OrdnerKontur}" />
+        </DrawingImage.Drawing>
+    </DrawingImage>
+
+    <!--  Ordner mit Pfeil heraus — für BTN_OrdnerEineEbeneHoch  -->
+    <DrawingImage x:Key="di_OrdnerHoch">
+        <DrawingImage.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing
+                    Brush="#FFFFC83D"
+                    Geometry="{StaticResource geo_OrdnerUmriss}"
+                    Pen="{StaticResource pen_OrdnerKontur}" />
+                <GeometryDrawing Brush="#FF101010" Geometry="M 256,196 L 334,330 L 286,330 L 286,430 L 226,430 L 226,330 L 178,330 Z">
+                    <GeometryDrawing.Pen>
+                        <Pen
+                            Brush="#FF101010"
+                            LineJoin="Round"
+                            Thickness="4" />
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+            </DrawingGroup>
         </DrawingImage.Drawing>
     </DrawingImage>
 
@@ -186,36 +229,96 @@
         vier Balken auf gleicher Höhe — dieselbe Bildsprache wie die abgelösten PNG.
     -->
 
+    <!--
+        Vier gleich hohe Balken zwischen zwei Querbalken, einer davon herausgehoben:
+        „einer davon ist der Gleiche". Koordinaten und Farben stammen Wert für Wert aus
+        EinGleicher.svg des Nutzers — es ist seine Zeichnung, nur in XAML notiert.
+
+        Der schwarze Rand gehört dazu. Ohne ihn verschmelzen die Balken bei 30 Punkten
+        Anzeigegrösse zu einer Fläche, und aus der Fundstelle wird ein Balkendiagramm.
+    -->
     <DrawingImage x:Key="di_EinGleicher">
         <DrawingImage.Drawing>
-            <GeometryDrawing Brush="#FF1544D6">
-                <GeometryDrawing.Geometry>
-                    <GeometryGroup>
-                        <RectangleGeometry Rect="72,60,368,26" />
-                        <RectangleGeometry Rect="72,426,368,26" />
-                        <RectangleGeometry Rect="118,300,80,126" />
-                        <RectangleGeometry Rect="216,120,80,306" />
-                        <RectangleGeometry Rect="314,340,80,86" />
-                    </GeometryGroup>
-                </GeometryDrawing.Geometry>
-            </GeometryDrawing>
+            <DrawingGroup>
+                <GeometryDrawing Brush="#FF0046FF">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#FF000000" Thickness="3.9" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <GeometryGroup>
+                            <RectangleGeometry Rect="35.88,51.09,439.01,24.97" />
+                            <RectangleGeometry Rect="36.95,456.04,438.94,25.98" />
+                        </GeometryGroup>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="#FF002AFF">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#FF000000" Thickness="4.3" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <GeometryGroup>
+                            <RectangleGeometry Rect="52.38,246.81,64.69,199.6" />
+                            <RectangleGeometry Rect="213.65,244.71,79.58,201.29" />
+                            <RectangleGeometry Rect="320.24,245.26,72.21,199.36" />
+                            <RectangleGeometry Rect="410.77,245.42,50.14,197.94" />
+                        </GeometryGroup>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="#FF0038FF">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#FF000000" Thickness="4.38" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="128.86,88.17,72.26,195.12" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingGroup>
         </DrawingImage.Drawing>
     </DrawingImage>
 
+    <!--
+        Wie di_EinGleicher, aber mit ZWEI herausgehobenen Balken: „mehrere davon sind
+        gleich". Genau daran hängt der Unterschied der beiden Zeichen — sind alle Balken
+        gleich hoch, sagt das Bild gar nichts mehr.
+
+        Koordinaten und Farben Wert für Wert aus VieleGleiche.svg des Nutzers.
+    -->
     <DrawingImage x:Key="di_VieleGleiche">
         <DrawingImage.Drawing>
-            <GeometryDrawing Brush="#FF1544D6">
-                <GeometryDrawing.Geometry>
-                    <GeometryGroup>
-                        <RectangleGeometry Rect="72,60,368,26" />
-                        <RectangleGeometry Rect="72,426,368,26" />
-                        <RectangleGeometry Rect="104,120,68,306" />
-                        <RectangleGeometry Rect="192,120,68,306" />
-                        <RectangleGeometry Rect="280,120,68,306" />
-                        <RectangleGeometry Rect="368,120,68,306" />
-                    </GeometryGroup>
-                </GeometryDrawing.Geometry>
-            </GeometryDrawing>
+            <DrawingGroup>
+                <GeometryDrawing Brush="#FF0046FF">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#FF000000" Thickness="3.9" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <GeometryGroup>
+                            <RectangleGeometry Rect="35.88,51.09,439.01,24.97" />
+                            <RectangleGeometry Rect="36.95,456.04,438.94,25.98" />
+                        </GeometryGroup>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="#FF002AFF">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#FF000000" Thickness="4.3" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <GeometryGroup>
+                            <RectangleGeometry Rect="52.37,246.79,64.72,196.37" />
+                            <RectangleGeometry Rect="213.63,244.69,79.62,198.07" />
+                            <RectangleGeometry Rect="396.87,245.65,63.82,196.4" />
+                            <RectangleGeometry Rect="310.44,89.84,72.25,196.14" />
+                        </GeometryGroup>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="#FF0038FF">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#FF000000" Thickness="4.38" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="128.86,88.17,72.26,195.12" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingGroup>
         </DrawingImage.Drawing>
     </DrawingImage>
 

@@ -8,24 +8,17 @@ using System.Windows.Media.Imaging;
 namespace TestImage
 {
     /// <summary>
-    /// Lädt die 120-Pixel-Miniaturen der Bildleiste im Hintergrund nach.
+    /// Lädt die 120-Pixel-Miniaturen der Bildleiste im Hintergrund nach. Die Kachel bindet
+    /// auf <c>MeinBildchen.Miniatur</c> und ist kurz leer, statt dass alles ruckelt.
     ///
-    /// <b>Das Problem:</b> Die Leiste band ihre Bilder über
-    /// <c>CLconverterStringZuKleinemImage</c>. Ein Konverter läuft im UI-Faden, und zwar
-    /// genau dann, wenn eine Kachel sichtbar wird. Ein Zug an der Bildlaufleiste erzeugt
-    /// mit <c>VirtualizationMode="Recycling"</c> Dutzende Kacheln je Bild — jede dekodierte
-    /// mitten im UI-Faden eine Datei. Bei kleinen JPEGs merkt man das kaum, bei einem
-    /// grossen PNG steht die Oberfläche: <c>DecodePixelWidth</c> begrenzt nur das Ergebnis,
-    /// auspacken muss der Decoder das ganze Bild.
+    /// <b>Nicht per Konverter binden</b> (<c>CLconverterStringZuKleinemImage</c>): Konverter
+    /// laufen im UI-Faden, und mit <c>VirtualizationMode="Recycling"</c> erzeugt ein Zug an
+    /// der Bildlaufleiste Dutzende Kacheln je Bild. <c>DecodePixelWidth</c> hilft dabei
+    /// nicht — es begrenzt nur das Ergebnis, auspacken muss der Decoder das ganze Bild.
     ///
-    /// <b>Der Weg:</b> Derselbe Aufbau wie bei der Kachel-Liste, die schon immer flüssig
-    /// war — die Kachel bindet auf eine Eigenschaft (<c>MeinBildchen.Miniatur</c>), und die
-    /// wird von hier aus gefüllt. Die Kachel ist kurz leer statt dass alles ruckelt.
-    ///
-    /// <b>Träge, nicht im Voraus:</b> Die Kachel-Liste lädt ihren ganzen Satz vorweg. Für
-    /// die Leiste wäre das falsch — 120er-Miniaturen sind rund 57 KB, bei 5000 Bildern im
-    /// Ordner also fast 300 MB, von denen man meist nur die ersten Dutzend ansieht.
-    /// Angefordert wird deshalb erst, wenn eine Kachel eine Datei zugewiesen bekommt.
+    /// <b>Träge, nicht im Voraus</b> — anders als die Kachel-Liste, die ihren Satz vorweg
+    /// lädt: 120er-Miniaturen sind rund 57 KB, bei 5000 Bildern im Ordner fast 300 MB, von
+    /// denen man meist nur die ersten Dutzend ansieht.
     /// </summary>
     internal static class MiniaturLader
     {
@@ -95,14 +88,11 @@ namespace TestImage
         /// <summary>
         /// Fordert die Miniaturen aller <b>erzeugten</b> Kacheln einer Liste an.
         ///
-        /// <b>Warum es das braucht:</b> <c>DataContextChanged</c> allein genügt nicht. Es
-        /// feuert einmal je Zuweisung — verpasst es eine (weil der Behälter schon stand,
-        /// bevor der Haken hing, oder weil ein Auftrag abgemeldet und nie neu gestellt
-        /// wurde), bleibt die Kachel leer, bis man scrollt. Genau das war zu sehen: ohne
-        /// Scrollen keine Bilder.
-        ///
-        /// Der Aufruf ist billig und beliebig oft wiederholbar: Für jede Kachel, die schon
-        /// ein Bild hat, kehrt <see cref="Anfordern"/> sofort um.
+        /// Nachfassen, weil <c>DataContextChanged</c> allein nicht genügt: Es feuert einmal
+        /// je Zuweisung, und verpasst es eine — weil der Behälter schon stand, bevor der
+        /// Haken hing, oder weil ein Auftrag abgemeldet und nie neu gestellt wurde —, bleibt
+        /// die Kachel leer, bis man scrollt. Der Aufruf ist billig und beliebig oft
+        /// wiederholbar: Für jede Kachel mit Bild kehrt <see cref="Anfordern"/> sofort um.
         ///
         /// <c>ContainerFromIndex</c> liefert bei virtualisierten Listen nur für erzeugte
         /// Zeilen einen Behälter. Damit trifft die Schleife genau die sichtbaren, ohne

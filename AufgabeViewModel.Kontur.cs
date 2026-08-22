@@ -54,6 +54,20 @@ namespace TestImage
         public BitmapSource? AnzeigeBild =>
             ZeigeKontur && KonturImage is not null ? KonturImage : DisplayImage;
 
+        /// <summary>
+        /// True, solange überhaupt ein Bild angezeigt wird. Schaltet TGL_KonturAnzeigen ab,
+        /// wenn keines da ist — etwa weil ein Filter alles ausblendet.
+        ///
+        /// Ohne das liesse sich der Schalter umlegen und täte sichtbar nichts:
+        /// <see cref="PlaneKonturNeuberechnung"/> kehrt ohne Quellbild sofort um,
+        /// <see cref="KonturImage"/> bleibt null, und <see cref="AnzeigeBild"/> fällt auf
+        /// das leere DisplayImage zurück.
+        ///
+        /// Kein CanExecute, weil der Schalter ein ToggleButton an <see cref="ZeigeKontur"/>
+        /// ist und gar kein Command hat.
+        /// </summary>
+        public bool HatBild => DisplayImage is not null;
+
         #endregion
 
         #region Auslöser
@@ -63,9 +77,10 @@ namespace TestImage
         /// Vorschaubild rechnet das mit — gewollt: So steht sofort etwas da, und das
         /// grosse Bild ersetzt es kurz darauf.
         /// </summary>
-        partial void OnDisplayImageChanged(BitmapSource value)
+        partial void OnDisplayImageChanged(BitmapSource? value)
         {
             OnPropertyChanged(nameof(AnzeigeBild));
+            OnPropertyChanged(nameof(HatBild));
 
             if (ZeigeKontur)
                 PlaneKonturNeuberechnung();

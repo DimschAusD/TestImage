@@ -109,6 +109,18 @@ namespace TestImage
                 e.Handled = true;
             }
 
+            // Umschalt+F → erweiterte Suche ein-/ausblenden, dasselbe wie
+            // BTN_IndexSuchleiste. Strg+F bleibt bewusst frei: Das steht überall für die
+            // einfache Suche im Sichtbaren, hier geht es über den Index.
+            //
+            // Nicht in Eingabefeldern: dort ist Shift+F schlicht ein grosses F.
+            else if (e.Key == Key.F && Keyboard.Modifiers == ModifierKeys.Shift && !IstTextEingabeAktiv())
+            {
+                if (vm?.CommandExecuteSuchleisteToggleCommand.CanExecute(null) == true)
+                    vm.CommandExecuteSuchleisteToggleCommand.Execute(null);
+                e.Handled = true;
+            }
+
             // F1 → Tastenübersicht, in beiden Ansichten. Dasselbe wie BTN_TastenHilfe
             // in der Normalansicht, nur eben über die Taste. F1 darf auch im Suchfeld
             // greifen: Es steht für kein Schriftzeichen und stört das Tippen nicht.
