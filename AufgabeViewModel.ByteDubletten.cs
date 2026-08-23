@@ -205,14 +205,20 @@ namespace TestImage
                 return;
             }
 
+            string warnung = ByteDublettenService.PapierkorbWarnung(ordner);
+
             var antwort = MessageBox.Show(
                 $"Diesen Ordner in den Papierkorb verschieben?\n\n{ordner}\n\n"
                 + "In dem Ordner liegt keine einzige Datei mehr.\n"
                 + "Falls darin noch leere Unterordner stecken, wandern diese mit in den Papierkorb.\n\n"
-                + "Rückgängig machen lässt sich das über den Papierkorb.",
+                + "Zurückholen geht so: Papierkorb auf dem Desktop öffnen,\n"
+                + "den Ordner markieren, Rechtsklick, „Wiederherstellen\"."
+                + warnung,
                 "Leeren Ordner entfernen",
                 MessageBoxButton.YesNo,
-                MessageBoxImage.Question,
+
+                // Bei Papierkorb-Zweifel das Warnzeichen statt des Fragezeichens.
+                warnung.Length == 0 ? MessageBoxImage.Question : MessageBoxImage.Warning,
                 MessageBoxResult.No);
 
             if (antwort != MessageBoxResult.Yes)
@@ -736,10 +742,25 @@ namespace TestImage
             if (zuLoeschen.Count == 0)
                 return;
 
+            // Der Weg zurück steht ausdrücklich mit dabei.
+            //
+            // Dass es der Papierkorb ist, sagt die Ansicht an mehreren Stellen — wie man
+            // von dort etwas zurückholt, weiss aber nicht jeder. Und gefragt wird genau
+            // in dem Moment, in dem es zählt: bevor geklickt wird, nicht danach.
+            //
+            // Die Laufwerksprüfung hängt an der ersten Datei, nicht am Ordner: Gelöscht
+            // werden die Dateien, und die liegen alle im selben Dubletten-Ordner.
+            string warnung = ByteDublettenService.PapierkorbWarnung(zuLoeschen[0].DublettenDatei);
+
             var antwort = MessageBox.Show(
                 $"{zuLoeschen.Count} Dublette(n) in den Papierkorb verschieben?\n\n" +
                 $"Es werden {DublettenMarkierteGroesseText} frei.\n" +
-                "Der Referenzbestand bleibt unangetastet.",
+                "Der Referenzbestand bleibt unangetastet.\n\n" +
+                "Nichts wird endgültig gelöscht. Zurückholen geht so:\n" +
+                "Papierkorb auf dem Desktop öffnen, die Dateien markieren,\n" +
+                "Rechtsklick, „Wiederherstellen\" — sie landen wieder\n" +
+                "an ihrem ursprünglichen Ort." +
+                warnung,
                 "Byte-Duplikate aufräumen",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning,

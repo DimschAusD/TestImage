@@ -1,19 +1,35 @@
 # TestImage
 
-Ein Bildbetrachter zum **Aussortieren grosser Bildersammlungen** unter Windows.
-Er ist für den Fall gebaut, dass mehrere tausend Bilder in einem Ordner liegen und
-entschieden werden muss, was bleibt: durchblättern, Doubletten finden, wegsortieren,
-zurückholen.
+**Bilder durchsehen und Unerwünschtes aussortieren — mit den Pfeiltasten, ohne
+die Hand von der Tastatur zu nehmen.**
+
+Dafür ist das Programm gebaut. Wer mehrere tausend Bilder in einem Ordner hat und
+entscheiden muss, was bleibt, sitzt sonst stundenlang mit der Maus davor. Hier
+liegt eine Hand auf den vier Pfeiltasten, und das reicht:
+
+| Taste | |
+|---|---|
+| **→** | nächstes Bild |
+| **←** | voriges Bild |
+| **↓** | weg damit — das Bild wandert nach `kein_Fav` |
+| **↑** | zurückholen, sonst die letzte Verschiebung rückgängig |
+
+Verschoben wird in einen Unterordner, nicht gelöscht. Nichts ist endgültig, jeder
+Griff lässt sich zurücknehmen.
+
+Alles Weitere — Doubletten, Prüfungen, Konturansicht, Begriffssuche — ist Beiwerk
+für den Fall, dass das blosse Ansehen nicht reicht.
 
 Quelltext und Kommentare sind auf Deutsch.
 
-## Was er kann
+## Was er sonst noch kann
 
-**Blättern und Wegsortieren**
-Pfeiltasten vor und zurück, Pfeil nach unten legt ein Bild in den Unterordner
-`kein_Fav`, Pfeil nach oben holt es zurück. Weitere Ablagen: `KI_Fehler`,
-`Doppelt`, `Besonders`, `Wasserzeichen`. Jedes Verschieben lässt sich rückgängig
-machen.
+**Weitere Ablagen**
+`↓` legt nach `kein_Fav`, `Umschalt+↓` nach `Besonders`. Im Bildmodus zusätzlich
+`K` für `KI_Fehler`. Dazu gibt es `Doppelt` und `Wasserzeichen`. Aus jeder dieser
+Ablagen führt ein Knopf wieder eine Ebene höher.
+
+**Alle Tastenkürzel** stehen im Programm selbst unter **F1**.
 
 **Doubletten finden**
 Vier Wege, vom billigsten zum teuersten:
@@ -26,19 +42,113 @@ Vier Wege, vom billigsten zum teuersten:
 | Grauwert-Abgleich | ähnliche Bilder mit einstellbarer Schwelle |
 
 **Bilder prüfen**
-Beim Anzeigen wird optional geprüft, ob die Datei beschädigt ist, ob der Dateikopf
-zur Endung passt, ob ein Rahmen im Bild steckt und ob die Datei leer ist. Das
-Ergebnis steht als Ampel neben dem Bild.
+Auf Wunsch wird jedes angezeigte Bild geprüft. Das Ergebnis steht als Ampel neben
+dem Bild:
+
+| Prüfung | schlägt an bei |
+|---|---|
+| Datei lesbar | beschädigten oder gesperrten Dateien |
+| Dateikopf passt zur Endung | einem PNG, das `.jpg` heisst |
+| Decoder liefert ein Bild | Formaten, die Windows nicht kennt |
+| Abgebrochener Download | fehlender Endkennung (`EOI`, `IEND`, `RIFF`), einem Decoder-Fehler, oder einer letzten Bildzeile, die zu über 90 % aus exaktem Mittelgrau besteht — so endet ein JPEG, dessen Übertragung mittendrin abbrach |
+| Leere Datei | 0 Byte |
 
 **Konturansicht**
 Zeigt statt des Bildes sein Kantenbild (Sobel) mit einstellbarer Schwelle. Macht
 schwache Aufdrucke und Wasserzeichen sichtbar.
 
-**Begriffssuche über CLIP** *(braucht die Modelldateien, siehe unten)*
-Ordner werden indiziert und lassen sich danach nach Begriffen durchsuchen —
-auf Deutsch, ein Übersetzer davor bildet die Anfrage auf das englische Vokabular
-des Modells ab. Dazu: „schema-ähnliche" Bilder finden und Ordner nach gelernten
-Vorlieben vorsortieren.
+**Begriffssuche** *(braucht die zwei Modelldateien, siehe unten)*
+Ein einmal indizierter Ordner lässt sich danach nach **Inhalt** durchsuchen, nicht
+nur nach Dateinamen. Der Index liegt im Ordner selbst und wandert mit ihm mit.
+
+| | |
+|---|---|
+| **Freitextsuche** | „zwei Personen am Strand" eintippen. Auf Deutsch — ein Übersetzer davor bildet die Anfrage auf das englische Vokabular des Modells ab. |
+| **Erkannte Begriffe** | Zu jedem Bild werden Begriffe vorgeschlagen, anklickbar als Suchanfrage. |
+| **Heatmap** | Zeigt im Bild, *wo* ein Begriff sitzt — nützlich, um zu sehen, ob das Modell das Richtige gemeint hat. |
+| **Schema-ähnlich** | Bilder mit ähnlichem Aufbau oder Motiv finden. Löst die grobe Perceptual-Hash-Suche ab. |
+| **Serien finden** | Zusammengehörige Bilder eines Satzes aufspüren. |
+
+Die Treffer landen in einer Liste; über „In Liste übernehmen" wird die
+Navigation auf genau diese Bilder eingedampft — danach blättert man mit den
+Pfeiltasten nur noch durch sie.
+
+**Sortieren nach gelernten Vorlieben** — ⚠️ **in Arbeit, etwa zu 10 % fertig**
+Die Idee: Der Ordner wird nach den bisherigen Entscheidungen geordnet,
+wahrscheinlicher Ausschuss zuerst. Gelernt wird aus dem Ordner selbst und seinem
+`kein_Fav`. Das steckt noch in der Erprobung und liefert keine verlässlichen
+Ergebnisse — wer es ausprobiert, sollte den Vorschlägen nicht trauen. Verschoben
+wird dabei nichts.
+
+## Installieren
+
+Es gibt kein Installationsprogramm. Auspacken, starten, fertig.
+
+1. **Windows 10 (Build 18362) oder neuer.**
+2. Einmalig die **[.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0)**
+   installieren — bei „Run desktop apps" die Fassung für **x64**. Ohne sie
+   startet die Anwendung nicht.
+3. Das ZIP aus den [Releases](https://github.com/DimschAusD/TestImage/releases)
+   irgendwohin auspacken und `TestImage.exe` starten.
+
+### Damit auch die Begriffssuche läuft
+
+Die zwei Modelldateien liegen im selben Release, einzeln zum Herunterladen. Sie
+gehören in einen Unterordner `models` **neben** die `TestImage.exe`:
+
+```
+TestImage\
+├─ TestImage.exe
+└─ models\
+   ├─ clip-vit-b32-vision.onnx     335 MB
+   ├─ clip-text.onnx               242 MB
+   ├─ clip-vocab.json              (schon im ZIP)
+   └─ clip-merges.txt              (schon im ZIP)
+```
+
+Ohne die beiden grossen Dateien läuft alles Übrige unverändert — nur die
+Begriffssuche bleibt aus.
+
+## Wo die Anwendung ihre Daten ablegt
+
+**Nichts** in der Registrierung, **nichts** unter `AppData`. Gemerkt wird an zwei
+Orten:
+
+**Neben der `TestImage.exe`:**
+
+```
+index.ordner.json             welche Ordner indiziert sind
+wasserzeichen.masken.json     die gelernten Wasserzeichen-Muster
+fav.profile.json              die gelernten Vorlieben
+```
+
+**In jedem Bilderordner**, sobald man ihn indiziert oder auf Wasserzeichen prüft
+— zwei versteckte Dateien:
+
+```
+.bildindex.clip.json          die Bildmerkmale dieses Ordners
+.bildwasserzeichen.json       die Wasserzeichen-Befunde dieses Ordners
+```
+
+Die beiden liegen mit Absicht dort und nicht bei der Anwendung: So wandert der
+Index mit, wenn du den Bilderordner verschiebst oder auf eine andere Platte
+kopierst, und muss nicht neu gerechnet werden.
+
+## Deinstallieren
+
+Den ausgepackten Ordner löschen. Das war es — es gibt keine Einträge in der
+Registrierung und nichts unter `AppData`.
+
+**Was liegen bleibt:** die zwei versteckten Dateien in jedem Bilderordner, den du
+indiziert hast. Sie stören nichts. Wer sie loswerden will, sucht im Explorer nach
+
+```
+.bildindex.clip.json
+.bildwasserzeichen.json
+```
+
+und löscht die Treffer. Versteckte Dateien müssen dafür sichtbar sein: im
+Explorer unter *Ansicht → Einblenden → Ausgeblendete Elemente*.
 
 ## Bauen
 
@@ -51,8 +161,19 @@ cd TestImage
 dotnet build
 ```
 
-Das war es — alle Abhängigkeiten kommen über NuGet, es gibt keine nativen
-Bibliotheken und nichts nachzuinstallieren.
+Das war es — alle Abhängigkeiten kommen über NuGet, es gibt nichts von Hand
+nachzuinstallieren.
+
+### Ein Verteilpaket bauen
+
+```
+dotnet publish TestImage.csproj -c Release -r win-x64 --self-contained false -o veroeffentlichung
+```
+
+Das `-r win-x64` ist wichtig und keine Feinheit: Ohne festgelegte Plattform
+kopiert der Build die nativen Teile der ONNX-Laufzeit für **alle** Systeme mit
+— iOS, Android, macOS, Linux, ARM. Das sind 149 MB, die unter Windows nie
+angefasst werden. Mit der Angabe bleibt das Paket bei rund 37 MB.
 
 ### Die CLIP-Modelle
 

@@ -525,6 +525,83 @@ namespace TestImage.Bildersuche
         }
 
         /// <summary>
+        /// Warnt, wenn auf dem Laufwerk dieses Pfades vermutlich kein Papierkorb liegt.
+        /// Liefert einen fertigen Absatz für die Rückfrage — oder <c>""</c>, wenn nichts
+        /// dagegen spricht.
+        ///
+        /// Der Hintergrund: <c>RecycleOption.SendToRecycleBin</c> ist ein Wunsch, keine
+        /// Zusage. Wo Windows keinen Papierkorb führt, löscht derselbe Aufruf sofort und
+        /// endgültig — ohne Fehler und ohne Hinweis. Dann verspricht die Rückfrage etwas,
+        /// das nicht eintritt, und das ist schlimmer, als gar nichts zu versprechen.
+        ///
+        /// Zwei Fälle sind sicher erkennbar:
+        ///
+        /// <b>Netzlaufwerke</b> haben grundsätzlich keinen Papierkorb.
+        ///
+        /// <b>Alles ausser NTFS.</b> Der Papierkorb setzt NTFS voraus. Grosse externe
+        /// Platten sind oft exFAT formatiert, USB-Stöcke FAT32 — dort ist gelöscht
+        /// gelöscht.
+        ///
+        /// NICHT erkannt wird die dritte Möglichkeit: Der Nutzer kann den Papierkorb je
+        /// Laufwerk abschalten („Dateien sofort löschen"). Das stünde in der Registrierung
+        /// unter BitBucket und wird hier nicht geprüft.
+        /// </summary>
+        internal static string PapierkorbWarnung(string pfad)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(pfad))
+                {
+                    return string.Empty;
+                }
+
+                string voll = Path.GetFullPath(pfad);
+
+                // UNC-Pfad (\\rechner\freigabe): DriveInfo kann damit nichts anfangen.
+                if (voll.StartsWith(@"\\", StringComparison.Ordinal))
+                {
+                    return Warntext("Netzlaufwerke führen keinen Papierkorb.");
+                }
+
+                string? wurzel = Path.GetPathRoot(voll);
+                if (string.IsNullOrEmpty(wurzel))
+                {
+                    return string.Empty;
+                }
+
+                var laufwerk = new DriveInfo(wurzel);
+                if (!laufwerk.IsReady)
+                {
+                    return string.Empty;
+                }
+
+                if (laufwerk.DriveType == DriveType.Network)
+                {
+                    return Warntext("Netzlaufwerke führen keinen Papierkorb.");
+                }
+
+                if (!string.Equals(laufwerk.DriveFormat, "NTFS", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Warntext($"Das Laufwerk ist mit {laufwerk.DriveFormat} formatiert, "
+                                    + "und einen Papierkorb gibt es nur auf NTFS.");
+                }
+
+                return string.Empty;
+            }
+            catch (Exception)
+            {
+                // Unbekanntes oder nicht lesbares Laufwerk: lieber nicht warnen als falsch
+                // warnen. Eine Warnung, die zu oft grundlos kommt, wird weggeklickt.
+                return string.Empty;
+            }
+        }
+
+        private static string Warntext(string grund) =>
+            "\n\nACHTUNG — hier gilt das mit dem Papierkorb möglicherweise nicht:\n"
+            + grund + "\n"
+            + "Die Dateien wären dann sofort und endgültig gelöscht.";
+
+        /// <summary>
         /// Verschiebt eine Datei in den Papierkorb (bewusst kein endgültiges Löschen).
         /// Bei kurzzeitiger Sperre wird wiederholt, statt sofort aufzugeben.
         /// </summary>
