@@ -40,7 +40,7 @@ namespace TestImage.Bildersuche
                     return;
 
                 if (HatText(() => meta.Author?.FirstOrDefault()))
-                    hinweise.Add("Autor: " + meta.Author!.First());
+                    hinweise.Add("Autor: " + Kuerze(meta.Author!.First()));
 
                 if (HatText(() => meta.Copyright))
                     hinweise.Add("Copyright: " + Kuerze(meta.Copyright!));
@@ -52,7 +52,7 @@ namespace TestImage.Bildersuche
                     hinweise.Add("Titel: " + Kuerze(meta.Title!));
 
                 if (HatText(() => meta.Comment))
-                    hinweise.Add("Kommentar: " + Kuerze(meta.Comment!));
+                    hinweise.Add(BeschreibeKommentar(meta.Comment!));
 
                 // XMP wird u. a. von Lightroom/Photoshop und für Rechteangaben genutzt.
                 if (Vorhanden(meta, "/xmp"))
@@ -124,9 +124,92 @@ namespace TestImage.Bildersuche
             catch { return false; }
         }
 
+        /// <summary>
+        /// Beschreibt das Kommentarfeld, statt es abzuschreiben.
+        ///
+        /// Bildgeneratoren legen dort ihre kompletten Parameter ab – als JSON (SwarmUI,
+        /// ComfyUI) oder als Fliesstext (Automatic1111). Angeschnitten gelesen stand in
+        /// der Karte dann Quelltext zwischen lauter Klartext-Angaben wie „Autor: …".
+        /// Gemeldet wird deshalb, <b>was</b> dort liegt und von welchem Programm.
+        /// </summary>
+        private static string BeschreibeKommentar(string wert)
+        {
+            string erzeuger = ErkenneErzeuger(wert);
+
+            if (erzeuger.Length == 0)
+                return "Kommentar: " + Kuerze(wert);
+
+            string modell = LiesModell(wert);
+
+            return modell.Length == 0
+                ? $"KI-Generierungsdaten im Kommentar ({erzeuger})"
+                : $"KI-Generierungsdaten im Kommentar ({erzeuger}) – Modell: {Kuerze(modell, 40)}";
+        }
+
+        /// <summary>
+        /// Erkennt das erzeugende Programm an seinen Kennfeldern. Leer, wenn der
+        /// Kommentar ein gewöhnlicher Kommentar ist.
+        /// </summary>
+        private static string ErkenneErzeuger(string wert)
+        {
+            if (wert.Contains("sui_image_params", StringComparison.OrdinalIgnoreCase))
+                return "SwarmUI";
+
+            if (wert.Contains("\"class_type\"", StringComparison.OrdinalIgnoreCase)
+                || wert.Contains("\"workflow\"", StringComparison.OrdinalIgnoreCase))
+                return "ComfyUI";
+
+            if (wert.Contains("Negative prompt:", StringComparison.OrdinalIgnoreCase)
+                || (wert.Contains("Steps:", StringComparison.OrdinalIgnoreCase)
+                    && wert.Contains("Sampler:", StringComparison.OrdinalIgnoreCase)))
+                return "Automatic1111";
+
+            // Unbekanntes Werkzeug, aber eindeutig Generierungsdaten: JSON mit Prompt.
+            if (wert.TrimStart().StartsWith('{')
+                && wert.Contains("\"prompt\"", StringComparison.OrdinalIgnoreCase))
+                return "Bildgenerator";
+
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Holt den Modellnamen aus den JSON-Parametern – die einzige Angabe daraus, die
+        /// beim Sichten wirklich etwas beiträgt. Fehlt sie oder ist der Kommentar kein
+        /// JSON, bleibt es beim blossen Programmnamen.
+        /// </summary>
+        private static string LiesModell(string wert)
+        {
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(wert);
+
+                var wurzel = doc.RootElement;
+                if (wurzel.ValueKind != System.Text.Json.JsonValueKind.Object)
+                    return string.Empty;
+
+                if (wurzel.TryGetProperty("sui_image_params", out var parameter)
+                    && parameter.ValueKind == System.Text.Json.JsonValueKind.Object)
+                    wurzel = parameter;
+
+                if (wurzel.TryGetProperty("model", out var modell)
+                    && modell.ValueKind == System.Text.Json.JsonValueKind.String)
+                    return modell.GetString() ?? string.Empty;
+            }
+            catch
+            {
+                // Kein oder beschädigtes JSON – dann eben ohne Modellnamen.
+            }
+
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Kürzt und legt den Wert auf eine Zeile. Ohne das Zusammenziehen sprengte ein
+        /// mehrzeiliger Eintrag die Liste, in der sonst je Zeile eine Markierung steht.
+        /// </summary>
         private static string Kuerze(string wert, int max = 60)
         {
-            wert = wert.Trim();
+            wert = System.Text.RegularExpressions.Regex.Replace(wert, @"\s+", " ").Trim();
             return wert.Length <= max ? wert : wert[..max] + "…";
         }
     }

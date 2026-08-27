@@ -122,33 +122,36 @@ wasserzeichen.masken.json     die gelernten Wasserzeichen-Muster
 fav.profile.json              die gelernten Vorlieben
 ```
 
-**In jedem Bilderordner**, sobald man ihn indiziert oder auf Wasserzeichen prüft
-— zwei versteckte Dateien:
+**In jedem Bilderordner**, sobald man ihn indiziert, auf Wasserzeichen prüft oder
+den Text lesen lässt:
 
 ```
 .bildindex.clip.json          die Bildmerkmale dieses Ordners
 .bildwasserzeichen.json       die Wasserzeichen-Befunde dieses Ordners
+.bildocr.json                 der erkannte Text dieses Ordners
 ```
 
-Die beiden liegen mit Absicht dort und nicht bei der Anwendung: So wandert der
-Index mit, wenn du den Bilderordner verschiebst oder auf eine andere Platte
-kopierst, und muss nicht neu gerechnet werden.
+Die drei liegen mit Absicht dort und nicht bei der Anwendung: So wandern sie mit,
+wenn du den Bilderordner verschiebst oder auf eine andere Platte kopierst, und
+müssen nicht neu gerechnet werden. Sie sind auch nicht versteckt — so sieht man
+beim Durchblättern im Explorer, welche Ordner schon bearbeitet sind.
 
 ## Deinstallieren
 
 Den ausgepackten Ordner löschen. Das war es — es gibt keine Einträge in der
 Registrierung und nichts unter `AppData`.
 
-**Was liegen bleibt:** die zwei versteckten Dateien in jedem Bilderordner, den du
-indiziert hast. Sie stören nichts. Wer sie loswerden will, sucht im Explorer nach
+**Was liegen bleibt:** die Cache-Dateien in jedem Bilderordner, den du bearbeitet
+hast. Sie stören nichts. Wer sie loswerden will, sucht im Explorer nach
 
 ```
 .bildindex.clip.json
 .bildwasserzeichen.json
+.bildocr.json
 ```
 
-und löscht die Treffer. Versteckte Dateien müssen dafür sichtbar sein: im
-Explorer unter *Ansicht → Einblenden → Ausgeblendete Elemente*.
+und löscht die Treffer. **`.bildocr.json` sollte man dabei nicht vergessen** —
+darin steht der erkannte Text im Klartext.
 
 ## Bauen
 

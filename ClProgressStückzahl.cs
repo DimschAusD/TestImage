@@ -77,19 +77,39 @@ namespace TestImage
             }
 
 
-            // Restzeit
-            try
-            {
-                double secs = RunTime.TotalSeconds;
-                var proSek = StückGesammt / secs;
-                Restzeit = ((StückGesammt - StückAbgearbeitet) / proSek).ToString("F1") + " Sek";
+            // Restzeit aus der TATSÄCHLICHEN Rate, also StückPerSecond.
+            //
+            // Hier stand StückGesammt / secs — die Geschwindigkeit, die man hätte, wenn
+            // schon alles fertig wäre. Bei 1000 Stück und 10 geschafften nach 10 Sekunden
+            // ergab das 100/s statt 1/s und damit 9,9 statt 990 Sekunden Restzeit. Der
+            // Fehler war am Anfang eines Laufs am grössten, also genau dann, wenn man auf
+            // die Zahl schaut.
+            Restzeit = StückPerSecond > 0
+                ? FormatiereDauer((StückGesammt - StückAbgearbeitet) / StückPerSecond)
+                : "—";
+        }
 
-            }
-            catch
+        /// <summary>
+        /// Sekunden lesbar machen. „500,0 Sek" sagt weniger als „8:20 Min" — und bei
+        /// tausenden Bildern kommen solche Zeiten regelmässig vor.
+        /// </summary>
+        private static string FormatiereDauer(double sekunden)
+        {
+            if (double.IsNaN(sekunden) || double.IsInfinity(sekunden) || sekunden < 0)
             {
-                Restzeit = "-1";
+                return "—";
             }
 
+            if (sekunden < 60)
+            {
+                return $"{sekunden:F0} Sek";
+            }
+
+            var spanne = TimeSpan.FromSeconds(sekunden);
+
+            return spanne.TotalHours >= 1
+                ? $"{(int)spanne.TotalHours}:{spanne.Minutes:D2}:{spanne.Seconds:D2} Std"
+                : $"{spanne.Minutes}:{spanne.Seconds:D2} Min";
         }
 
        

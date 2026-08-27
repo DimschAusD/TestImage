@@ -18,6 +18,15 @@ namespace TestImage.Bildersuche
     {
         private readonly SemaphoreSlim _gate = new(1, 1);
         private readonly GermanQueryTranslator _uebersetzer = new();
+
+        /// <summary>
+        /// Wörter der letzten Suchanfrage, für die es keine Übersetzung gab.
+        ///
+        /// Sie gehen unübersetzt in den englischen Text-Encoder und tragen dort nichts
+        /// bei. Die Oberfläche nennt sie in der Statuszeile — sonst sieht ein leeres
+        /// Ergebnis aus wie „das Bild gibt es nicht", obwohl in Wahrheit das Wort fehlte.
+        /// </summary>
+        public IReadOnlyList<string> LetzteNichtUebersetzt { get; private set; } = Array.Empty<string>();
         private CnnDescriptor? _cnn;
         private ClipTextEncoder? _text;
         private OpenVocabTagger? _tagger;
@@ -147,7 +156,9 @@ namespace TestImage.Bildersuche
 
             return await Task.Run<IReadOnlyList<(string Path, float Score)>>(() =>
             {
-                string englisch = _uebersetzer.Translate(frageDeutsch);
+                string englisch = _uebersetzer.Translate(frageDeutsch, out var unbekannt);
+                LetzteNichtUebersetzt = unbekannt;
+
                 int wordCount = englisch.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
                 string clipQuery = wordCount == 1 ? $"a photo of a {englisch}"
                                  : wordCount <= 3 ? $"a photo of {englisch}"
@@ -632,6 +643,7 @@ namespace TestImage.Bildersuche
                     (double)ladeTicks / System.Diagnostics.Stopwatch.Frequency);
                 LetzteVerarbeiteteBilder = verarbeitet;
                 LetzteParallelitaet = grad;
+                LetzteAufgeraeumteEintraege = index.EntfernteEintraege;
 
                 return index.Count;
             }, cancel).ConfigureAwait(false);
@@ -654,6 +666,12 @@ namespace TestImage.Bildersuche
 
         /// <summary>Wie viele Bilder beim letzten Lauf gleichzeitig verarbeitet wurden.</summary>
         public int LetzteParallelitaet { get; private set; }
+
+        /// <summary>
+        /// Beim letzten Lauf ausgeräumte Karteileichen — Einträge zu Dateien, die
+        /// gelöscht oder weggeschoben wurden. Steuert nichts, wird nur gemeldet.
+        /// </summary>
+        public int LetzteAufgeraeumteEintraege { get; private set; }
 
         /// <summary>
         /// Tatsächlich neu verarbeitete Bilder. Unveränderte Dateien überspringt der

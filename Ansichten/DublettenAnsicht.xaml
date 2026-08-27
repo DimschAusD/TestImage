@@ -732,6 +732,7 @@
                             Background="#FFEFF1F4"
                             BorderThickness="0"
                             Foreground="#FF64748B"
+                            IsIndeterminate="{Binding DublettenFortschrittUnbestimmt}"
                             Maximum="{Binding DublettenFortschrittMax}"
                             Value="{Binding DublettenFortschritt}" />
 

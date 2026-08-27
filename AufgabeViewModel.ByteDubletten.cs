@@ -291,6 +291,14 @@ namespace TestImage
         [ObservableProperty]
         public partial int DublettenFortschrittMax { get; set; } = 100;
 
+        /// <summary>
+        /// Balken läuft ohne festen Wert. Gilt, solange überhaupt nicht feststeht, wie
+        /// viel Arbeit ansteht (Dateien werden erfasst, Grössen verglichen) — ein Balken,
+        /// der minutenlang auf 0 steht, sieht aus wie ein Hänger.
+        /// </summary>
+        [ObservableProperty]
+        public partial bool DublettenFortschrittUnbestimmt { get; set; }
+
         [ObservableProperty]
         public partial string DublettenRestzeit { get; set; } = string.Empty;
 
@@ -499,6 +507,9 @@ namespace TestImage
             IsDublettenAufgabeLäuft = true;
             SetzeTreffer(Array.Empty<ByteDublettenTreffer>());
             DublettenFortschritt = 0;
+
+            // Wie viele Dateien es sind, weiss erst die Auflistung selbst.
+            DublettenFortschrittUnbestimmt = true;
             DublettenStatus = "Ordner wird gelesen …";
 
             // Neuer Ordnerinhalt: Ein früheres Suchergebnis gilt nicht mehr.
@@ -513,6 +524,7 @@ namespace TestImage
                     token);
 
                 DublettenFortschrittMax = Math.Max(1, dateien.Count);
+                DublettenFortschrittUnbestimmt = false;
 
                 var liste = new System.Collections.Generic.List<ByteDublettenTreffer>(dateien.Count);
                 var uhr = Stopwatch.StartNew();
@@ -562,6 +574,7 @@ namespace TestImage
             finally
             {
                 DublettenFortschritt = 0;
+                DublettenFortschrittUnbestimmt = false;
                 IsDublettenAufgabeLäuft = false;
                 PruefeDublettenOrdnerLeer();
             }
@@ -613,22 +626,37 @@ namespace TestImage
             IsDublettenAufgabeLäuft = true;
             SetzeTreffer(Array.Empty<ByteDublettenTreffer>());
             DublettenFortschritt = 0;
+            DublettenFortschrittMax = 1000;
+            DublettenFortschrittUnbestimmt = true;   // Umfang noch unbekannt
             DublettenRestzeit = string.Empty;
 
             var uhr = Stopwatch.StartNew();
 
             try
             {
-                var fortschritt = new Progress<(int Erledigt, int Gesamt, string Text)>(p =>
+                // Der Dienst rechnet in Bytes; angezeigt wird daraus ein Promille-Stand.
+                var fortschritt = new Progress<(long Erledigt, long Gesamt, string Text)>(p =>
                 {
                     DublettenStatus = p.Text;
 
-                    if (p.Gesamt > 0)
+                    if (p.Gesamt <= 0)
                     {
-                        DublettenFortschrittMax = p.Gesamt;
-                        DublettenFortschritt = p.Erledigt;
-                        DublettenRestzeit = SchaetzeRestzeit(uhr.Elapsed, p.Erledigt, p.Gesamt);
+                        // Dateien werden noch erfasst – Umfang steht nicht fest.
+                        DublettenFortschrittUnbestimmt = true;
+                        return;
                     }
+
+                    DublettenFortschrittUnbestimmt = false;
+
+                    // Der Gesamtumfang wächst während der Suche: Der Byte-Vergleich fällt
+                    // erst bei Hash-Treffern an. Ein wachsendes Maximum liesse den Balken
+                    // zurückspringen, deshalb geht er nur vorwärts und wird notfalls
+                    // langsamer.
+                    int stand = (int)(p.Erledigt * 1000 / p.Gesamt);
+                    if (stand > DublettenFortschritt)
+                        DublettenFortschritt = stand;
+
+                    DublettenRestzeit = SchaetzeRestzeit(uhr.Elapsed, p.Erledigt, p.Gesamt);
                 });
 
                 var nichtLesbar = new System.Collections.Generic.List<string>();
@@ -672,6 +700,7 @@ namespace TestImage
             finally
             {
                 DublettenRestzeit = string.Empty;
+                DublettenFortschrittUnbestimmt = false;
                 IsDublettenAufgabeLäuft = false;
 
                 // Stand des Ordners auffrischen – er kann sich seit dem Einlesen
@@ -680,13 +709,17 @@ namespace TestImage
             }
         }
 
-        private static string SchaetzeRestzeit(TimeSpan verstrichen, int erledigt, int gesamt)
+        /// <summary>
+        /// Restzeit aus dem bisherigen Tempo. Die Mengen sind <c>long</c>, weil hier auch
+        /// in Bytes gerechnet wird — bei Stückzahlen greift dieselbe Rechnung.
+        /// </summary>
+        private static string SchaetzeRestzeit(TimeSpan verstrichen, long erledigt, long gesamt)
         {
             if (erledigt <= 0 || erledigt >= gesamt)
                 return string.Empty;
 
-            var proStueck = verstrichen.TotalSeconds / erledigt;
-            int restSek = (int)Math.Ceiling(proStueck * (gesamt - erledigt));
+            double proEinheit = verstrichen.TotalSeconds / erledigt;
+            int restSek = (int)Math.Ceiling(proEinheit * (gesamt - erledigt));
 
             string text = FormatiereRestzeit(restSek);
             return text.Length > 0 ? $"noch ca. {text}" : string.Empty;

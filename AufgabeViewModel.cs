@@ -241,6 +241,15 @@ namespace TestImage
             //    item.PropertyChanged += PersonsOnPropertyChanged;
             //}
             AufgabenView.Filter += PersonViewSource_Filter;
+
+            // Erkannten Text zum jeweils angezeigten Bild nachziehen.
+            //
+            // Bewusst hier und nicht im Setter von SelectedBildchen: Das Bild wechselt
+            // auch über die Pfeiltasten, die Miniaturleiste und die Trefferliste, und
+            // die gehen alle über die Ansicht, nicht über die Eigenschaft. CurrentChanged
+            // ist die eine Stelle, an der jeder dieser Wege vorbeikommt.
+            AufgabenView.CurrentChanged += (s, e) => OcrVolltextAnfordern();
+
             //AufgabenView.SortDescriptions.Clear();
             //AufgabenView.SortDescriptions.Add(new SortDescription(nameof(MeinBildchen.BName), ListSortDirection.Descending));
             // Grupieren
@@ -627,6 +636,19 @@ namespace TestImage
 
             InnerZählerCount++;
 
+            // Mehrfachauswahl: Bisher fiel der Aufruf hier stumm hindurch — der Zweig
+            // darunter greift nur bei genau einer Datei. Gezogen wird aber gern mit
+            // Strg mehreres auf einmal, und dann tat die Anwendung schlicht nichts.
+            //
+            // Eine Datei genügt: Eingelesen wird ohnehin ihr ganzer Ordner. Deshalb die
+            // Bitte statt einer stillen Auswahl der ersten Datei — die wäre geraten, und
+            // bei Dateien aus zwei Ordnern läge die Wahl daneben.
+            if (filepaths.Length > 1)
+            {
+                LabelDropContent =
+                    $"{filepaths.Length} Dateien – bitte nur ein Bild ziehen. Der ganze Ordner wird geladen.";
+                return;
+            }
 
             if (filepaths.Length == 1)
             {
@@ -708,6 +730,35 @@ namespace TestImage
                 // damit bleibt auch erhalten, dass beim ersten Bild das aktuelle Element
                 // gesetzt wird – daran hängt die Anzeige.
                 string ordner = Path.GetDirectoryName(fullDateiName)!;
+
+                // Den Ordner erst wiederfinden, bevor er gelesen wird.
+                //
+                // Zwischen dem Einlesen und dem Neu-Einlesen kann er verschwunden sein:
+                // im Explorer gelöscht, Wechseldatenträger abgezogen, Netzpfad getrennt.
+                // Directory.EnumerateFiles wirft dann DirectoryNotFoundException. Die kam
+                // aus einem AsyncRelayCommand, den niemand abfing, und riss die ganze
+                // Anwendung mit — nachgestellt mit: Bilder nach kein_Fav verschieben, den
+                // Ordner im Explorer löschen, BTN_BilderAktualisieren drücken.
+                //
+                // Die Liste ist oben schon geleert; das bleibt so, denn es gibt wirklich
+                // nichts mehr zu zeigen. Nur die Bildfläche muss mit — dort stünde sonst
+                // weiter das Bild aus dem gelöschten Ordner.
+                if (string.IsNullOrEmpty(ordner) || !Directory.Exists(ordner))
+                {
+                    LabelDropContent = $"Diesen Ordner gibt es nicht mehr: {ordner}";
+
+                    AlterDropCount = 0;
+                    AufgabenView.Refresh();
+                    LeereBildAnzeige();
+
+                    // Dieselben Nachläufer wie am Ende des Normalfalls, damit nichts vom
+                    // vorigen Ordner stehen bleibt: Index-Zustand, Wasserzeichen-Befunde
+                    // und Zeitleiste beziehen sich sonst weiter auf den verschwundenen.
+                    PruefeAktuellerOrdnerIndiziert();
+                    LadeWasserzeichenBefunde(null);
+                    AktualisiereZeitleiste();
+                    return;
+                }
 
                 var dateies = await Task.Run(async () =>
                 {
@@ -1527,10 +1578,14 @@ namespace TestImage
 
             // Datei ins Haupt-Verzeichnis zurück verschieben
             var dateiname = Path.GetFileName(BildchenVorher);
+
             // Beispiel: C:\Beispiel\Bilder\Sammlung\kein_Fav\beispiel.jpg
-            // Zweimal GetDirectoryName führt von der Datei über kein_Fav in den Ordner darüber.
-            var keinFavVerzeichnis = Path.GetDirectoryName(Path.GetDirectoryName(BildchenVorher));
-            string zielVollPfad = Path.Combine(keinFavVerzeichnis, dateiname);
+            //
+            // Zweimal GetDirectoryName führt von der Datei über die Ablage in den Ordner
+            // darüber. Welche Ablage es war, spielt keine Rolle — dasselbe gilt für
+            // KI_Fehler und Besonders, die BildchenVorher ebenfalls setzen.
+            var elternVerzeichnis = Path.GetDirectoryName(Path.GetDirectoryName(BildchenVorher));
+            string zielVollPfad = Path.Combine(elternVerzeichnis, dateiname);
             if (File.Exists(BildchenVorher) & !File.Exists(zielVollPfad))
             {
                 File.Move(BildchenVorher, zielVollPfad);
@@ -3179,6 +3234,17 @@ namespace TestImage
                 OnPropertyChanged(nameof(CountBildchenFürLinks));
             }
 
+            // Daran hängt BTN_VerschieberRückgängigMachen und Strg+Z. Ohne diese Zeile
+            // holte Rückgängig die letzte kein_Fav-Verschiebung zurück statt dieser hier.
+            BildchenVorher = zielDateiFullName;
+
+            // Weiter zum nächsten noch nicht weggelegten Bild — wie beim ↓ nach kein_Fav.
+            //
+            // VOR dem Refresh, genau wie dort: MoveToNextNichtLinkesBild sucht über
+            // BildFürLinks, und das ist oben schon gesetzt. Nach dem Refresh stünde die
+            // aktuelle Position womöglich woanders.
+            MoveToNextNichtLinkesBild();
+
             AufgabenView.Refresh();
 
         }
@@ -3206,6 +3272,11 @@ namespace TestImage
         /// Verschiebt das gewählte Bild in einen Unterordner seines aktuellen Ordners
         /// und zieht die Liste nach. Der Ordner wird bei Bedarf angelegt; existiert die
         /// Datei am Ziel bereits, passiert nichts ausser einem Hinweis.
+        ///
+        /// <b>Springt danach zum nächsten noch nicht weggelegten Bild</b> — dasselbe tun
+        /// auch ↓ (kein_Fav) und K (KI_Fehler). Das gehört zum Vertrag dieser Methode und
+        /// nicht in den einzelnen Befehl, damit kein weiterer Aufrufer es vergisst.
+        /// Bei einem gescheiterten Verschieben bleibt die Auswahl stehen.
         /// </summary>
         private async Task VerschiebeAktuellesBildInUnterordnerAsync(string unterordner)
         {
@@ -3283,6 +3354,15 @@ namespace TestImage
                 OnPropertyChanged(nameof(SelectedBildchen));
                 OnPropertyChanged(nameof(CountBildchenFürLinks));
             }
+
+            // Daran hängt BTN_VerschieberRückgängigMachen und Strg+Z.
+            BildchenVorher = zielDateiFullName;
+
+            // Weiter zum nächsten noch nicht weggelegten Bild — wie bei ↓ und K.
+            //
+            // VOR dem Refresh, genau wie dort: MoveToNextNichtLinkesBild sucht über
+            // BildFürLinks, und das ist oben schon gesetzt.
+            MoveToNextNichtLinkesBild();
 
             AufgabenView.Refresh();
         }
@@ -3703,6 +3783,12 @@ namespace TestImage
 
             // Jeder Suchlauf beginnt hiermit → Einfärbung des letzten Wechsels aufheben.
             SuchErgebnisseVeraltet = false;
+
+            // Ebenso der Wort-Hinweis: Er gehört zur Freitextsuche. Bliebe er stehen,
+            // behauptete er bei einer Schema- oder Seriensuche etwas über Wörter, die
+            // dort gar nicht vorkamen.
+            SuchWortHinweisWoerter = string.Empty;
+            SuchWortHinweisText = string.Empty;
         }
 
         /// <summary>
@@ -3887,6 +3973,9 @@ namespace TestImage
                 var pfade = await _bildAnalyse.SucheNachKonzeptAsync(ordner, englisch);
 
                 token.ThrowIfCancellationRequested();
+
+                // Karteileichen des Index aussortieren (siehe NurVorhandene).
+                pfade = pfade.Where(File.Exists).ToList();
 
                 if (pfade.Count == 0)
                 {
@@ -4274,6 +4363,10 @@ namespace TestImage
             try
             {
                 var treffer = await _bildAnalyse.SucheNachFilterAsync(ordner, kategorie, wert);
+
+                // Karteileichen des Index aussortieren (siehe NurVorhandene).
+                treffer = treffer.Where(File.Exists).ToList();
+
                 if (treffer.Count == 0)
                 {
                     SucheStatus = $"Keine Bilder mit '{anzeige}' im Index.";
@@ -4619,8 +4712,22 @@ namespace TestImage
                 await PruefeWasserzeichenAsync(ordner, wzFortschritt, token);
 
                 IndexFortschritt = 100;
+
+                // Ausgeräumte Karteileichen nur nennen, wenn es welche gab – sonst stünde
+                // bei jedem Lauf eine „0 entfernt"-Meldung im Weg.
+                //
+                // Wortwahl mit Bedacht: Entfernt wird der Eintrag, nicht das Bild. Von
+                // „Bildern" zu lesen, während etwas entfernt wird, erschreckt — dabei hat
+                // das Programm keine einzige Datei angerührt.
+                int aufgeraeumt = _bildAnalyse.LetzteAufgeraeumteEintraege;
+                string aufraeumText = aufgeraeumt > 0
+                    ? aufgeraeumt == 1
+                        ? " 1 Eintrag aus dem Index entfernt (nicht mehr im Ordner)."
+                        : $" {aufgeraeumt} Einträge aus dem Index entfernt (nicht mehr im Ordner)."
+                    : string.Empty;
+
                 IndexFortschrittText =
-                    $"Fertig: {anzahl} Bilder indexiert. {WasserzeichenStatus}{IndexMessung()}";
+                    $"Fertig: {anzahl} Bilder indexiert.{aufraeumText} {WasserzeichenStatus}{IndexMessung()}";
                 AktualisiereFilterOptionen();
                 PruefeAktuellerOrdnerIndiziert();   // Index existiert jetzt → „Schema-ähnlich" freischalten
 
@@ -4696,6 +4803,9 @@ namespace TestImage
 
                 token.ThrowIfCancellationRequested();
 
+                // Karteileichen des Index aussortieren (siehe NurVorhandene).
+                treffer = NurVorhandene(treffer);
+
                 if (treffer.Count == 0)
                 {
                     SucheStatus = "Keine Treffer – ist der Ordner schon indexiert?";
@@ -4746,6 +4856,50 @@ namespace TestImage
             }
         }
 
+        /// <summary>
+        /// Die nicht übersetzten Wörter, in Anführungszeichen und durch Komma getrennt.
+        /// Leer, wenn alles übersetzt wurde — daran hängt auch die Sichtbarkeit der Zeile.
+        /// </summary>
+        [ObservableProperty]
+        public partial string SuchWortHinweisWoerter { get; set; } = string.Empty;
+
+        /// <summary>Der erklärende Nachsatz hinter den Wörtern.</summary>
+        [ObservableProperty]
+        public partial string SuchWortHinweisText { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Setzt den Hinweis über Wörter, die der Übersetzer nicht kannte.
+        ///
+        /// In zwei Eigenschaften geteilt, damit die Oberfläche die Wörter selbst farblich
+        /// hervorheben kann — in einer durchgehend grauen Zeile gehen sie unter, und
+        /// genau sie sind die Auskunft, auf die es ankommt.
+        ///
+        /// Nur für die Freitextsuche gedacht. Andere Suchwege (Schema, Serie, Dubletten)
+        /// fragen den Übersetzer gar nicht; dort bliebe der Wert von der letzten
+        /// Freitextsuche stehen und wäre irreführend. Deshalb leert
+        /// <see cref="LeereTrefferCache"/> ihn zu Beginn jedes Suchlaufs.
+        /// </summary>
+        private void SetzeHinweisNichtUebersetzt()
+        {
+            var unbekannt = _bildAnalyse?.LetzteNichtUebersetzt;
+            if (unbekannt is null || unbekannt.Count == 0)
+            {
+                SuchWortHinweisWoerter = string.Empty;
+                SuchWortHinweisText = string.Empty;
+                return;
+            }
+
+            SuchWortHinweisWoerter = string.Join(", ", unbekannt.Select(w => $"„{w}“"));
+
+            // Vorsichtig formuliert, weil der Hinweis irren kann: Ein deutsches Wort, das
+            // im Englischen genauso heisst — Sofa, Hotel, Taxi —, geht unübersetzt durch
+            // und wird von CLIP trotzdem verstanden. Offline lässt sich das nicht
+            // unterscheiden; dafür fehlt eine englische Wortliste.
+            SuchWortHinweisText = unbekannt.Count == 1
+                ? " kennt der Übersetzer nicht — es trägt nichts zur Suche bei, ausser es heisst auf Englisch genauso."
+                : " kennt der Übersetzer nicht — sie tragen nichts zur Suche bei, ausser sie heissen auf Englisch genauso.";
+        }
+
         /// <summary>Gecachte Treffer nach der Mindest-Ähnlichkeit filtern und anzeigen.</summary>
         private void RenderSuchErgebnisse()
         {
@@ -4775,6 +4929,14 @@ namespace TestImage
             string scoreHinweis = bestScore < 0.24f ? " · ⚠ Treffer unsicher, CLIP erkennt Fotos besser als Screenshots"
                                  : bestScore < 0.30f ? " · Treffer mäßig sicher"
                                  : " · gute Übereinstimmung";
+
+            // Wörter melden, die der Übersetzer nicht kannte — in eigener Zeile.
+            //
+            // Ohne diesen Hinweis sieht ein leeres Ergebnis wie „solche Bilder gibt es
+            // nicht" aus, obwohl in Wahrheit das Wort nie gesucht wurde: Unübersetztes
+            // geht deutsch in den englischen Text-Encoder und trägt dort nichts bei.
+            // „steine am strand" fand Bilder — aber allein wegen „at the beach".
+            SetzeHinweisNichtUebersetzt();
 
             if (gezeigt == 0)
             {
@@ -5091,6 +5253,14 @@ namespace TestImage
                 await StelleClipBereitAsync();
 
                 var gruppen = await _bildAnalyse.FindeDublettenAsync(ordner, fortschritt, token);
+
+                // Dieselben Karteileichen wie bei der erweiterten Serie. Bleibt von einer
+                // Gruppe nur ein Bild übrig, ist es keine Dublette mehr und fliegt raus.
+                gruppen = gruppen
+                    .Select(NurVorhandene)
+                    .Where(g => g.Count > 1)
+                    .ToList();
+
                 if (gruppen.Count == 0)
                 {
                     SucheStatus = "Keine Dubletten gefunden – alle Bilder im Ordner sind verschieden.";
@@ -5529,6 +5699,30 @@ namespace TestImage
             return ergebnis;
         }
 
+        /// <summary>
+        /// Wirft Treffer weg, deren Datei es nicht mehr gibt.
+        ///
+        /// Nötig überall dort, wo Trefferlisten unmittelbar aus dem Index kommen und
+        /// nicht durch <see cref="AufListeAbbilden"/> laufen: Der Index räumt gelöschte
+        /// Dateien nicht aus, und ein toter Treffer erscheint in der Ergebnisleiste als
+        /// schwarzes Kästchen — anklickbar, aber ohne Bild dahinter.
+        /// </summary>
+        private static System.Collections.Generic.IReadOnlyList<(string Path, float Score)> NurVorhandene(
+            System.Collections.Generic.IReadOnlyList<(string Path, float Score)> treffer)
+        {
+            var ergebnis = new System.Collections.Generic.List<(string Path, float Score)>(treffer.Count);
+
+            foreach (var t in treffer)
+            {
+                if (File.Exists(t.Path))
+                {
+                    ergebnis.Add(t);
+                }
+            }
+
+            return ergebnis;
+        }
+
         private async Task LadeSchemaKandidatenAsync(
             System.Collections.Generic.IReadOnlyList<(string Path, float Score)> treffer, CancellationToken token)
         {
@@ -5703,6 +5897,12 @@ namespace TestImage
 
                 var treffer = await _bildAnalyse.SucheNachErweiterterSerieAsync(
                     ordner, bildPfad, minSim: 0.85f, fortschritt, token);
+
+                // Karteileichen des Index aussortieren. Der Index behält Einträge zu
+                // gelöschten oder weggeschobenen Dateien; ungefiltert standen sie hier
+                // als schwarze, leere Kästchen zwischen den Treffern.
+                treffer = NurVorhandene(treffer);
+
                 if (treffer.Count <= 1)
                 {
                     SucheStatus = "Keine erweiterte Serie gefunden – keine Kette visuell ähnlicher Bilder.";
@@ -5843,6 +6043,18 @@ namespace TestImage
 
                 // Derselbe Ordner wird neu eingelesen – Trefferliste bleibt gültig.
                 await OnFileDrop(dateien, verwerfeSuchtreffer: false);
+            }
+            catch (Exception ex)
+            {
+                // Zweite Sicherung hinter der Ordnerprüfung in OnFileDrop.
+                //
+                // Dieser Befehl ist ein AsyncRelayCommand: Was hier hochkommt, wirft der
+                // Befehl auf dem Oberflächen-Faden erneut, und weil die Anwendung keinen
+                // DispatcherUnhandledException-Behandler hat, endet der Prozess. Beim
+                // Neu-Einlesen sind Dateifehler aber der Normalfall — der Ordner liegt
+                // auf einer Platte, die jemand anders gerade verändert. Ein Satz in der
+                // Statuszeile ist die richtige Antwort darauf, kein Abbruch.
+                LabelDropContent = "Neu-Einlesen fehlgeschlagen: " + ex.Message;
             }
             finally
             {

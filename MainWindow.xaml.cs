@@ -109,6 +109,21 @@ namespace TestImage
                 e.Handled = true;
             }
 
+            // K → Bild in den KI-Fehler-Ordner, in BEIDEN Ansichten.
+            //
+            // Steht hier oben und nicht unten bei den Bildmodus-Tasten, weil es auch in
+            // der Normalansicht gelten soll. Der Wächter macht es möglich: Ohne ihn
+            // schluckte ein blosses K jede Eingabe im Filterfeld.
+            //
+            // Nebenwirkung, bewusst in Kauf genommen: In den Bilderlisten funktioniert
+            // das Anspringen per Anfangsbuchstabe für K nicht mehr.
+            else if (e.Key == Key.K && Keyboard.Modifiers == ModifierKeys.None && !IstTextEingabeAktiv())
+            {
+                if (vm?.CommandExecuteBildInsKIFehlerVerschiebenCommand.CanExecute(null) == true)
+                    vm.CommandExecuteBildInsKIFehlerVerschiebenCommand.Execute(null);
+                e.Handled = true;
+            }
+
             // Umschalt+F → erweiterte Suche ein-/ausblenden, dasselbe wie
             // BTN_IndexSuchleiste. Strg+F bleibt bewusst frei: Das steht überall für die
             // einfache Suche im Sichtbaren, hier geht es über den Index.
@@ -181,12 +196,9 @@ namespace TestImage
         {
             switch (e.Key)
             {
-                // K → Bild in den KI-Fehler-Ordner
-                case Key.K:
-                    if (vm.CommandExecuteBildInsKIFehlerVerschiebenCommand.CanExecute(null))
-                        vm.CommandExecuteBildInsKIFehlerVerschiebenCommand.Execute(null);
-                    e.Handled = true;
-                    break;
+                // K steht nicht mehr hier, sondern weiter oben in Window_PreviewKeyDown:
+                // Es gilt inzwischen in beiden Ansichten und wird deshalb vor dieser
+                // Methode abgefangen. Ein Fall hier wäre toter Code.
 
                 // S → Bildgrösse/Stretch umschalten
                 case Key.S:

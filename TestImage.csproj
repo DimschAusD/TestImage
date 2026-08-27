@@ -18,6 +18,13 @@
     <ApplicationIcon>Sternchen.ico</ApplicationIcon>
 
     <!--
+      Eigenes Win32-Manifest statt des SDK-Standards, nur wegen longPathAware.
+      Der bisherige Inhalt (asInvoker) steht unverändert darin — Begründung in der
+      Datei selbst.
+    -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!--
       AnyCPU. Die frühere Festlegung auf x64 stammte von
       emgu.cv.runtime.windows (OpenCV mit nativen 64-Bit-Teilen); das Paket ist raus.
 

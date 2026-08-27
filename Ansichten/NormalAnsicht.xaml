@@ -1104,10 +1104,18 @@
             </Border.Style>
             <!--  Image Display + Hover-Zone unten (blendet Miniaturleiste ein)  -->
             <Grid>
+                <!--
+                    Background="Transparent" ist hier kein Schönheitswert, sondern die
+                    Ablagefläche selbst: WPF prüft Treffer nur gegen tatsächlich gezeichnete
+                    Flächen. Ohne Hintergrund (Vorgabe des ScrollViewers) fällt jedes Ziehen
+                    hindurch, solange kein Bild darin liegt — Drag & Drop ging deshalb genau
+                    dann nicht, wenn man es braucht: beim leeren Fenster nach dem Start.
+                -->
                 <ScrollViewer
                     x:Name="scdd"
                     local:FileDragDropHelper.IsFileDragDropEnabled="True"
                     AllowDrop="True"
+                    Background="Transparent"
                     DragEnter="scdd_DragEnter"
                     DragLeave="scdd_DragLeave"
                     Drop="scdd_Drop"
@@ -1146,6 +1154,77 @@
 
                 <!--  Vollbild-Elemente (Klickzonen, Filmstrip, Hover-Zone) → Ansichten/VollbildAnsicht.xaml  -->
 
+
+                <!--
+                    Erststart-Hinweis: Ohne geladene Bilder ist die Fläche leer, und nichts
+                    verrät, wie Bilder hereinkommen — einen Öffnen-Dialog gibt es nicht, nur
+                    das Ziehen aus dem Explorer. Dasselbe Symbol wie das Drop-Overlay, damit
+                    beim ersten Ziehen der Wiedererkennungswert da ist.
+
+                    Verschwindet, sobald die Liste etwas enthält, und liegt unter dem
+                    Drop-Overlay. IsHitTestVisible="False": Der Hinweis darf das Ziehen auf
+                    die Fläche unter ihm nicht abfangen.
+                -->
+                <Border
+                    x:Name="BRD_LeerHinweis"
+                    Padding="28,22,28,22"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Panel.ZIndex="200"
+                    Background="White"
+                    BorderBrush="#FFCBD5E1"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    IsHitTestVisible="False">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding OcAufgabens.Count}" Value="0">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+
+                    <StackPanel x:Name="STP_LeerHinweis" HorizontalAlignment="Center">
+                        <TextBlock
+                            x:Name="IC_LeerHinweis"
+                            HorizontalAlignment="Center"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="40"
+                            Foreground="#FF9CA3AF"
+                            Text="&#xE896;" />
+                        <TextBlock
+                            x:Name="TXT_LeerHinweisTitel"
+                            Margin="0,14,0,0"
+                            HorizontalAlignment="Center"
+                            FontFamily="Segoe UI"
+                            FontSize="18"
+                            FontWeight="SemiBold"
+                            Foreground="#FF1F2937"
+                            Text="Bild hierher ziehen" />
+                        <TextBlock
+                            x:Name="TXT_LeerHinweisText"
+                            MaxWidth="320"
+                            Margin="0,8,0,0"
+                            HorizontalAlignment="Center"
+                            FontFamily="Segoe UI"
+                            FontSize="12"
+                            Foreground="Gray"
+                            Text="Ein Bild oder einen Ordner aus dem Explorer auf dieses Fenster ziehen. Geladen werden immer alle Bilder des Ordners."
+                            TextAlignment="Center"
+                            TextWrapping="Wrap" />
+                        <TextBlock
+                            x:Name="TXT_LeerHinweisTasten"
+                            Margin="0,12,0,0"
+                            HorizontalAlignment="Center"
+                            FontFamily="Segoe UI"
+                            FontSize="11"
+                            Foreground="#FF9CA3AF"
+                            Text="Danach: Pfeiltasten blättern und verschieben · F1 zeigt alle Tasten" />
+                    </StackPanel>
+                </Border>
 
                 <!--  Drop-Overlay: sichtbar wenn Datei über das Bild gezogen wird  -->
                 <Border
@@ -1327,7 +1406,6 @@
                 -->
                 <Button
                     x:Name="BTN_OrdnerEineEbeneHoch"
-                    Width="44"
                     Height="30"
                     Margin="0,0,6,0"
                     Padding="10,0"
@@ -1392,13 +1470,95 @@
                             </Border>
                         </ToolTip>
                     </Button.ToolTip>
-                    <Image
-                        x:Name="IC_OrdnerEineEbeneHochOrdner"
-                        Width="22"
-                        Height="22"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Source="{StaticResource di_OrdnerHoch}" />
+                    <StackPanel x:Name="STP_OrdnerEineEbeneHoch" Orientation="Horizontal">
+                        <Image
+                            x:Name="IC_OrdnerEineEbeneHochOrdner"
+                            Width="22"
+                            Height="22"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Source="{StaticResource di_OrdnerHoch}" />
+
+                        <!--
+                            Aufklappende Beschriftung wie bei BTN_BilderAktualisieren.
+
+                            Animiert wird die BREITE dieses TextBlocks, nicht die des
+                            Knopfes: Der Knopf misst sich am Inhalt und wächst von selbst
+                            mit. Deshalb ist am Knopf auch die feste Breite 44 entfallen —
+                            eingeklappt messen 10 + 22 + 10 + zweimal 1 Rand wieder genau
+                            die 44 wie vorher.
+
+                            Der Knopf steht in der Auto-Spalte COL_StreifenHoch; beim
+                            Aufklappen schrumpft die Sternspalte mit dem Ordnerpfad, so wie
+                            es die Kontur-Karte daneben schon macht.
+
+                            Zielbreite 95 ist gemessen: „Ablage verlassen" misst in Segoe
+                            UI bei Grösse 12 genau 88,9 DIP, dazu 6 links. Rechts kommt
+                            kein Padding dazu — dort liegen schon die 10 Innenabstand des
+                            Knopfes. Auf Auto lässt sich nicht animieren, deshalb die Zahl.
+                            Wird der Text geändert, muss sie mitgeändert werden.
+
+                            FontWeight ausdrücklich Normal: Der Knopf selbst steht auf
+                            Bold, das galt seinem früheren Textinhalt.
+
+                            Der MultiDataTrigger prüft IsEnabled mit — dieser Knopf ist die
+                            meiste Zeit gesperrt und darf sich dann nicht aufklappen und
+                            Tatendrang vortäuschen.
+                        -->
+                        <TextBlock
+                            x:Name="TXT_OrdnerEineEbeneHoch"
+                            Padding="6,0,0,0"
+                            VerticalAlignment="Center"
+                            d:Width="95"
+                            FontFamily="Segoe UI"
+                            FontSize="12"
+                            FontWeight="Normal"
+                            Text="Ablage verlassen"
+                            TextTrimming="None"
+                            TextWrapping="NoWrap">
+                            <TextBlock.Style>
+                                <Style TargetType="{x:Type TextBlock}">
+                                    <Setter Property="Width" Value="0" />
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" Value="True" />
+                                                <Condition Binding="{Binding IsEnabled, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" Value="True" />
+                                            </MultiDataTrigger.Conditions>
+                                            <MultiDataTrigger.EnterActions>
+                                                <BeginStoryboard>
+                                                    <Storyboard>
+                                                        <DoubleAnimation
+                                                            Storyboard.TargetProperty="Width"
+                                                            To="95"
+                                                            Duration="0:0:0.18">
+                                                            <DoubleAnimation.EasingFunction>
+                                                                <CubicEase EasingMode="EaseOut" />
+                                                            </DoubleAnimation.EasingFunction>
+                                                        </DoubleAnimation>
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </MultiDataTrigger.EnterActions>
+                                            <MultiDataTrigger.ExitActions>
+                                                <BeginStoryboard>
+                                                    <Storyboard>
+                                                        <DoubleAnimation
+                                                            Storyboard.TargetProperty="Width"
+                                                            To="0"
+                                                            Duration="0:0:0.14">
+                                                            <DoubleAnimation.EasingFunction>
+                                                                <CubicEase EasingMode="EaseIn" />
+                                                            </DoubleAnimation.EasingFunction>
+                                                        </DoubleAnimation>
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </MultiDataTrigger.ExitActions>
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
                 </Button>
 
                 <!--
@@ -1410,28 +1570,103 @@
                 -->
                 <Button
                     x:Name="BTN_OrdnerÖffnen"
-                    Width="34"
                     Height="30"
                     Command="{Binding CommandExecuteOrdnerDerAnwendungÖffnenCommand, Mode=OneWay}"
                     Style="{StaticResource RibbonKnopf}"
                     ToolTip="Ordner der Anwendung im Explorer öffnen">
-                    <Grid x:Name="GRD_OrdnerÖffnen">
-                        <Image
-                            x:Name="IC_OrdnerÖffnen"
-                            Width="20"
-                            Height="20"
-                            Source="{StaticResource di_Ordner}" />
+                    <StackPanel x:Name="STP_OrdnerÖffnen" Orientation="Horizontal">
+                        <!--
+                            Feste 32 statt Auto: Eingeklappt soll der Knopf genau die 34
+                            messen wie vorher (32 + zweimal 1 Rand). Deshalb ist am Knopf
+                            die feste Breite 34 entfallen — er misst sich jetzt am Inhalt.
+                        -->
+                        <Grid x:Name="GRD_OrdnerÖffnen" Width="32">
+                            <Image
+                                x:Name="IC_OrdnerÖffnen"
+                                Width="20"
+                                Height="20"
+                                Source="{StaticResource di_Ordner}" />
+                            <TextBlock
+                                x:Name="TXT_OrdnerÖffnen"
+                                Margin="0,2,0,0"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontFamily="Segoe UI"
+                                FontSize="10"
+                                FontWeight="Bold"
+                                Foreground="#FF101010"
+                                Text="Ö" />
+                        </Grid>
+
+                        <!--
+                            Aufklappende Beschriftung wie bei BTN_BilderAktualisieren.
+
+                            „Anwendungsordner" und nicht bloss „Ordner": Daneben steht der
+                            Ordnerpfad des gezeigten Bildes, und genau der ist hier nicht
+                            gemeint.
+
+                            Zielbreite 157 ist gemessen: „Anwendungsordner öffnen" misst in
+                            Segoe UI bei Grösse 12 genau 142,3 DIP, dazu 6 links und 8
+                            rechts. Auf Auto lässt sich nicht animieren, deshalb die Zahl.
+                            Wird der Text geändert, muss sie mitgeändert werden.
+
+                            Der Abstand steckt im Padding, nicht im Margin — ein Margin
+                            würde auch bei Breite 0 seine Punkte behalten und den
+                            eingeklappten Knopf aufblähen.
+                        -->
                         <TextBlock
-                            x:Name="TXT_OrdnerÖffnen"
-                            Margin="0,2,0,0"
-                            HorizontalAlignment="Center"
+                            x:Name="TXT_OrdnerÖffnenBeschriftung"
+                            Padding="6,0,8,0"
                             VerticalAlignment="Center"
+                            d:Width="157"
                             FontFamily="Segoe UI"
-                            FontSize="10"
-                            FontWeight="Bold"
-                            Foreground="#FF101010"
-                            Text="Ö" />
-                    </Grid>
+                            FontSize="12"
+                            Text="Anwendungsordner öffnen"
+                            TextTrimming="None"
+                            TextWrapping="NoWrap">
+                            <TextBlock.Style>
+                                <Style TargetType="{x:Type TextBlock}">
+                                    <Setter Property="Width" Value="0" />
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" Value="True" />
+                                                <Condition Binding="{Binding IsEnabled, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" Value="True" />
+                                            </MultiDataTrigger.Conditions>
+                                            <MultiDataTrigger.EnterActions>
+                                                <BeginStoryboard>
+                                                    <Storyboard>
+                                                        <DoubleAnimation
+                                                            Storyboard.TargetProperty="Width"
+                                                            To="157"
+                                                            Duration="0:0:0.18">
+                                                            <DoubleAnimation.EasingFunction>
+                                                                <CubicEase EasingMode="EaseOut" />
+                                                            </DoubleAnimation.EasingFunction>
+                                                        </DoubleAnimation>
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </MultiDataTrigger.EnterActions>
+                                            <MultiDataTrigger.ExitActions>
+                                                <BeginStoryboard>
+                                                    <Storyboard>
+                                                        <DoubleAnimation
+                                                            Storyboard.TargetProperty="Width"
+                                                            To="0"
+                                                            Duration="0:0:0.14">
+                                                            <DoubleAnimation.EasingFunction>
+                                                                <CubicEase EasingMode="EaseIn" />
+                                                            </DoubleAnimation.EasingFunction>
+                                                        </DoubleAnimation>
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </MultiDataTrigger.ExitActions>
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
                 </Button>
             </StackPanel>
 
@@ -2018,6 +2253,7 @@
                         <RibbonButton.ContextMenu>
                             <ContextMenu>
                                 <MenuItem
+                                    x:Name="MNI_AlleInsKeinFavVerschieben"
                                     Command="{Binding CommandExecuteAlleBilderInsKeinFavVerschiebenCommand, Mode=OneWay}"
                                     Header="Alle Verschieben"
                                     ToolTip="Dateien werden kopiert, dann gelöscht, Ab und zu Fehler beim Löschen der Datei" />
@@ -2025,12 +2261,16 @@
                                 <Separator/>
                                 <MenuItem Header="Einstellungen" />-->
 
+                                <!--  Gegenstück zur Taste K  -->
                                 <MenuItem
+                                    x:Name="MNI_InsKIFehlerVerschieben"
                                     Command="{Binding CommandExecuteBildInsKIFehlerVerschiebenCommand, Mode=OneWay}"
                                     Header="Ins KI Fehler Verzeichnis Verschieben"
+                                    InputGestureText="K"
                                     ToolTip="Selectierte Datei wird ins 'KI Fehler Verzeichnis' verschoben">
                                     <MenuItem.Icon>
                                         <Image
+                                            x:Name="IC_InsKIFehlerVerschieben"
                                             Width="20"
                                             Height="20"
                                             Source="/Images/KIFehler.png"
@@ -2303,7 +2543,7 @@
                 <RowDefinition
                     x:Name="ROW_LinksAmpel"
                     Height="Auto"
-                    MinHeight="196" />
+                    MinHeight="172" />
                 <RowDefinition x:Name="ROW_LinksBlättern" />
 
                 <!--
@@ -2381,13 +2621,16 @@
                 Grid.Row="1"
                 Width="52"
                 Height="162"
-                Margin="10,3,0,0"
+                d:Background="Wheat"
+                Margin="10,0,0,0"
                 HorizontalAlignment="Left"
-                VerticalAlignment="Top"
+                VerticalAlignment="Center"
                 Orientation="Vertical">
                 <Border
                     x:Name="BRD_PrüfAmpel"
                     Height="auto"
+                    d:BorderBrush="Blue"
+                    d:BorderThickness="1"
                     Padding="2,2,2,2"
                     BorderBrush="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"
                     BorderThickness="2,2,2,2"
@@ -3765,20 +4008,101 @@
             -->
             <Button
                 x:Name="BTN_BilderAktualisieren"
-                Width="28"
                 Height="28"
                 Margin="4,0,0,0"
                 Command="{Binding CommandExecuteAlleBilderNeuEinlesenCommand, Mode=OneWay}"
                 Cursor="Hand"
                 Style="{StaticResource RibbonKnopf}"
                 ToolTip="Alle Bilder neu einlesen">
-                <TextBlock
-                    x:Name="IC_BilderAktualisieren"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    FontFamily="Segoe UI Symbol"
-                    FontSize="15"
-                    Text="&#xE117;" />
+                <StackPanel x:Name="STP_BilderAktualisieren" Orientation="Horizontal">
+                    <!--
+                        Feste 26 statt Auto: Eingeklappt soll der Knopf genau die 28 messen
+                        wie vorher (26 + zweimal 1 Rand). Das Zeichen selbst misst 18,4.
+                    -->
+                    <TextBlock
+                        x:Name="IC_BilderAktualisieren"
+                        Width="26"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontFamily="Segoe UI Symbol"
+                        FontSize="15"
+                        Text="&#xE117;"
+                        TextAlignment="Center" />
+
+                    <!--
+                        Die Beschriftung wächst beim Überfahren aus dem Nichts heraus.
+
+                        Animiert wird die BREITE dieses TextBlocks, nicht die des Knopfes:
+                        Der Knopf misst sich am Inhalt und wächst dadurch von selbst mit,
+                        und der ganze Rest der Leiste rückt sauber mit nach rechts.
+
+                        Der Abstand zum Zeichen steckt im Padding, nicht im Margin — ein
+                        Margin würde auch bei Breite 0 seine 6 Punkte behalten und den
+                        eingeklappten Knopf auf 34 aufblähen.
+
+                        Zielbreite 123 ist gemessen, nicht geraten: „Ansicht aktualisieren"
+                        misst in Segoe UI bei Grösse 12 genau 108,6 DIP, dazu 6 links und
+                        8 rechts. Auf Auto lässt sich nicht animieren, deshalb die Zahl.
+                        Wird der Text geändert, muss sie mitgeändert werden.
+
+                        Der Auslöser ist ein MultiDataTrigger und prüft IsEnabled mit: Ein
+                        gesperrter Knopf darf sich nicht aufklappen und Tatendrang
+                        vortäuschen — dieselbe Regel wie beim grünen Überfahren in
+                        RibbonKnopf.
+                    -->
+                    <TextBlock
+                        x:Name="TXT_BilderAktualisieren"
+                        VerticalAlignment="Center"
+                        d:Width="123"
+                        FontFamily="Segoe UI"
+                        FontSize="12"
+                        Padding="6,0,8,0"
+                        Text="Ansicht aktualisieren"
+                        TextTrimming="None"
+                        TextWrapping="NoWrap">
+                        <TextBlock.Style>
+                            <Style TargetType="{x:Type TextBlock}">
+                                <Setter Property="Width" Value="0" />
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" Value="True" />
+                                            <Condition Binding="{Binding IsEnabled, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" Value="True" />
+                                        </MultiDataTrigger.Conditions>
+                                        <MultiDataTrigger.EnterActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation
+                                                        Storyboard.TargetProperty="Width"
+                                                        To="123"
+                                                        Duration="0:0:0.18">
+                                                        <DoubleAnimation.EasingFunction>
+                                                            <CubicEase EasingMode="EaseOut" />
+                                                        </DoubleAnimation.EasingFunction>
+                                                    </DoubleAnimation>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </MultiDataTrigger.EnterActions>
+                                        <MultiDataTrigger.ExitActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation
+                                                        Storyboard.TargetProperty="Width"
+                                                        To="0"
+                                                        Duration="0:0:0.14">
+                                                        <DoubleAnimation.EasingFunction>
+                                                            <CubicEase EasingMode="EaseIn" />
+                                                        </DoubleAnimation.EasingFunction>
+                                                    </DoubleAnimation>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </MultiDataTrigger.ExitActions>
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
             </Button>
 
             <!--  Indikatoren (Webcam/Mikrofon/Screen-Share) → jetzt im Host-Cluster (MainWindow), oben rechts.  -->

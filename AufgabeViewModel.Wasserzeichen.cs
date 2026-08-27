@@ -96,6 +96,12 @@ namespace TestImage
         private bool CanExecuteWasserzeichenMaskeLernen() => !WasserzeichenAufgabeLäuft;
 
         /// <summary>
+        /// Empfohlene Ordnergrösse zum Lernen. Darüber wird das Muster kaum besser,
+        /// das Lernen dauert aber entsprechend länger – deshalb die Rückfrage.
+        /// </summary>
+        private const int WasserzeichenLernBilderEmpfohlen = 20;
+
+        /// <summary>
         /// Lernt ein Muster aus einem Ordner, in dem alle Bilder denselben Zeichentyp
         /// tragen. Der Ordnername wird zum Namen des Musters — so entsteht die Sammlung
         /// nebenbei, ohne dass nach jedem Lernen noch ein Namensdialog kommt.
@@ -116,6 +122,30 @@ namespace TestImage
 
             if (dlg.ShowDialog() != true)
                 return;
+
+            // Erinnerung an die empfohlene Ordnergrösse. Erst nach der Wahl, weil die
+            // Zahl vorher niemandem etwas sagt – und mit Ausweg, falls es Absicht war.
+            int vorhandeneBilder = WasserzeichenService.ZähleBilder(dlg.FolderName);
+            if (vorhandeneBilder > WasserzeichenLernBilderEmpfohlen)
+            {
+                var antwort = System.Windows.MessageBox.Show(
+                    $"Der Ordner enthält {vorhandeneBilder} Bilder.\n\n"
+                    + $"Zum Lernen genügen rund {WasserzeichenLernBilderEmpfohlen} Bilder – "
+                    + "mehr machen das Muster kaum besser, das Lernen dauert aber "
+                    + "entsprechend länger.\n\n"
+                    + "Trotzdem mit allen Bildern lernen?",
+                    "Viele Bilder im Lernordner",
+                    System.Windows.MessageBoxButton.YesNo,
+                    System.Windows.MessageBoxImage.Warning,
+                    System.Windows.MessageBoxResult.No);
+
+                if (antwort != System.Windows.MessageBoxResult.Yes)
+                {
+                    WasserzeichenStatus =
+                        $"Lernen abgebrochen – bitte auf etwa {WasserzeichenLernBilderEmpfohlen} Bilder eingrenzen.";
+                    return;
+                }
+            }
 
             string name = NameAusOrdner(dlg.FolderName);
 
@@ -364,6 +394,16 @@ namespace TestImage
         public partial bool WasserzeichenBefundIstTreffer { get; set; }
 
         /// <summary>
+        /// True nur beim sichtbaren Zeichen — nicht bei einem reinen Metadaten-Fund.
+        ///
+        /// Steuert allein die Auszeichnung der Musterzeile: Beim Treffer nennt sie das
+        /// gefundene Zeichen und steht so kräftig da wie der Dateiname; sonst nennt sie
+        /// nur das ähnlichste Muster und muss sich zurücknehmen.
+        /// </summary>
+        [ObservableProperty]
+        public partial bool WasserzeichenBefundIstSichtbarerTreffer { get; set; }
+
+        /// <summary>
         /// Stellt den Befund zum gewählten Bild zusammen. Vier Fälle, die sich für den
         /// Nutzer deutlich unterscheiden — besonders „noch nicht geprüft" darf nicht wie
         /// „sauber" aussehen.
@@ -411,6 +451,7 @@ namespace TestImage
             WasserzeichenBefundWert = string.Empty;
             WasserzeichenBefundMetadaten = string.Empty;
             WasserzeichenBefundBild = null;
+            WasserzeichenBefundIstSichtbarerTreffer = false;
         }
 
         /// <summary>
@@ -432,24 +473,53 @@ namespace TestImage
                 : WasserzeichenService.Schwelle;
 
             WasserzeichenBefundIstTreffer = befund.HatSichtbares;
+            WasserzeichenBefundIstSichtbarerTreffer = befund.HatSichtbares;
 
-            // Muster samt Stelle – den Bereich holen wir aus der Musterliste.
-            var eintrag = WasserzeichenMuster.FirstOrDefault(
-                m => string.Equals(m.MusterName, befund.MaskenName, StringComparison.OrdinalIgnoreCase));
+            // Wann das ähnlichste Muster überhaupt etwas aussagt.
+            //
+            // Ein bestes Muster gibt es immer — auch bei 1 % gegen eine Schwelle von
+            // 22 %. Dort ist der Name blosses Rauschen, und mit Musterbild daneben las
+            // er sich wie ein Fund, obwohl darüber „nichts gefunden" stand. Gezeigt wird
+            // er deshalb nur beim Treffer und im Bereich knapp darunter — dieselbe
+            // 60-%-Grenze, ab der auch der Urteilstext „nahe an der Schwelle" meldet.
+            bool musterSagtEtwas = !string.IsNullOrEmpty(befund.MaskenName)
+                && (befund.HatSichtbares || wert >= schwelle * 0.6f);
 
-            WasserzeichenBefundMuster = eintrag is null
-                ? befund.MaskenName
-                : $"{eintrag.MusterName} · {eintrag.BereichName}";
+            if (musterSagtEtwas)
+            {
+                // Muster samt Stelle – den Bereich holen wir aus der Musterliste.
+                var eintrag = WasserzeichenMuster.FirstOrDefault(
+                    m => string.Equals(m.MusterName, befund.MaskenName, StringComparison.OrdinalIgnoreCase));
 
-            WasserzeichenBefundBild = eintrag?.Vorschau;
+                string bezeichnung = eintrag is null
+                    ? befund.MaskenName
+                    : $"{eintrag.MusterName} · {eintrag.BereichName}";
 
-            WasserzeichenBefundWert = string.IsNullOrEmpty(befund.MaskenName)
-                ? string.Empty
-                : $"Übereinstimmung {wert * 100f:F0} % · Schwelle {schwelle * 100f:F0} %";
+                // Ohne Treffer bekommt der Name die Ansage davor: Er beantwortet dann
+                // die Frage „was war am nächsten dran", nicht „was wurde gefunden".
+                WasserzeichenBefundMuster = befund.HatSichtbares
+                    ? bezeichnung
+                    : "Ähnlichstes Muster: " + bezeichnung;
 
+                WasserzeichenBefundBild = eintrag?.Vorschau;
+
+                WasserzeichenBefundWert =
+                    $"Übereinstimmung {wert * 100f:F0} % · Schwelle {schwelle * 100f:F0} %";
+            }
+            else
+            {
+                WasserzeichenBefundMuster = string.Empty;
+                WasserzeichenBefundWert = string.Empty;
+                WasserzeichenBefundBild = null;
+            }
+
+            // Überschrift davor, sonst steht dort unvermittelt „Autor: …" und man
+            // liest es als Angabe zum sichtbaren Zeichen. Metadaten stehen im
+            // Dateikopf und haben mit dem Bildinhalt nichts zu tun.
             WasserzeichenBefundMetadaten = befund.MetadatenHinweise.Count == 0
                 ? string.Empty
-                : string.Join("\n", befund.MetadatenHinweise);
+                : "Metadaten-Markierungen im Dateikopf:\n"
+                  + string.Join("\n", befund.MetadatenHinweise);
 
             if (befund.HatSichtbares)
             {

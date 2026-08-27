@@ -75,6 +75,12 @@ public sealed class ImageIndex
     public int Count => _entries.Count;
     public IReadOnlyCollection<IndexEntry> Entries => _entries.Values;
 
+    /// <summary>
+    /// Wie viele Karteileichen der letzte <see cref="IndexFolder"/>-Lauf ausgeräumt hat
+    /// — Einträge zu Dateien, die es nicht mehr gibt. Nur zur Rückmeldung.
+    /// </summary>
+    public int EntfernteEintraege { get; private set; }
+
     /// <summary>Schützt <see cref="_entries"/>, wenn mehrere Bilder gleichzeitig laufen.</summary>
     private readonly object _eintragSperre = new();
 
@@ -108,6 +114,8 @@ public sealed class ImageIndex
         var files = Directory.EnumerateFiles(folder, "*.*", option)
             .Where(f => Extensions.Contains(Path.GetExtension(f).ToLowerInvariant()))
             .ToList();
+
+        EntfernteEintraege = EntferneVerschwundene();
 
         int done = 0;
 
@@ -181,6 +189,45 @@ public sealed class ImageIndex
         // unveränderte Bilder. Nutzt das bereits gespeicherte Embedding, daher
         // ohne erneutes Laden/Einbetten (nur Skalarprodukte, sehr schnell).
         RetagAll();
+    }
+
+    /// <summary>
+    /// Räumt Einträge aus, deren Datei es nicht mehr gibt — gelöscht, umbenannt oder in
+    /// einen anderen Ordner verschoben. Ohne das wüchse der Cache immer weiter und
+    /// <see cref="Count"/> nennte eine Zahl, die es so nicht mehr gibt.
+    ///
+    /// Zwei Vorsichtsmassnahmen:
+    /// <list type="bullet">
+    /// <item>Geprüft wird gegen die Datei selbst, nicht gegen die eingesammelte
+    /// Dateiliste. Ein abgebrochener Lauf räumt deshalb nichts Falsches aus, und
+    /// Einträge aus Unterordnern bleiben auch bei einem nicht-rekursiven Lauf stehen.</item>
+    /// <item>Liegt der Ordner eines Eintrags gar nicht (mehr) vor — abgezogenes
+    /// Wechsellaufwerk, getrennte Netzfreigabe —, bleibt der Eintrag unangetastet.
+    /// Sonst löschte ein Lauf ohne verbundenes Laufwerk den halben Index weg.</item>
+    /// </list>
+    /// </summary>
+    /// <returns>Anzahl der entfernten Einträge.</returns>
+    private int EntferneVerschwundene()
+    {
+        var verschwunden = new List<string>();
+
+        lock (_eintragSperre)
+        {
+            foreach (string pfad in _entries.Keys)
+            {
+                string? ordner = System.IO.Path.GetDirectoryName(pfad);
+                if (string.IsNullOrEmpty(ordner) || !Directory.Exists(ordner))
+                    continue;
+
+                if (!File.Exists(pfad))
+                    verschwunden.Add(pfad);
+            }
+
+            foreach (string pfad in verschwunden)
+                _entries.Remove(pfad);
+        }
+
+        return verschwunden.Count;
     }
 
     /// <summary>

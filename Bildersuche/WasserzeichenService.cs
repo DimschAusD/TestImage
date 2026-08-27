@@ -303,16 +303,78 @@ namespace TestImage.Bildersuche
             // Kreuzprüfung: Jede Hälfte muss zu ihrem eigenen Muster deutlich besser
             // passen als zum anderen. Bei sortenreinem Material passt beides auf beides,
             // die Abstände gehen gegen null und die Aufteilung wird verworfen.
-            double aEigen = oben.Average(f => (double)maskeA.Pruefe(f));
+            //
+            // Der eigene Wert wird dabei ohne Selbstbewertung gemessen — siehe
+            // EigenwertOhneSelbstbewertung. Vorher stand hier
+            // oben.Average(f => maskeA.Pruefe(f)), und das war der Fehler: Ein Muster aus
+            // wenigen Bildern hat deren Motivrauschen eingebacken und erkennt genau diese
+            // Bilder wieder. Gemessen an 19 sortenreinen DeviantArt-Bildern: eigen 0,32
+            // gegen fremd 0,007 — „bewiesen", obwohl alle dasselbe Zeichen tragen. Der
+            // Ordner zerfiel in zwei Muster mit Schwellen von 0,33 und 0,21, die danach
+            // nichts mehr fanden. Mit der Korrektur bleiben 0,04 und −0,01 übrig, und es
+            // bleibt richtigerweise bei einem Muster.
             double aFremd = oben.Average(f => (double)maskeB.Pruefe(f));
-            double bEigen = unten.Average(f => (double)maskeB.Pruefe(f));
             double bFremd = unten.Average(f => (double)maskeA.Pruefe(f));
+            double aEigen = EigenwertOhneSelbstbewertung(oben, bereich);
+            double bEigen = EigenwertOhneSelbstbewertung(unten, bereich);
 
             bool bewiesen = (aEigen - aFremd) >= TrennAbstand
                          && (bEigen - bFremd) >= TrennAbstand;
 
             return bewiesen ? new List<WasserzeichenMaske> { maskeA, maskeB } : null;
         }
+
+        /// <summary>
+        /// Wie gut eine Hälfte zu ihrem eigenen Muster passt — gemessen an Bildern, die
+        /// beim Lernen dieses Musters <b>nicht</b> dabei waren (leave-one-out).
+        ///
+        /// Der Gegenwert („fremd") braucht das nicht: Das andere Muster kennt diese Bilder
+        /// ohnehin nicht. Erst dadurch werden beide Zahlen vergleichbar.
+        /// </summary>
+        /// <remarks>
+        /// Nicht jedes Bild einzeln, sondern höchstens <see cref="LooStichprobe"/> gleichmässig
+        /// verteilte: Jede Auslassung kostet ein neu gemitteltes Muster, das wäre sonst
+        /// quadratisch in der Bilderzahl. Ein Dutzend Stichproben genügt für einen
+        /// Mittelwert, der nur gegen eine Schwelle verglichen wird.
+        ///
+        /// Bleiben nach dem Auslassen weniger als fünf Bilder, entsteht kein Muster
+        /// (<c>LerneAusFeldern</c> liefert dann null). Der Rückgabewert 0 heisst in dem
+        /// Fall „nicht belegbar" – die Aufteilung unterbleibt, und das ist bei einer
+        /// Handvoll Bildern auch richtig.
+        /// </remarks>
+        private static double EigenwertOhneSelbstbewertung(
+            List<float[]> haelfte, WasserzeichenBereich bereich)
+        {
+            int schritt = Math.Max(1, haelfte.Count / LooStichprobe);
+
+            double summe = 0;
+            int gezaehlt = 0;
+            var ohne = new List<float[]>(haelfte.Count);
+
+            for (int k = 0; k < haelfte.Count; k += schritt)
+            {
+                ohne.Clear();
+                for (int i = 0; i < haelfte.Count; i++)
+                {
+                    if (i != k)
+                        ohne.Add(haelfte[i]);
+                }
+
+                var maske = WasserzeichenMaske.LerneAusFeldern(
+                    ohne, WasserzeichenVorverarbeitung.Hochpass, bereich);
+
+                if (maske is null)
+                    continue;
+
+                summe += maske.Pruefe(haelfte[k]);
+                gezaehlt++;
+            }
+
+            return gezaehlt == 0 ? 0 : summe / gezaehlt;
+        }
+
+        /// <summary>Höchstzahl ausgelassener Bilder je Hälfte – hält die Kreuzprüfung linear.</summary>
+        private const int LooStichprobe = 12;
 
         /// <summary>
         /// Lernt an allen fünf Stellen und behält die mit dem deutlichsten Muster.
@@ -627,6 +689,12 @@ namespace TestImage.Bildersuche
 
         private static readonly string[] Bildendungen =
             { ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp" };
+
+        /// <summary>
+        /// Anzahl der Bilder in einem Ordner – für den Hinweis vor dem Lernen, ohne
+        /// dafür eine zweite Endungsliste zu pflegen.
+        /// </summary>
+        public static int ZähleBilder(string ordner) => SammleBilder(ordner).Count;
 
         private static List<string> SammleBilder(string ordner)
         {

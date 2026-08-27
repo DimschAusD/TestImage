@@ -16,9 +16,40 @@ public sealed class GermanQueryTranslator
 
     public GermanQueryTranslator() => _map = Build();
 
-    /// <summary>Übersetzt eine deutsche Suchanfrage nach Englisch (best effort).</summary>
-    public string Translate(string german)
+    /// <summary>
+    /// Füllwörter, die nicht als „nicht übersetzt" gemeldet werden.
+    ///
+    /// Sie stehen absichtlich nicht im Wörterbuch — CLIP braucht sie nicht, und ihre
+    /// Auslassung ist kein Mangel. Ohne diese Liste bestünde jede Meldung zur Hälfte
+    /// aus „der", „am", „mit" und wäre nach dreimal Lesen nur noch Rauschen.
+    /// </summary>
+    private static readonly HashSet<string> Fuellwoerter = new(StringComparer.OrdinalIgnoreCase)
     {
+        "der", "die", "das", "den", "dem", "des", "ein", "eine", "einen", "einem", "einer", "eines",
+        "am", "an", "auf", "aus", "bei", "im", "in", "mit", "nach", "über", "unter", "von", "vom",
+        "vor", "zu", "zum", "zur", "und", "oder", "ist", "sind", "sich", "als", "wie", "es"
+    };
+
+    /// <summary>Übersetzt eine deutsche Suchanfrage nach Englisch (best effort).</summary>
+    public string Translate(string german) => Translate(german, out _);
+
+    /// <summary>
+    /// Wie <see cref="Translate(string)"/>, meldet aber zusätzlich die Wörter, für die
+    /// es keine Übersetzung gab.
+    ///
+    /// <b>Warum das gebraucht wird:</b> Ein unbekanntes Wort bleibt deutsch stehen und
+    /// geht so in den englischen Text-Encoder von CLIP. Solange noch ein bekanntes Wort
+    /// in der Anfrage steckt, fällt das nicht auf — „steine am strand" fand Bilder, aber
+    /// allein wegen „at the beach". Steht das unbekannte Wort für sich, findet die Suche
+    /// nichts, und niemand kann unterscheiden, ob das Bild fehlt oder das Wort.
+    ///
+    /// Füllwörter werden nicht gemeldet, siehe <see cref="Fuellwoerter"/>.
+    /// </summary>
+    public string Translate(string german, out IReadOnlyList<string> nichtUebersetzt)
+    {
+        var unbekannt = new List<string>();
+        nichtUebersetzt = unbekannt;
+
         if (string.IsNullOrWhiteSpace(german)) return german;
 
         string[] tokens = Regex.Split(german.ToLowerInvariant().Trim(), @"\s+")
@@ -47,6 +78,11 @@ public sealed class GermanQueryTranslator
 
             // Kein direkter Treffer -> morphologischer Fallback für das Einzelwort.
             replacement ??= Resolve(tokens[i]);
+
+            if (replacement is null && !Fuellwoerter.Contains(tokens[i]))
+            {
+                unbekannt.Add(tokens[i]);
+            }
 
             output.Add(replacement ?? tokens[i]); // weiterhin unbekannt -> unverändert
             i += used;
@@ -414,7 +450,10 @@ public sealed class GermanQueryTranslator
         Add("throne", "thron");
 
         // Essen / Trinken
-        Add("cake", "kuchen");
+        Add("cake", "kuchen", "torte", "torten");
+        Add("slice of cake", "tortenstück", "tortenstueck", "kuchenstück", "kuchenstueck");
+        Add("birthday cake", "geburtstagstorte", "geburtstagskuchen");
+        Add("cream", "sahne");
         Add("coffee", "kaffee");
         Add("tea", "tee");
         Add("wine", "wein");
@@ -441,11 +480,49 @@ public sealed class GermanQueryTranslator
         Add("owl", "eule");
         Add("spider", "spinne");
 
+        // Wörter, die im Deutschen und Englischen gleich lauten.
+        //
+        // Sie stehen hier nicht der Übersetzung wegen, sondern damit die Meldung
+        // „nicht übersetzt" bei ihnen schweigt. Ohne Eintrag würden sie gemeldet,
+        // obwohl CLIP sie versteht — ein Fehlalarm, der den Hinweis entwertet.
+        Add("sofa", "sofa");
+        Add("hotel", "hotel");
+        Add("taxi", "taxi");
+        Add("radio", "radio");
+        Add("computer", "computer");
+        Add("laptop", "laptop");
+        Add("monitor", "monitor");
+        Add("tablet", "tablet");
+        Add("video", "video");
+        Add("poster", "poster");
+        Add("baby", "baby");
+        Add("pizza", "pizza");
+        Add("tunnel", "tunnel");
+        Add("museum", "museum");
+        Add("restaurant", "restaurant");
+        Add("garage", "garage");
+        Add("zoo", "zoo");
+        Add("tiger", "tiger");
+        Add("ball", "ball");
+        Add("film", "film");
+        Add("park", "park");
+        Add("bus", "bus");
+        Add("bar", "bar");
+        Add("jeans", "jeans");
+        Add("shorts", "shorts");
+        Add("motor", "motor");
+
         // Natur
         Add("grass", "gras");
         Add("leaves", "blätter");
         Add("leaf", "blatt");
-        Add("rocks", "felsen");
+        Add("rocks", "felsen", "fels", "felsbrocken");
+        Add("stone", "stein");
+        Add("stones", "steine", "steinen");
+        Add("pebbles", "kiesel", "kieselsteine", "kies");
+        Add("boulder", "findling");
+        Add("gravel", "schotter");
+        Add("cliff", "klippe", "klippen");
         Add("sand", "sand");
         Add("ocean", "ozean");
         Add("wave", "welle");

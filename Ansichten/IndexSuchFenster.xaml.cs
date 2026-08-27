@@ -48,6 +48,41 @@ namespace TestImage.Ansichten
         }
 
         /// <summary>
+        /// Breite einmalig aus dem Inhalt übernehmen, danach dem Nutzer überlassen.
+        ///
+        /// <c>SizeToContent="Width"</c> im XAML lässt das Fenster beim ersten Anzeigen
+        /// genau so breit werden, wie die Werkzeugleiste es braucht — keine von Hand
+        /// gepflegte Zahl, die bei jedem neuen Knopf in der Leiste nachgezogen werden
+        /// müsste und dabei mal zu knapp (rechts angeschnitten), mal zu weit (Karten
+        /// ragen über die Leiste hinaus) ausfällt.
+        ///
+        /// Danach zurück auf <c>Manual</c>, sonst zöge das Fenster jede Breitenänderung
+        /// des Nutzers sofort wieder auf die Inhaltsbreite zurück. Die gemessene Breite
+        /// wird zur Untergrenze: schmaler würde die Leiste angeschnitten.
+        /// </summary>
+        private void Fenster_Geladen(object sender, RoutedEventArgs e)
+        {
+            if (SizeToContent == SizeToContent.Manual)
+            {
+                return;
+            }
+
+            SizeToContent = SizeToContent.Manual;
+            MinWidth = ActualWidth;
+        }
+
+        /// <summary>
+        /// Der eigene Schliessknopf in der Titelleiste. Bewusst <c>Close</c> und nicht
+        /// <c>Hide</c>: So läuft er durch <see cref="OnClosing"/> wie das System-Kreuz
+        /// zuvor — Grösse und Position bleiben, und <c>IsSuchleisteOffen</c> wird
+        /// nachgezogen.
+        /// </summary>
+        private void FensterSchliessen_Click(object sender, RoutedEventArgs e)
+        {
+            Close();
+        }
+
+        /// <summary>
         /// Nimmt gezogene Dateien überhaupt erst an.
         ///
         /// Ohne dieses Zutun meldet die Ablage <c>None</c> zurück, Windows zeigt das
