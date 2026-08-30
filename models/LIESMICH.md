@@ -27,9 +27,9 @@ und das Sortieren nach gelernten Vorlieben.
 Es sind die nach ONNX exportierten Gewichte von **CLIP ViT-B/32** (OpenAI, MIT-Lizenz) —
 der Bildteil und der Textteil getrennt. Zwei Wege:
 
-1. Aus dem Anhang eines Releases dieses Projekts herunterladen, falls dort eines
-   bereitliegt. Release-Anhänge erlauben bis 2 GB je Datei und zählen nicht auf die
-   Repo-Grösse.
+1. Aus dem Anhang des [aktuellen Releases](https://github.com/DimschAusD/TestImage/releases/latest)
+   herunterladen — dort hängen beide Dateien einzeln. Release-Anhänge erlauben bis 2 GB
+   je Datei und zählen nicht auf die Repo-Grösse.
 2. Selbst exportieren, aus `openai/clip-vit-base-patch32` auf Hugging Face. Die beiden
    Ausgaben müssen genau so heissen wie oben.
 
