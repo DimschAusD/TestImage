@@ -17,6 +17,13 @@ liegt eine Hand auf den vier Pfeiltasten, und das reicht:
 Verschoben wird in einen Unterordner, nicht gelöscht. Nichts ist endgültig, jeder
 Griff lässt sich zurücknehmen.
 
+![Die Normalansicht: das Bild in der Mitte, die Miniaturleiste darunter, links
+die Prüf-Ampel](docs/normalansicht.png)
+
+Und dasselbe Bild im Vollbild — nichts als das Bild, Zoom mit dem Mausrad:
+
+![Vollbildansicht](docs/vollbild.png)
+
 Alles Weitere — Doubletten, Prüfungen, Konturansicht, Begriffssuche — ist Beiwerk
 für den Fall, dass das blosse Ansehen nicht reicht.
 
@@ -40,6 +47,9 @@ Vier Wege, vom billigsten zum teuersten:
 | SHA256 | dasselbe, über einen einmal berechneten Prüfwert |
 | Perceptual Hash (dHash) | dasselbe Bild in anderer Grösse oder Qualität |
 | Grauwert-Abgleich | ähnliche Bilder mit einstellbarer Schwelle |
+
+![Byte-Duplikate aufräumen: verglichen wird ein Dubletten-Ordner gegen einen
+Referenzbestand, der unangetastet bleibt](docs/Dublettensuche.png)
 
 **Bilder prüfen**
 Auf Wunsch wird jedes angezeigte Bild geprüft. Das Ergebnis steht als Ampel neben
@@ -72,6 +82,9 @@ nur nach Dateinamen. Der Index liegt im Ordner selbst und wandert mit ihm mit.
 Die Treffer landen in einer Liste; über „In Liste übernehmen" wird die
 Navigation auf genau diese Bilder eingedampft — danach blättert man mit den
 Pfeiltasten nur noch durch sie.
+
+![Begriffssuche: oben die zum Bild erkannten Begriffe zum Anklicken, unten die
+Treffer mit ihrer Übereinstimmung](docs/begriffssuche.png)
 
 **Sortieren nach gelernten Vorlieben** — ⚠️ **in Arbeit, etwa zu 10 % fertig**
 Die Idee: Der Ordner wird nach den bisherigen Entscheidungen geordnet,
@@ -220,3 +233,6 @@ Repo.
 ## Lizenz
 
 MIT — siehe [LICENSE](LICENSE).
+
+Privates Hobbyprojekt, Nutzung auf eigene Gefahr. Es besteht keine Gewährleistung
+und keine Haftung; Einzelheiten in der [LICENSE](LICENSE).

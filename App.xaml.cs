@@ -168,40 +168,16 @@ namespace TestImage
         private static string? _protokollDatei;
 
         /// <summary>
-        /// Ziel des Protokolls. Zuerst neben der Anwendung — dort sucht man zuerst und
-        /// findet es ohne Umweg. Lässt sich dort nicht schreiben (Programmordner unter
-        /// Schreibschutz), dann unter den lokalen Anwendungsdaten.
+        /// Ziel des Protokolls: immer neben der Anwendung — dort sucht man zuerst und
+        /// findet es ohne Umweg.
+        ///
+        /// Bewusst ohne Ausweichort unter den lokalen Anwendungsdaten: Die Anwendung ist
+        /// portabel und soll ausserhalb ihres eigenen Ordners nichts hinterlassen. Liegt
+        /// sie schreibgeschützt (Stick, Netzfreigabe), entfällt das Protokoll ersatzlos —
+        /// <see cref="Protokolliere"/> schluckt den Schreibfehler.
         /// </summary>
-        private static string ProtokollDatei
-        {
-            get
-            {
-                if (_protokollDatei is not null)
-                {
-                    return _protokollDatei;
-                }
-
-                string nebenAnwendung = Path.Combine(AppContext.BaseDirectory, "TestImage-Fehler.log");
-
-                try
-                {
-                    File.AppendAllText(nebenAnwendung, string.Empty);
-                    _protokollDatei = nebenAnwendung;
-                }
-                catch
-                {
-                    string ordner = Path.Combine(
-                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                        "TestImage");
-
-                    try { Directory.CreateDirectory(ordner); } catch { }
-
-                    _protokollDatei = Path.Combine(ordner, "TestImage-Fehler.log");
-                }
-
-                return _protokollDatei;
-            }
-        }
+        private static string ProtokollDatei =>
+            _protokollDatei ??= Path.Combine(AppContext.BaseDirectory, "TestImage-Fehler.log");
 
         /// <summary>
         /// Hängt einen Eintrag an das Protokoll an. Schlägt das fehl, geschieht nichts —

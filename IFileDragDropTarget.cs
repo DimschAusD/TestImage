@@ -50,8 +50,11 @@ namespace TestImage
         private static void OnFileDragDropEnabled(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (e.NewValue == e.OldValue) return;
-            var control = d as System.Windows.Controls.Control;
-            if (control != null) control.Drop += OnDrop;
+
+            // FrameworkElement, nicht Control: An einem Image oder Grid hängte sich der
+            // Handler sonst wortlos nicht an — die Ablage war dort tot, ohne Hinweis.
+            var element = d as FrameworkElement;
+            if (element != null) element.Drop += OnDrop;
         }
 
         private static void OnDrop(object _sender, DragEventArgs _dragEventArgs)

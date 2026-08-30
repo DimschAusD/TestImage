@@ -20,24 +20,34 @@
         Schwebe-Filmstrip, Hover-Zone, Drop-Overlay.
 
         MouseWheel zoomt (bubbling, damit der Filmstrip sein eigenes Rad-Verhalten
-        behält), Klick in die Bildmitte setzt zurück. Links und rechts liegen die
-        Navigationszonen — dort kommt der Klick gar nicht erst an.
+        behält). Im vergrösserten Bild verschiebt Ziehen mit der linken Maustaste den
+        Ausschnitt, Doppelklick stellt das eingepasste Bild wieder her; die Zieh-Ereignisse
+        laufen als Preview, damit sie auch über der unteren Hover-Zone ankommen. Bei 100 %
+        greift nichts davon — dann gehören die Klicks wie bisher den Navigationszonen
+        links und rechts.
     -->
     <Grid
         x:Name="GRD_VollbildWurzel"
+        local:FileDragDropHelper.IsFileDragDropEnabled="True"
+        AllowDrop="True"
         Background="#FF111111"
         d:Background="LightGray"
-        MouseLeftButtonDown="Vollbild_ZoomZuruecksetzen"
-        MouseWheel="Vollbild_MouseWheel">
+        DragEnter="Vollbild_DragEnter"
+        DragLeave="Vollbild_DragLeave"
+        Drop="Vollbild_Drop"
+        LostMouseCapture="Vollbild_ZiehenAbgebrochen"
+        MouseWheel="Vollbild_MouseWheel"
+        PreviewMouseLeftButtonDown="Vollbild_ZiehenStart"
+        PreviewMouseLeftButtonUp="Vollbild_ZiehenEnde"
+        PreviewMouseMove="Vollbild_Ziehen">
 
-        <!--  Eigenes Vollbild-Image (Fit), Drop-fähig  -->
+        <!--
+            Eigenes Vollbild-Image (Fit). Die Ablage hängt am Wurzel-Grid, nicht hier:
+            Ein Image ist nur dort trefferfähig, wo es tatsächlich zeichnet — auf den
+            schwarzen Balken neben dem eingepassten Bild fiele das Ziehen hindurch.
+        -->
         <Image
             x:Name="imgVollbild"
-            local:FileDragDropHelper.IsFileDragDropEnabled="True"
-            AllowDrop="True"
-            DragEnter="Vollbild_DragEnter"
-            DragLeave="Vollbild_DragLeave"
-            Drop="Vollbild_Drop"
             RenderOptions.BitmapScalingMode="HighQuality"
             RenderTransformOrigin="0.5,0.5"
             Source="{Binding DisplayImage, NotifyOnTargetUpdated=True}"
@@ -46,7 +56,13 @@
             TargetUpdated="Vollbild_BildGewechselt">
             <Image.RenderTransform>
                 <TransformGroup>
+                    <!--
+                        Erst skalieren (um die Mitte, siehe RenderTransformOrigin), dann
+                        verschieben: So entspricht eine Einheit von imgPanTransform genau
+                        einem Bildschirmpunkt, das Bild folgt der Maus also 1:1.
+                    -->
                     <ScaleTransform x:Name="imgZoomTransform" ScaleX="1" ScaleY="1" />
+                    <TranslateTransform x:Name="imgPanTransform" />
                     <TranslateTransform x:Name="imgShakeTransform" />
                 </TransformGroup>
             </Image.RenderTransform>
@@ -505,7 +521,7 @@
                     FontFamily="Segoe UI"
                     FontSize="11"
                     Foreground="#FFCCCCCC"
-                    Text="Klick setzt zurück" />
+                    Text="Ziehen verschiebt · Doppelklick zurück" />
             </StackPanel>
         </Border>
 

@@ -27,8 +27,9 @@ namespace TestImage
         // v2x.0.175.654 Beta 2026-04-24 (.NETCore v10.0)
         // v2x.0.172.205 Beta 2026-06-27 (.NETCore net10.0)
         // v2x.0.129.332 Beta 2026-07-18 (.NETCore net10.0)
+        // v2x.0.80.860 Beta 2026-08-20 (.NETCore net10.0)
         [ObservableProperty]
-        public partial string Version { get; set; } = "v2x.0.80.860 Beta 2026-08-20 (.NETCore net10.0)";
+        public partial string Version { get; set; } = "v2x.0.72.254 Beta 2026-08-30 (.NETCore net10.0)";
 
 
         [ObservableProperty]

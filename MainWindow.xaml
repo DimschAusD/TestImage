@@ -186,17 +186,80 @@
             BorderBrush="#55FFFFFF"
             BorderThickness="1"
             CornerRadius="10"
-            IsHitTestVisible="False"
             Visibility="{Binding IsVollbildHilfeOffen, Converter={StaticResource CLconverterVisiblityBoolian}}">
+            <!--
+                Klicks werden hier abgefangen (früher IsHitTestVisible="False"): Sonst
+                erreichte kein Klick den Schliessknopf. Betroffen ist nur die Fläche der
+                Übersicht selbst — ein Fehlklick darauf blättert im Bildmodus nun nicht
+                mehr weiter, was ohnehin die freundlichere Reaktion ist.
+            -->
             <StackPanel x:Name="STP_TastenHilfe">
-                <TextBlock
-                    x:Name="TXT_HilfeUeberschrift"
-                    Margin="0,0,0,14"
-                    FontFamily="Segoe UI"
-                    FontSize="15"
-                    FontWeight="SemiBold"
-                    Foreground="White"
-                    Text="Tastensteuerung" />
+                <Grid x:Name="GRD_HilfeKopf" Margin="0,0,0,14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition x:Name="COL_HilfeTitel" Width="*" />
+                        <ColumnDefinition x:Name="COL_HilfeSchliessen" Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock
+                        x:Name="TXT_HilfeUeberschrift"
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        FontFamily="Segoe UI"
+                        FontSize="15"
+                        FontWeight="SemiBold"
+                        Foreground="White"
+                        Text="Tastensteuerung" />
+
+                    <!--
+                        Schliessknopf für alle, die die Übersicht mit der Maus geöffnet
+                        haben: F1 wirkt nur im Bildmodus, Esc muss man kennen. Kein Rot
+                        wie in einer Fensterleiste — das hier schliesst kein Fenster,
+                        sondern blendet nur eine Einblendung wieder aus.
+                    -->
+                    <Button
+                        x:Name="BTN_HilfeSchliessen"
+                        Grid.Column="1"
+                        Width="26"
+                        Height="26"
+                        Margin="20,0,0,0"
+                        VerticalAlignment="Center"
+                        Background="Transparent"
+                        Command="{Binding CommandExecuteVollbildHilfeToggleCommand, Mode=OneWay}"
+                        Cursor="Hand"
+                        Foreground="#FFE6E6E6"
+                        SnapsToDevicePixels="True"
+                        ToolTip="Übersicht schliessen (Esc)">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border
+                                    x:Name="BRD_HilfeSchliessfläche"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="#33FFFFFF"
+                                    BorderThickness="1"
+                                    CornerRadius="5">
+                                    <TextBlock
+                                        x:Name="IC_HilfeSchliesskreuz"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        FontFamily="Segoe MDL2 Assets"
+                                        FontSize="10"
+                                        Foreground="{TemplateBinding Foreground}"
+                                        Text="&#xE8BB;" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="BRD_HilfeSchliessfläche" Property="Background" Value="#33FFFFFF" />
+                                        <Setter TargetName="IC_HilfeSchliesskreuz" Property="Foreground" Value="White" />
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter TargetName="BRD_HilfeSchliessfläche" Property="Background" Value="#55FFFFFF" />
+                                        <Setter TargetName="IC_HilfeSchliesskreuz" Property="Foreground" Value="White" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                </Grid>
 
                 <Grid x:Name="GRD_TastenListe">
                     <Grid.ColumnDefinitions>

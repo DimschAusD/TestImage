@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -75,9 +76,85 @@ namespace TestImage
             if (d is ListBox lb)
             {
                 if ((bool)e.NewValue)
+                {
                     lb.SelectionChanged += OnSelectionChangedCenter;
+                    BeobachteNeuaufbau(lb);
+                }
                 else
+                {
                     lb.SelectionChanged -= OnSelectionChangedCenter;
+                    BeendeNeuaufbauBeobachtung(lb);
+                }
+            }
+        }
+
+        /// <summary>Merker je Leiste: Eine angemeldete Zentrierung genügt für einen Neuaufbau.</summary>
+        private static readonly DependencyProperty ZentrierungStehtProperty =
+            DependencyProperty.RegisterAttached(
+                "ZentrierungSteht",
+                typeof(bool),
+                typeof(HorizontalListBoxBehavior),
+                new PropertyMetadata(false));
+
+        /// <summary>
+        /// Der angemeldete Beobachter, damit er beim Abschalten wieder abgehängt werden
+        /// kann — die Sammlung selbst führt nicht zur ListBox zurück.
+        /// </summary>
+        private static readonly DependencyProperty SammlungsBeobachterProperty =
+            DependencyProperty.RegisterAttached(
+                "SammlungsBeobachter",
+                typeof(NotifyCollectionChangedEventHandler),
+                typeof(HorizontalListBoxBehavior),
+                new PropertyMetadata(null));
+
+        /// <summary>
+        /// Auch auf den Neuaufbau der Liste hören, nicht nur auf den Auswahlwechsel.
+        ///
+        /// Beim Ablegen einer Datei aus einem anderen Ordner wird die Liste geleert, neu
+        /// gefüllt und zuletzt aufgefrischt (<c>ListCollectionView.Refresh</c>). Nach dieser
+        /// Auffrischung steht die Auswahl wieder auf demselben Element wie davor — für die
+        /// ListBox ist das kein Wechsel, also kommt kein SelectionChanged mehr. Die Behälter
+        /// sind aber sämtlich neu und der Versatz gehört noch zum vorigen Ordner. Ohne
+        /// diesen Anstoss bleibt die Leiste dort stehen, wo sie der alte Ordner verlassen
+        /// hat — sichtbar vor allem, wenn das zuletzt gewählte Bild das letzte der Reihe war.
+        /// </summary>
+        private static void BeobachteNeuaufbau(ListBox lb)
+        {
+            if (lb.Items is not INotifyCollectionChanged beobachtbar) return;
+
+            void AufSammlungGeaendert(object? _, NotifyCollectionChangedEventArgs e)
+            {
+                // Nur der vollständige Neuaufbau. Das Einlesen fügt Bild für Bild ein; als
+                // Add darf das die Leiste nicht bei jeder einzelnen Datei anstossen.
+                if (e.Action != NotifyCollectionChangedAction.Reset) return;
+
+                if ((bool)lb.GetValue(ZentrierungStehtProperty)) return;
+                lb.SetValue(ZentrierungStehtProperty, true);
+
+                // ContextIdle: Erst wenn die ListBox den Neuaufbau verarbeitet, die Auswahl
+                // nachgezogen und das Panel angeordnet hat, gibt es etwas zu messen.
+                lb.Dispatcher.BeginInvoke(
+                    () =>
+                    {
+                        lb.SetValue(ZentrierungStehtProperty, false);
+                        ZentriereAusgewaehltes(lb);
+                    },
+                    DispatcherPriority.ContextIdle);
+            }
+
+            NotifyCollectionChangedEventHandler beobachter = AufSammlungGeaendert;
+
+            beobachtbar.CollectionChanged += beobachter;
+            lb.SetValue(SammlungsBeobachterProperty, beobachter);
+        }
+
+        private static void BeendeNeuaufbauBeobachtung(ListBox lb)
+        {
+            if (lb.GetValue(SammlungsBeobachterProperty) is NotifyCollectionChangedEventHandler beobachter
+                && lb.Items is INotifyCollectionChanged beobachtbar)
+            {
+                beobachtbar.CollectionChanged -= beobachter;
+                lb.ClearValue(SammlungsBeobachterProperty);
             }
         }
 

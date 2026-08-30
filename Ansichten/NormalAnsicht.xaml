@@ -2554,19 +2554,44 @@
                 <RowDefinition x:Name="ROW_LinksUnten" Height="Auto" />
             </Grid.RowDefinitions>
 
-            <!--  Schaltet die Prüfungen ein, deren Ergebnis STP_PrüfAmpel darunter anzeigt  -->
-            <CheckBox
-                x:Name="CHK_BildPrüfen"
-                Width="60"
-                Height="18"
-                Margin="10,0,0,0"
+            <!--
+                Schaltet die Prüfungen ein, deren Ergebnis STP_PrüfAmpel darunter anzeigt.
+
+                Als Karte gefasst, damit Schalter, Ampel und Farbsignatur als ein Block zu
+                lesen sind: Der Schalter stand vorher rahmenlos über den beiden und wirkte
+                wie ein einzelnes Kästchen irgendwo am Rand. Rahmen, Stärke und Rundung sind
+                bewusst dieselben wie bei BRD_PrüfAmpel — die drei Teile gehören derselben
+                Familie an, statt jedes für sich zu sprechen.
+
+                Breite 71 = von 10 bis 81 Punkten, also genau über Ampel (10 bis 62) und
+                Farbsignatur (67 bis 81). Die Spalte wird dadurch nicht breiter, denn ihr
+                rechter Rand liegt mit der Signatur ohnehin schon bei 81. Innenabstand knapp
+                gehalten: Er geht in die Höhe der Spalte ein, und die Ampel ist bereits das
+                höchste Stück der Ansicht.
+            -->
+            <Border
+                x:Name="BRD_PrüfKarte"
+                Width="71"
+                Margin="10,0,0,2"
+                Padding="3,2,3,2"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Center"
-                Content="Prüfen"
-                FontSize="12"
-                IsChecked="{Binding SollBildGeprüftWerden}"
-                Style="{StaticResource PrüfKästchen}"
-                ToolTip="Bilder beim Anzeigen auf Schäden prüfen – Ergebnis in der Ampel darunter" />
+                Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"
+                BorderBrush="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"
+                BorderThickness="2"
+                CornerRadius="2">
+                <CheckBox
+                    x:Name="CHK_BildPrüfen"
+                    Width="60"
+                    Height="18"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    Content="Prüfen"
+                    FontSize="12"
+                    IsChecked="{Binding SollBildGeprüftWerden}"
+                    Style="{StaticResource PrüfKästchen}"
+                    ToolTip="Bilder beim Anzeigen auf Schäden prüfen – Ergebnis in der Ampel darunter" />
+            </Border>
 
             <Grid
                 x:Name="GRD_BlaetternLinks"
@@ -2624,7 +2649,7 @@
                 d:Background="Wheat"
                 Margin="10,0,0,0"
                 HorizontalAlignment="Left"
-                VerticalAlignment="Center"
+                VerticalAlignment="Top"
                 Orientation="Vertical">
                 <Border
                     x:Name="BRD_PrüfAmpel"
@@ -3790,7 +3815,7 @@
                 x:Name="RCT_Farbsignatur"
                 Grid.Row="1"
                 Width="14"
-                Margin="67,0,0,60"
+                Margin="67,0,0,54"
                 HorizontalAlignment="Left"
                 d:Visibility="Visible"
                 Fill="{Binding BildFarbsignatur}"
