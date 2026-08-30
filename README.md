@@ -3,7 +3,7 @@
 **Bilder durchsehen und Unerwünschtes aussortieren — mit den Pfeiltasten, ohne
 die Hand von der Tastatur zu nehmen.**
 
-Dafür ist das Programm gebaut. Wer mehrere tausend Bilder in einem Ordner hat und
+Dafür ist das Programm gebaut. Wer mehrere hundert Bilder in einem Ordner hat und
 entscheiden muss, was bleibt, sitzt sonst stundenlang mit der Maus davor. Hier
 liegt eine Hand auf den vier Pfeiltasten, und das reicht:
 
