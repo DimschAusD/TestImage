@@ -1466,6 +1466,23 @@ namespace TestImage
                     CLconverterStringZuKleinemImage.InvalidateCache(source);
                     moveErfolgreich = true;
                 }
+                else
+                {
+                    // Aus demselben Grund wie der Zweig oben: Hier passierte bisher
+                    // lautlos nichts. CanExecute prüft zwar auf Vorhandensein, aber
+                    // zwischen der Prüfung und dem Druck kann die Datei verschwinden —
+                    // umbenannt im Explorer, weggeräumt von einem anderen Programm,
+                    // oder der Pfad in der Liste ist veraltet.
+                    MessageBox.Show(
+                        "Die Datei ist nicht mehr da, wo sie erwartet wurde:\n\n"
+                        + source + "\n\n"
+                        + "Vermutlich wurde sie ausserhalb der Anwendung verschoben "
+                        + "oder umbenannt. Ein erneutes Einlesen des Ordners bringt "
+                        + "die Liste wieder auf Stand.",
+                        "Nicht zurückverschoben",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
             }
             catch (Exception ex)
             {
