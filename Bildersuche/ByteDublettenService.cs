@@ -18,18 +18,55 @@ namespace TestImage.Bildersuche
     /// Denkweise wie im Zwei-Fenster-Dateimanager: eine Seite ist der Bestand, die
     /// andere kommt weg. Der Dubletten-Ordner ist die Seite, die weg kann.
     ///
-    /// Ablauf in drei Stufen, damit kein n²-Byte-Vergleich nötig ist:
+    /// Ablauf in zwei Stufen, damit kein n²-Byte-Vergleich nötig ist:
     /// 1. Nach Dateigrösse gruppieren — nur Grössen, die auf beiden Seiten vorkommen.
-    /// 2. Für die verbliebenen Kandidaten SHA-256 berechnen (parallel).
-    /// 3. Bei Hash-Gleichheit zusätzlich echten Byte-Vergleich zur Absicherung.
+    /// 2. Für die verbliebenen Kandidaten SHA-256 berechnen (parallel). Gleiche Grösse
+    ///    und gleicher Hash heissen gleicher Inhalt — ein Byte-Vergleich hinterher würde
+    ///    beide Dateien ein zweites Mal lesen, nur um eine Kollision auszuschliessen,
+    ///    die es praktisch nicht gibt.
+    ///
+    /// Ausnahme von Stufe 2: Gibt es zu einer Dateigrösse genau eine Referenzdatei,
+    /// werden die beiden Dateien direkt byteweise verglichen, statt sie zu hashen.
+    /// Gelesen wird dabei gleich viel, aber der Vergleich bricht an der ersten
+    /// abweichenden Stelle ab.
     /// </summary>
     internal static class ByteDublettenService
     {
         private static readonly string[] Bildendungen =
             { ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp" };
 
-        /// <summary>Lesepuffer je Datei – zugleich die Schrittweite der Fortschrittsmeldung.</summary>
-        private const int LeseBlock = 1024 * 1024;
+        /// <summary>
+        /// Lesepuffer je Datei – zugleich die Schrittweite der Fortschrittsmeldung.
+        ///
+        /// 4 MB statt 1 MB wegen der Netzlaufwerke: Über SMB kostet jeder Leseauftrag
+        /// eine Umlaufzeit, und bei einer 1,5-GB-Videodatei sind das mit 1-MB-Blöcken
+        /// 1500 Umläufe statt 375. Für kleine Dateien ändert sich nichts – der Puffer
+        /// kommt aus dem ArrayPool und wird nur so weit gefüllt, wie die Datei reicht.
+        /// </summary>
+        private const int LeseBlock = 4 * 1024 * 1024;
+
+        /// <summary>
+        /// Untergrenze für den Lesepuffer. Kleine Dateien bekommen keinen 4-MB-Puffer:
+        /// Der ArrayPool hält geliehene Puffer für spätere Läufe vor, und bei einem Leser
+        /// je Kern (im Byte-Vergleich zwei Puffer je Leser) blieben sonst auf einem
+        /// 16-Kern-Rechner über 100 MB belegt, nur um lauter 30-KB-Bilder zu lesen.
+        /// </summary>
+        private const int KleinsterBlock = 64 * 1024;
+
+        /// <summary>
+        /// Lesepuffer passend zur Datei: so gross wie nötig, höchstens <see cref="LeseBlock"/>.
+        /// Eine 1,5-GB-Videodatei bekommt die vollen 4 MB, ein Vorschaubild 64 KB.
+        /// </summary>
+        private static int BlockGroesse(long dateiGroesse)
+            => (int)Math.Clamp(dateiGroesse, KleinsterBlock, LeseBlock);
+
+        /// <summary>
+        /// Gleichzeitige Leser auf Netzlaufwerken. Mehr bremsen dort, statt zu nützen:
+        /// Die Bandbreite der Freigabe teilt sich auf alle Ströme auf, und die
+        /// Gegenstelle beginnt bei vielen parallelen Grossleseaufträgen zu drosseln.
+        /// Lokal bleibt es bei einem Leser je Prozessorkern.
+        /// </summary>
+        private const int NetzParallel = 4;
 
         /// <summary>
         /// Mindestanteil, den eine Datei am Fortschritt hat. Öffnen, Suchen und Schliessen
@@ -52,6 +89,23 @@ namespace TestImage.Bildersuche
         /// <param name="referenzOrdner">Ordner, deren Dateien behalten werden.</param>
         /// <param name="mitUnterordnern">Unterordner ebenfalls durchsuchen.</param>
         /// <param name="alleDateitypen">False = nur Bilddateien, True = jede Datei.</param>
+        /// <param name="nurGleicherName">
+        /// True = eine Datei kommt nur für Referenzdateien <b>gleichen Namens</b> in Frage.
+        /// Die Ordnernamen müssen dabei nicht übereinstimmen — verglichen wird allein der
+        /// Dateiname. Das ist die Denkweise der Dateimanager-Dublettensuche und macht den
+        /// Lauf drastisch schneller, weil pro Kandidat statt einer ganzen Grössengruppe
+        /// meist nur noch ein einziges Gegenstück übrig bleibt.
+        /// </param>
+        /// <param name="tiefenpruefung">
+        /// True (Vorgabe) = der Inhalt wird gelesen und geprüft.
+        /// False = <b>allein der Dateiname entscheidet</b>, keine einzige Datei wird
+        /// geöffnet. Das ist in Sekunden fertig, kann aber gleichnamige Dateien mit
+        /// verschiedenem Inhalt zusammenbringen — die Grössen stehen deshalb in jedem
+        /// Treffer nebeneinander.
+        /// Nur zusammen mit <paramref name="nurGleicherName"/> sinnvoll; ohne Namensbezug
+        /// wird die Tiefenprüfung erzwungen, sonst gälte jede Datei gleicher Grösse als
+        /// Dublette.
+        /// </param>
         /// <param name="fortschritt">
         /// Meldet (Erledigt, Gesamt, Statustext) — beide Zahlen in <b>Bytes</b>, nicht in
         /// Dateien. Solange der Umfang noch unbekannt ist (Dateien werden erfasst), wird
@@ -67,6 +121,8 @@ namespace TestImage.Bildersuche
             IReadOnlyList<string> referenzOrdner,
             bool mitUnterordnern,
             bool alleDateitypen,
+            bool nurGleicherName,
+            bool tiefenpruefung,
             IProgress<(long Erledigt, long Gesamt, string Text)>? fortschritt,
             CancellationToken token,
             List<string>? nichtLesbarAusgabe = null)
@@ -75,6 +131,12 @@ namespace TestImage.Bildersuche
 
             if (string.IsNullOrWhiteSpace(dublettenOrdner) || !Directory.Exists(dublettenOrdner))
                 return treffer;
+
+            // Sicherheitsnetz gegen eine Einstellung, die alles gleicher Grösse zur
+            // Dublette erklären würde. Die Oberfläche lässt diese Kombination gar nicht
+            // erst zu; falls sie doch ankommt, wird geprüft statt geraten.
+            if (!nurGleicherName)
+                tiefenpruefung = true;
 
             var suchTiefe = mitUnterordnern ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
             string was = alleDateitypen ? "Dateien" : "Bilder";
@@ -137,13 +199,33 @@ namespace TestImage.Bildersuche
             var basisDateien = referenzDateien;
             var vergleichsDateien = kandidatenDateien;
 
+            // --- Sonderweg: nur Namen vergleichen, ohne den Inhalt zu lesen ---
+            //
+            // Hier wird keine einzige Datei geöffnet. Der ganze Lauf besteht aus dem
+            // Auflisten der Ordner und einem Nachschlagen je Kandidat und ist deshalb
+            // auch über ein Netzlaufwerk in Sekunden fertig.
+            //
+            // Die Dateigrösse geht bewusst NICHT in die Bedingung ein: Wer den Inhalt
+            // ausdrücklich nicht prüfen lässt, will den reinen Namensabgleich, wie ihn
+            // ein Dateimanager anbietet. Eine heimlich mitlaufende Grössenbedingung würde
+            // genau die Fälle verschweigen, um die es dabei geht — dieselbe Datei in
+            // anderer Auflösung, anderer Qualitätsstufe, anderem Bearbeitungsstand.
+            // Damit man das sieht, wandert die Grösse beider Seiten in den Treffer.
+            if (!tiefenpruefung)
+            {
+                return NurNamenVergleichen(basisDateien, vergleichsDateien, fortschritt, token);
+            }
+
             // --- Stufe 1: nach Dateigrösse vorfiltern ---
-            fortschritt?.Report((0, 0, "Dateigrössen werden verglichen …"));
+            fortschritt?.Report((0, 0,
+                nurGleicherName
+                    ? "Namen und Dateigrössen werden verglichen …"
+                    : "Dateigrössen werden verglichen …"));
 
-            var basisNachGroesse = await Task.Run(
-                () => GruppiereNachGroesse(basisDateien, token), token);
+            var basisNachSchluessel = await Task.Run(
+                () => GruppiereNachSchluessel(basisDateien, nurGleicherName, token), token);
 
-            var kandidaten = new List<(string Datei, long Groesse)>();
+            var kandidaten = new List<(string Datei, Vergleichsschluessel Schluessel)>();
             foreach (var datei in vergleichsDateien)
             {
                 token.ThrowIfCancellationRequested();
@@ -153,9 +235,11 @@ namespace TestImage.Bildersuche
                 catch { continue; }
 
                 // Länge 0 ist zugelassen: Zwei leere Dateien sind byte-identisch.
-                // Für sie greift in Stufe 3 die zusätzliche Namensprüfung.
-                if (laenge >= 0 && basisNachGroesse.ContainsKey(laenge))
-                    kandidaten.Add((datei, laenge));
+                // Für sie greift in Stufe 2 die zusätzliche Namensprüfung.
+                var schluessel = Schluessel(datei, laenge, nurGleicherName);
+
+                if (laenge >= 0 && basisNachSchluessel.ContainsKey(schluessel))
+                    kandidaten.Add((datei, schluessel));
             }
 
             if (kandidaten.Count == 0)
@@ -164,12 +248,44 @@ namespace TestImage.Bildersuche
                 return treffer;
             }
 
+            // --- Abkürzung bei eindeutiger Gruppe ---
+            //
+            // Gibt es zu einem Vergleichsschlüssel genau eine Referenzdatei, bringt der
+            // Umweg über den Hash nichts ein. Beide Wege lesen Referenz und Kandidat je
+            // einmal — der direkte Vergleich bricht aber an der ersten abweichenden Stelle
+            // ab, während der Hash beide Dateien in jedem Fall bis zum Ende durchrechnet.
+            //
+            // Das ist der Normalfall bei Videos: grosse Dateien mit je eigener,
+            // unverwechselbarer Grösse. Passen zwei davon nicht zusammen, sind statt
+            // zweimal 1,5 GB nur ein paar Blöcke über die Leitung gegangen. Zählt der
+            // Name mit, trifft die Abkürzung fast immer zu.
+            //
+            // Leere Dateien bleiben aussen vor: Für sie gilt weiter unten zusätzlich die
+            // Namensprüfung, die es hier nicht gäbe.
+            var direktKandidaten = new List<(string Datei, Vergleichsschluessel Schluessel)>();
+            var hashKandidaten = new List<(string Datei, Vergleichsschluessel Schluessel)>();
+
+            foreach (var kandidat in kandidaten)
+            {
+                if (kandidat.Schluessel.Groesse > 0 && basisNachSchluessel[kandidat.Schluessel].Count == 1)
+                    direktKandidaten.Add(kandidat);
+                else
+                    hashKandidaten.Add(kandidat);
+            }
+
+            // Liegt eine der beiden Seiten im Netz, gilt die kleinere Leserzahl für den
+            // ganzen Lauf — die Netzseite ist ohnehin die Bremse.
+            int leserParallel =
+                IstNetzpfad(dublettenOrdner) || referenzOrdner.Any(IstNetzpfad)
+                    ? Math.Min(NetzParallel, Environment.ProcessorCount)
+                    : Environment.ProcessorCount;
+
             // --- Stufe 2: Hashes berechnen ---
-            // Nur die Referenzdateien hashen, deren Grösse überhaupt bei Kandidaten vorkommt.
-            var relevanteGroessen = kandidaten.Select(k => k.Groesse).ToHashSet();
-            var zuHashendeBasis = basisNachGroesse
-                .Where(g => relevanteGroessen.Contains(g.Key))
-                .SelectMany(g => g.Value.Select(datei => (Datei: datei, Groesse: g.Key)))
+            // Nur die Referenzdateien hashen, deren Schlüssel überhaupt bei Kandidaten vorkommt.
+            var relevanteSchluessel = hashKandidaten.Select(k => k.Schluessel).ToHashSet();
+            var zuHashendeBasis = basisNachSchluessel
+                .Where(g => relevanteSchluessel.Contains(g.Key))
+                .SelectMany(g => g.Value.Select(datei => (Datei: datei, Groesse: g.Key.Groesse)))
                 .ToList();
 
             // --- Fortschritt in Bytes statt in Dateien ---
@@ -178,14 +294,27 @@ namespace TestImage.Bildersuche
             // aber genauso viel wie dieses. Bei wenigen grossen Dateien stand der Balken
             // deshalb still und sprang am Ende ans Ziel. Gemessen wird jetzt die Menge
             // gelesener Bytes — laufend während des Lesens, nicht erst nach der Datei.
+            //
+            // Ein direkt verglichener Kandidat zählt doppelt: Bei ihm werden Referenz und
+            // Kandidat in einem Zug gelesen, dafür entfällt das Hashen der Referenz.
             long gesamt = zuHashendeBasis.Sum(b => Gewicht(b.Groesse))
-                          + kandidaten.Sum(k => Gewicht(k.Groesse));
+                          + hashKandidaten.Sum(k => Gewicht(k.Schluessel.Groesse))
+                          + direktKandidaten.Sum(k => 2 * Gewicht(k.Schluessel.Groesse));
             long erledigt = 0;
 
             // Die Stückzahl bleibt daneben stehen: Bei tausenden kleinen Dateien sagt
             // „342 von 5000" mehr über den Stand als eine Megabyte-Angabe.
-            int dateienGesamt = zuHashendeBasis.Count + kandidaten.Count;
+            int dateienGesamt = zuHashendeBasis.Count + hashKandidaten.Count + direktKandidaten.Count;
             int dateienFertig = 0;
+
+            // Wie viele Dateien gerade unter den Händen sind.
+            //
+            // Eine Datei zählt erst als fertig, wenn sie ganz durch ist. Bei zehn
+            // Videodateien und vier gleichzeitigen Lesern stand deshalb minutenlang
+            // „0 von 10 Dateien" da, während der Balken auf die Hälfte lief — richtig
+            // gerechnet, aber es sah nach einem Hänger aus. Mit der Zahl der gerade
+            // bearbeiteten Dateien daneben ist die Null erklärt, statt verdächtig zu sein.
+            int dateienInArbeit = 0;
 
             var meldeUhr = Stopwatch.StartNew();
             long letzteMeldungMs = -MeldeAbstandMs;
@@ -205,11 +334,13 @@ namespace TestImage.Bildersuche
                 if (Interlocked.CompareExchange(ref letzteMeldungMs, jetzt, letzte) != letzte)
                     return;
 
-                long ziel = Interlocked.Read(ref gesamt);
+                long ziel = gesamt;
                 int stueck = Volatile.Read(ref dateienFertig);
+                int laufend = Volatile.Read(ref dateienInArbeit);
 
                 fortschritt?.Report((Math.Min(fertig, ziel), ziel,
                     $"Wird geprüft … {stueck} von {dateienGesamt} Dateien"
+                    + (laufend > 0 ? $" ({laufend} in Arbeit)" : string.Empty)
                     + $" – {GroesseText(fertig)} von {GroesseText(ziel)}"));
             };
 
@@ -219,78 +350,130 @@ namespace TestImage.Bildersuche
             // Ende gemeldet, damit sie nicht unbemerkt aus der Prüfung fallen.
             var nichtLesbar = new ConcurrentBag<string>();
 
+            var treffersammlung = new ConcurrentBag<ByteDublettenTreffer>();
+
+            // --- Stufe 2a: eindeutige Grössengruppen direkt vergleichen ---
+            await Parallel.ForEachAsync(
+                direktKandidaten,
+                new ParallelOptions { MaxDegreeOfParallelism = leserParallel, CancellationToken = token },
+                async (kandidat, ct) =>
+                {
+                    string basisDatei = basisNachSchluessel[kandidat.Schluessel][0];
+                    long groesse = kandidat.Schluessel.Groesse;
+
+                    Interlocked.Increment(ref dateienInArbeit);
+                    try
+                    {
+                        if (await SindByteGleichAsync(
+                                basisDatei, kandidat.Datei, 2 * Gewicht(groesse),
+                                nichtLesbar, melde, ct))
+                        {
+                            treffersammlung.Add(new ByteDublettenTreffer
+                            {
+                                ReferenzDatei = basisDatei,
+                                DublettenDatei = kandidat.Datei,
+                                GroesseBytes = groesse,
+                                ReferenzGroesseBytes = groesse
+                            });
+                        }
+
+                        // Bewusst hier und nicht im finally: Eine abgebrochene Datei ist
+                        // nicht fertig geprüft und darf nicht als erledigt zählen.
+                        Interlocked.Increment(ref dateienFertig);
+                    }
+                    finally
+                    {
+                        Interlocked.Decrement(ref dateienInArbeit);
+                    }
+                });
+
             await Parallel.ForEachAsync(
                 zuHashendeBasis,
-                new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = token },
+                new ParallelOptions { MaxDegreeOfParallelism = leserParallel, CancellationToken = token },
                 async (eintrag, ct) =>
                 {
                     var datei = eintrag.Datei;
-                    var hash = await BerechneHashAsync(datei, Gewicht(eintrag.Groesse), nichtLesbar, melde, ct);
 
-                    if (hash != null)
+                    Interlocked.Increment(ref dateienInArbeit);
+                    try
                     {
-                        basisHashes.AddOrUpdate(
-                            hash,
-                            _ => new List<string> { datei },
-                            (_, liste) => { lock (liste) { liste.Add(datei); } return liste; });
-                    }
+                        var hash = await BerechneHashAsync(
+                            datei, Gewicht(eintrag.Groesse), nichtLesbar, melde, ct);
 
-                    Interlocked.Increment(ref dateienFertig);
-                });
-
-            // --- Stufe 3: Kandidaten hashen und bei Treffer byteweise verifizieren ---
-            var treffersammlung = new ConcurrentBag<ByteDublettenTreffer>();
-
-            await Parallel.ForEachAsync(
-                kandidaten,
-                new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = token },
-                async (kandidat, ct) =>
-                {
-                    var hash = await BerechneHashAsync(
-                        kandidat.Datei, Gewicht(kandidat.Groesse), nichtLesbar, melde, ct);
-
-                    if (hash != null && basisHashes.TryGetValue(hash, out var basisListe))
-                    {
-                        string[] schnappschuss;
-                        lock (basisListe) { schnappschuss = basisListe.ToArray(); }
-
-                        // Leere Dateien sind untereinander alle byte-identisch. Ohne
-                        // zusätzliche Bedingung gäbe eine einzige leere Datei im
-                        // Referenzbestand sämtliche leeren Dateien zum Löschen frei.
-                        // Deshalb muss hier der Dateiname übereinstimmen.
-                        if (kandidat.Groesse == 0)
+                        if (hash != null)
                         {
-                            string name = Path.GetFileName(kandidat.Datei);
-                            schnappschuss = schnappschuss
-                                .Where(b => string.Equals(Path.GetFileName(b), name, StringComparison.OrdinalIgnoreCase))
-                                .ToArray();
+                            basisHashes.AddOrUpdate(
+                                HashSchluessel(hash, datei, nurGleicherName),
+                                _ => new List<string> { datei },
+                                (_, liste) => { lock (liste) { liste.Add(datei); } return liste; });
                         }
 
-                        foreach (var basisDatei in schnappschuss)
-                        {
-                            // Der Byte-Vergleich liest beide Dateien noch einmal komplett.
-                            // Diese Arbeit steht vorher nicht fest — sie fällt nur bei
-                            // Hash-Treffern an — und wird deshalb erst hier zum Gesamt
-                            // addiert. Der Balken wird davon kurz langsamer, statt am
-                            // Ende zu springen.
-                            long vergleichsBudget = 2 * Gewicht(kandidat.Groesse);
-                            Interlocked.Add(ref gesamt, vergleichsBudget);
+                        Interlocked.Increment(ref dateienFertig);
+                    }
+                    finally
+                    {
+                        Interlocked.Decrement(ref dateienInArbeit);
+                    }
+                });
 
-                            if (await SindByteGleichAsync(
-                                    basisDatei, kandidat.Datei, vergleichsBudget, nichtLesbar, melde, ct))
+            // --- Stufe 2b: Kandidaten hashen und Hash-Treffer zuordnen ---
+            await Parallel.ForEachAsync(
+                hashKandidaten,
+                new ParallelOptions { MaxDegreeOfParallelism = leserParallel, CancellationToken = token },
+                async (kandidat, ct) =>
+                {
+                    long groesse = kandidat.Schluessel.Groesse;
+
+                    Interlocked.Increment(ref dateienInArbeit);
+                    try
+                    {
+                        var hash = await BerechneHashAsync(
+                            kandidat.Datei, Gewicht(groesse), nichtLesbar, melde, ct);
+
+                        // Zählt der Name mit, steckt er auch im Hash-Schlüssel: Sonst fänden
+                        // sich über den reinen Inhalts-Hash wieder Dateien beliebigen Namens.
+                        if (hash != null
+                            && basisHashes.TryGetValue(
+                                HashSchluessel(hash, kandidat.Datei, nurGleicherName), out var basisListe))
+                        {
+                            string[] schnappschuss;
+                            lock (basisListe) { schnappschuss = basisListe.ToArray(); }
+
+                            // Leere Dateien sind untereinander alle byte-identisch. Ohne
+                            // zusätzliche Bedingung gäbe eine einzige leere Datei im
+                            // Referenzbestand sämtliche leeren Dateien zum Löschen frei.
+                            // Deshalb muss hier der Dateiname übereinstimmen.
+                            if (groesse == 0)
+                            {
+                                string name = Path.GetFileName(kandidat.Datei);
+                                schnappschuss = schnappschuss
+                                    .Where(b => string.Equals(Path.GetFileName(b), name, StringComparison.OrdinalIgnoreCase))
+                                    .ToArray();
+                            }
+
+                            // Gleiche Grösse und gleicher SHA-256: Der Inhalt ist damit
+                            // identisch, alle Einträge der Liste sind gleichwertig. Die
+                            // erste genügt — eine Zuordnung reicht, damit die Dublette
+                            // weg kann.
+                            var basisDatei = schnappschuss.FirstOrDefault();
+                            if (basisDatei != null)
                             {
                                 treffersammlung.Add(new ByteDublettenTreffer
                                 {
                                     ReferenzDatei = basisDatei,
                                     DublettenDatei = kandidat.Datei,
-                                    GroesseBytes = kandidat.Groesse
+                                    GroesseBytes = groesse,
+                                    ReferenzGroesseBytes = groesse
                                 });
-                                break; // eine Zuordnung genügt — die Dublette kann weg
                             }
                         }
-                    }
 
-                    Interlocked.Increment(ref dateienFertig);
+                        Interlocked.Increment(ref dateienFertig);
+                    }
+                    finally
+                    {
+                        Interlocked.Decrement(ref dateienInArbeit);
+                    }
                 });
 
             treffer = treffersammlung
@@ -377,10 +560,36 @@ namespace TestImage.Bildersuche
             }
         }
 
-        private static Dictionary<long, List<string>> GruppiereNachGroesse(
-            IEnumerable<string> dateien, CancellationToken token)
+        /// <summary>
+        /// Wonach zwei Dateien überhaupt zueinander passen dürfen: immer die Grösse,
+        /// wahlweise zusätzlich der Dateiname. <see cref="Name"/> ist leer, solange der
+        /// Name keine Rolle spielt — dann verhält sich der Schlüssel wie die frühere
+        /// reine Grössengruppierung.
+        ///
+        /// Der Name wird kleingeschrieben abgelegt, weil Windows Dateinamen ohne
+        /// Rücksicht auf Gross- und Kleinschreibung vergibt: „Urlaub.jpg" und
+        /// „urlaub.jpg" sind dieselbe Datei und müssen im selben Fach landen.
+        /// Der Ordnerpfad geht bewusst nicht ein — gesucht wird ja gerade dieselbe
+        /// Datei an anderer Stelle.
+        /// </summary>
+        private readonly record struct Vergleichsschluessel(long Groesse, string Name);
+
+        private static Vergleichsschluessel Schluessel(string datei, long groesse, bool mitName)
+            => new(groesse, mitName ? Path.GetFileName(datei).ToLowerInvariant() : string.Empty);
+
+        /// <summary>
+        /// Schlüssel für die Hash-Zuordnung. Zählt der Name mit, muss er auch hier
+        /// hinein: Der Inhalts-Hash allein brächte sonst wieder Dateien beliebigen
+        /// Namens zusammen und höbe die Einschränkung still wieder auf. Das
+        /// Trennzeichen ist ein Nullbyte — in Dateinamen kann es nicht vorkommen.
+        /// </summary>
+        private static string HashSchluessel(string hash, string datei, bool mitName)
+            => mitName ? hash + "\0" + Path.GetFileName(datei).ToLowerInvariant() : hash;
+
+        private static Dictionary<Vergleichsschluessel, List<string>> GruppiereNachSchluessel(
+            IEnumerable<string> dateien, bool mitName, CancellationToken token)
         {
-            var map = new Dictionary<long, List<string>>();
+            var map = new Dictionary<Vergleichsschluessel, List<string>>();
 
             foreach (var datei in dateien)
             {
@@ -393,16 +602,111 @@ namespace TestImage.Bildersuche
                 // Leere Dateien werden mitgenommen — sie kommen in Projektordnern
                 // massenhaft vor (TemporaryGeneratedFile_*.cs und ähnliches) und
                 // hielten den Ordner sonst dauerhaft „nicht leer".
-                if (!map.TryGetValue(laenge, out var liste))
+                var schluessel = Schluessel(datei, laenge, mitName);
+
+                if (!map.TryGetValue(schluessel, out var liste))
                 {
                     liste = new List<string>();
-                    map[laenge] = liste;
+                    map[schluessel] = liste;
                 }
 
                 liste.Add(datei);
             }
 
             return map;
+        }
+
+        /// <summary>
+        /// Reiner Namensabgleich, ohne eine einzige Datei zu öffnen. Jeder Kandidat
+        /// bekommt die erste Referenzdatei gleichen Namens zugeordnet.
+        ///
+        /// „Erste" heisst hier: die zuerst aufgelistete. Bei mehreren gleichnamigen
+        /// Referenzdateien ist die Wahl beliebig, und das ist in Ordnung — gelöscht wird
+        /// ohnehin nur der Kandidat, und der Bestand bleibt vollständig, egal welches
+        /// Gegenstück im Treffer steht.
+        ///
+        /// Der Fortschritt zählt hier Dateien statt Bytes; gelesen wird ja nichts. Die
+        /// Einheit ist der aufrufenden Seite gleichgültig, sie rechnet daraus einen
+        /// Anteil.
+        /// </summary>
+        private static List<ByteDublettenTreffer> NurNamenVergleichen(
+            List<string> basisDateien,
+            List<string> vergleichsDateien,
+            IProgress<(long Erledigt, long Gesamt, string Text)>? fortschritt,
+            CancellationToken token)
+        {
+            fortschritt?.Report((0, 0, "Dateinamen werden verglichen …"));
+
+            var basisNachName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var datei in basisDateien)
+            {
+                token.ThrowIfCancellationRequested();
+
+                var name = Path.GetFileName(datei);
+
+                if (!basisNachName.ContainsKey(name))
+                    basisNachName[name] = datei;
+            }
+
+            var treffer = new List<ByteDublettenTreffer>();
+            long gesamt = Math.Max(1, vergleichsDateien.Count);
+
+            var meldeUhr = Stopwatch.StartNew();
+            long letzteMeldungMs = -MeldeAbstandMs;
+
+            for (int i = 0; i < vergleichsDateien.Count; i++)
+            {
+                token.ThrowIfCancellationRequested();
+
+                var kandidat = vergleichsDateien[i];
+
+                if (basisNachName.TryGetValue(Path.GetFileName(kandidat), out var basisDatei))
+                {
+                    treffer.Add(new ByteDublettenTreffer
+                    {
+                        ReferenzDatei = basisDatei,
+                        DublettenDatei = kandidat,
+                        GroesseBytes = DateiGroesse(kandidat),
+                        ReferenzGroesseBytes = DateiGroesse(basisDatei),
+                        IstNurNamensTreffer = true
+                    });
+                }
+
+                long jetzt = meldeUhr.ElapsedMilliseconds;
+                if (jetzt - letzteMeldungMs >= MeldeAbstandMs)
+                {
+                    letzteMeldungMs = jetzt;
+                    fortschritt?.Report((i + 1, gesamt,
+                        $"Namen werden verglichen … {i + 1} von {vergleichsDateien.Count} Dateien"));
+                }
+            }
+
+            var sortiert = treffer
+                .OrderBy(t => t.DublettenOrdner, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(t => t.DublettenDateiName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            int abweichend = sortiert.Count(t => t.HatAbweichendeGroesse);
+
+            string zusatz = abweichend == 0
+                ? string.Empty
+                : $" Bei {abweichend} davon ist die Datei im Bestand unterschiedlich gross — "
+                  + "gleicher Name heisst hier nicht gleicher Inhalt.";
+
+            fortschritt?.Report((gesamt, gesamt,
+                (sortiert.Count == 0
+                    ? "Keine gleichnamigen Dateien gefunden."
+                    : $"{sortiert.Count} gleichnamige Dateien gefunden (Inhalt nicht geprüft).") + zusatz));
+
+            return sortiert;
+        }
+
+        /// <summary>Dateigrösse, 0 wenn sie nicht zu ermitteln ist.</summary>
+        private static long DateiGroesse(string datei)
+        {
+            try { return new FileInfo(datei).Length; }
+            catch { return 0; }
         }
 
         /// <summary>Wie oft ein gesperrter Zugriff wiederholt wird, bevor aufgegeben wird.</summary>
@@ -456,6 +760,57 @@ namespace TestImage.Bildersuche
         }
 
         /// <summary>
+        /// Öffnet eine Datei zum blockweisen Durchlesen.
+        ///
+        /// <c>SequentialScan</c> sagt dem Cache-Manager, dass die Datei von vorn bis
+        /// hinten gelesen und danach nicht mehr gebraucht wird: Er liest vor und wirft
+        /// Gelesenes gleich wieder weg, statt den Cache mit Gigabytes zu fluten, die
+        /// niemand mehr anschaut.
+        ///
+        /// Die interne Pufferung des FileStreams ist abgeschaltet (<c>bufferSize: 1</c>).
+        /// Sie brächte hier nichts – gelesen wird ohnehin in 4-MB-Blöcken in einen
+        /// eigenen Puffer – und kostete je Block eine zusätzliche Kopie.
+        ///
+        /// <c>FileShare.ReadWrite</c> bleibt: Dateien, die ein anderes Programm gerade
+        /// offen hat, sollen trotzdem geprüft werden können.
+        /// </summary>
+        private static FileStream OeffneZumLesen(string datei)
+            => new FileStream(
+                datei, FileMode.Open, FileAccess.Read, FileShare.ReadWrite,
+                bufferSize: 1,
+                FileOptions.Asynchronous | FileOptions.SequentialScan);
+
+        /// <summary>
+        /// True, wenn der Pfad auf einer Netzfreigabe liegt – als UNC-Pfad
+        /// (<c>\\rechner\freigabe</c>) oder über einen verbundenen Laufwerksbuchstaben.
+        /// Im Zweifel false: Lieber mit voller Leserzahl arbeiten, als lokal ohne Grund
+        /// zu bremsen.
+        /// </summary>
+        private static bool IstNetzpfad(string? pfad)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(pfad))
+                    return false;
+
+                string voll = Path.GetFullPath(pfad);
+
+                if (voll.StartsWith(@"\\", StringComparison.Ordinal))
+                    return true;
+
+                string? wurzel = Path.GetPathRoot(voll);
+                if (string.IsNullOrEmpty(wurzel))
+                    return false;
+
+                return new DriveInfo(wurzel).DriveType == DriveType.Network;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Liest den Puffer möglichst voll. Ein einzelnes ReadAsync darf weniger liefern
         /// als angefordert; ohne dieses Nachfassen liefen die beiden Dateien im Vergleich
         /// gegeneinander versetzt und gälten fälschlich als ungleich.
@@ -502,16 +857,16 @@ namespace TestImage.Bildersuche
 
                     try
                     {
-                        using var stream = new FileStream(
-                            datei, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, LeseBlock, useAsync: true);
+                        using var stream = OeffneZumLesen(datei);
 
                         using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
 
-                        var puffer = ArrayPool<byte>.Shared.Rent(LeseBlock);
+                        int block = BlockGroesse(stream.Length);
+                        var puffer = ArrayPool<byte>.Shared.Rent(block);
                         try
                         {
                             int gelesen;
-                            while ((gelesen = await LiesBlockAsync(stream, puffer, LeseBlock, token)) > 0)
+                            while ((gelesen = await LiesBlockAsync(stream, puffer, block, token)) > 0)
                             {
                                 hasher.AppendData(puffer, 0, gelesen);
                                 konto.Bucht(gelesen);
@@ -555,8 +910,9 @@ namespace TestImage.Bildersuche
         }
 
         /// <summary>
-        /// Echter Byte-Vergleich (Absicherung gegen Hash-Kollisionen), blockweise mit
-        /// laufender Fortschrittsmeldung. Gelesen werden beide Dateien, deshalb zählt der
+        /// Direkter Byte-Vergleich zweier Dateien — der Weg der Abkürzung bei eindeutiger
+        /// Grössengruppe, blockweise mit laufender Fortschrittsmeldung und Abbruch an der
+        /// ersten Abweichung. Gelesen werden beide Dateien, deshalb zählt der
         /// Vergleich doppelt so viele Bytes wie eine Datei gross ist. Wie beim Hashen wird
         /// bei gesperrter Datei nachgefasst und ein endgültiger Fehlschlag vermerkt.
         /// </summary>
@@ -574,24 +930,34 @@ namespace TestImage.Bildersuche
 
                     try
                     {
-                        using var stromA = new FileStream(
-                            a, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, LeseBlock, useAsync: true);
-
-                        using var stromB = new FileStream(
-                            b, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, LeseBlock, useAsync: true);
+                        using var stromA = OeffneZumLesen(a);
+                        using var stromB = OeffneZumLesen(b);
 
                         if (stromA.Length != stromB.Length)
                             return false;
 
-                        var pufferA = ArrayPool<byte>.Shared.Rent(LeseBlock);
-                        var pufferB = ArrayPool<byte>.Shared.Rent(LeseBlock);
+                        int block = BlockGroesse(stromA.Length);
+                        var pufferA = ArrayPool<byte>.Shared.Rent(block);
+                        var pufferB = ArrayPool<byte>.Shared.Rent(block);
 
                         try
                         {
                             while (true)
                             {
-                                int gelesenA = await LiesBlockAsync(stromA, pufferA, LeseBlock, token);
-                                int gelesenB = await LiesBlockAsync(stromB, pufferB, LeseBlock, token);
+                                // Beide Seiten gleichzeitig anfordern statt nacheinander.
+                                // Liegt eine Datei im Netz und die andere auf der lokalen
+                                // Platte, addierten sich sonst die Wartezeiten, obwohl
+                                // sich die beiden Geräte überhaupt nicht ins Gehege
+                                // kommen. Task.WhenAll wird bewusst genutzt: Es wartet
+                                // beide Aufträge ab, auch wenn der erste scheitert –
+                                // sonst bliebe die Ausnahme des zweiten unbeobachtet.
+                                var auftragA = LiesBlockAsync(stromA, pufferA, block, token);
+                                var auftragB = LiesBlockAsync(stromB, pufferB, block, token);
+
+                                await Task.WhenAll(auftragA, auftragB);
+
+                                int gelesenA = auftragA.Result;
+                                int gelesenB = auftragB.Result;
 
                                 konto.Bucht(gelesenA + gelesenB);
 

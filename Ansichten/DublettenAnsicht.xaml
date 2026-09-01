@@ -468,74 +468,203 @@
                 <!--
                     Optionen unter den beiden gerahmten Zeilen. GRD_Ordner hat keine
                     Spalten, ein Grid.Column wäre hier wirkungslos.
-                    
-                    WrapPanel statt StackPanel: Zwei Checkboxen mit Symbol, die
+
+                    WrapPanel statt StackPanel: Die beiden Optionsgruppen, die
                     Einlese-Anzeige und der Entfernen-Knopf passen nicht immer
                     nebeneinander. Im StackPanel ragte das letzte Element seitlich
                     heraus; hier bricht es um, und die Karte wächst mit (Zeile ist Auto).
+
+                    Die vier Haken sind zwei verschiedene Sorten und deshalb getrennt
+                    beschriftet: „Umfang" bestimmt, WAS eingesammelt wird, und liest den
+                    Ordner sofort neu ein. „Kriterium" bestimmt, WIE verglichen wird, und
+                    wirkt erst beim nächsten Suchlauf. In einer Reihe nebeneinander war
+                    weder das eine noch das andere zu erkennen — auch nicht, warum die
+                    ersten beiden sofort etwas tun und die anderen scheinbar nichts.
+
+                    Gruppen als eigene StackPanel: So bleibt eine Gruppe beim Umbruch
+                    zusammen, statt zwischen Beschriftung und Haken zu zerreissen.
                 -->
                 <WrapPanel
                     x:Name="STP_DublettenOptionen"
                     Grid.Row="3"
                     Margin="2,12,0,0"
                     Orientation="Horizontal">
-                    <CheckBox
-                        x:Name="CHK_MitUnterordnern"
-                        Margin="0,0,0,4"
-                        VerticalContentAlignment="Center"
-                        FontSize="12"
-                        Foreground="#FF1F2937"
-                        IsChecked="{Binding DublettenMitUnterordnern}"
-                        ToolTip="Aus: nur der Ordner selbst. Ein: alle Unterordner mit – auf grossen Bäumen deutlich langsamer.">
-                        <StackPanel x:Name="STP_UnterordnerInhalt" Orientation="Horizontal">
-                            <TextBlock
-                                x:Name="IC_Unterordner"
-                                Margin="0,0,6,0"
-                                VerticalAlignment="Center"
-                                FontFamily="Segoe MDL2 Assets"
-                                FontSize="13"
-                                Foreground="#FF64748B"
-                                Text="&#xED43;" />
-                            <TextBlock x:Name="TXT_Unterordner" Text="Unterordner einbeziehen" />
-                        </StackPanel>
-                    </CheckBox>
+
+                    <!--  ===== Gruppe: Umfang — was überhaupt eingesammelt wird =====  -->
+                    <StackPanel x:Name="STP_GruppeUmfang" Margin="0,0,0,4">
+                        <TextBlock
+                            x:Name="TXT_GruppeUmfang"
+                            Margin="0,0,0,5"
+                            FontSize="11"
+                            Foreground="Gray"
+                            Text="Umfang — was durchsucht wird" />
+
+                        <CheckBox
+                            x:Name="CHK_MitUnterordnern"
+                            Margin="0,0,0,4"
+                            VerticalContentAlignment="Center"
+                            FontSize="12"
+                            Foreground="#FF1F2937"
+                            IsChecked="{Binding DublettenMitUnterordnern}"
+                            ToolTip="Aus: nur der Ordner selbst. Ein: alle Unterordner mit – auf grossen Bäumen deutlich langsamer.">
+                            <StackPanel x:Name="STP_UnterordnerInhalt" Orientation="Horizontal">
+                                <TextBlock
+                                    x:Name="IC_Unterordner"
+                                    Margin="0,0,6,0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="13"
+                                    Foreground="#FF64748B"
+                                    Text="&#xED43;" />
+                                <TextBlock x:Name="TXT_Unterordner" Text="Unterordner einbeziehen" />
+                            </StackPanel>
+                        </CheckBox>
+
+                        <!--
+                            Das Symbol wechselt mit dem Zustand: Bild-Symbol solange nur Bilder
+                            gesucht werden, Raster sobald alle Dateitypen gelten. So ist der
+                            aktuelle Modus auch ohne Lesen des Hakens erkennbar.
+                        -->
+                        <CheckBox
+                            x:Name="CHK_AlleDateitypen"
+                            VerticalContentAlignment="Center"
+                            FontSize="12"
+                            Foreground="#FF1F2937"
+                            IsChecked="{Binding DublettenAlleDateitypen}"
+                            ToolTip="Aus: nur Bilddateien (jpg, png, bmp, gif, webp). Ein: jede Datei – auch Archive, Videos, Dokumente. Die Liste wird sofort neu eingelesen.">
+                            <StackPanel x:Name="STP_DateitypenInhalt" Orientation="Horizontal">
+                                <TextBlock
+                                    x:Name="IC_Dateitypen"
+                                    Margin="0,0,6,0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="13">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="&#xEB9F;" />
+                                            <Setter Property="Foreground" Value="#FF64748B" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding DublettenAlleDateitypen}" Value="True">
+                                                    <Setter Property="Text" Value="&#xE71D;" />
+                                                    <Setter Property="Foreground" Value="#FF1F2937" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock x:Name="TXT_Dateitypen" Text="Alle Dateitypen" />
+                            </StackPanel>
+                        </CheckBox>
+                    </StackPanel>
 
                     <!--
-                        Das Symbol wechselt mit dem Zustand: Bild-Symbol solange nur Bilder
-                        gesucht werden, Raster sobald alle Dateitypen gelten. So ist der
-                        aktuelle Modus auch ohne Lesen des Hakens erkennbar.
+                        Trennt die beiden Gruppen. Ohne feste Höhe: Der Strich wird auf die
+                        Höhe der Zeile gedehnt, die die Gruppen ohnehin vorgeben.
                     -->
-                    <CheckBox
-                        x:Name="CHK_AlleDateitypen"
-                        Margin="24,0,0,4"
-                        VerticalContentAlignment="Center"
-                        FontSize="12"
-                        Foreground="#FF1F2937"
-                        IsChecked="{Binding DublettenAlleDateitypen}"
-                        ToolTip="Aus: nur Bilddateien (jpg, png, bmp, gif, webp). Ein: jede Datei – auch Archive, Videos, Dokumente. Die Liste wird sofort neu eingelesen.">
-                        <StackPanel x:Name="STP_DateitypenInhalt" Orientation="Horizontal">
-                            <TextBlock
-                                x:Name="IC_Dateitypen"
-                                Margin="0,0,6,0"
-                                VerticalAlignment="Center"
-                                FontFamily="Segoe MDL2 Assets"
-                                FontSize="13">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Text" Value="&#xEB9F;" />
-                                        <Setter Property="Foreground" Value="#FF64748B" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding DublettenAlleDateitypen}" Value="True">
-                                                <Setter Property="Text" Value="&#xE71D;" />
-                                                <Setter Property="Foreground" Value="#FF1F2937" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                            <TextBlock x:Name="TXT_Dateitypen" Text="Alle Dateitypen" />
-                        </StackPanel>
-                    </CheckBox>
+                    <Border
+                        x:Name="BRD_OptionenTrenner"
+                        Width="1"
+                        Margin="22,2,22,6"
+                        VerticalAlignment="Stretch"
+                        Background="#FFE2E8F0" />
+
+                    <!--  ===== Gruppe: Kriterium — wann etwas als Dublette gilt =====  -->
+                    <StackPanel x:Name="STP_GruppeKriterium" Margin="0,0,0,4">
+                        <TextBlock
+                            x:Name="TXT_GruppeKriterium"
+                            Margin="0,0,0,5"
+                            FontSize="11"
+                            Foreground="Gray"
+                            Text="Kriterium — wann etwas als Dublette gilt" />
+
+                        <!--
+                            Grenzt die Paarbildung auf gleichnamige Dateien ein — die Denkweise
+                            der Dublettensuche im Dateimanager. Nebeneffekt: Der Lauf wird
+                            drastisch schneller, weil pro Kandidat statt einer ganzen
+                            Grössengruppe meist genau ein Gegenstück übrig bleibt.
+                        -->
+                        <CheckBox
+                            x:Name="CHK_NurGleicherName"
+                            Margin="0,0,0,4"
+                            VerticalContentAlignment="Center"
+                            FontSize="12"
+                            Foreground="#FF1F2937"
+                            IsChecked="{Binding DublettenNurGleicherName}"
+                            ToolTip="Aus: jede Datei wird gegen den gesamten Bestand gleicher Grösse geprüft. Ein: nur gegen Dateien mit demselben Dateinamen – die Ordner dürfen anders heissen. Deutlich schneller, besonders über Netzlaufwerke.">
+                            <StackPanel x:Name="STP_NurGleicherNameInhalt" Orientation="Horizontal">
+                                <TextBlock
+                                    x:Name="IC_NurGleicherName"
+                                    Margin="0,0,6,0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="13">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="&#xE8AC;" />
+                                            <Setter Property="Foreground" Value="#FF64748B" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding DublettenNurGleicherName}" Value="True">
+                                                    <Setter Property="Foreground" Value="#FF1F2937" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock x:Name="TXT_NurGleicherName" Text="Nur gleicher Dateiname" />
+                            </StackPanel>
+                        </CheckBox>
+
+                        <!--
+                            Eingerückt, weil es keine gleichrangige fünfte Option ist,
+                            sondern eine Unteroption des Namensvergleichs: Ohne
+                            Namensbezug bliebe „alles gleicher Grösse ist eine Dublette"
+                            übrig, und das räumt wahllos ab. Deshalb nur bedienbar,
+                            solange der Haken darüber gesetzt ist — sichtbar bleibt er
+                            trotzdem, sonst fände ihn niemand.
+
+                            Das Symbol wechselt in den Warnzustand, sobald der Inhalt nicht
+                            mehr geprüft wird — der riskante Zustand soll auffallen, ohne
+                            dass man den Haken liest. Im gesperrten Zustand wird es
+                            mitgedimmt: Eine ausdrücklich gesetzte Foreground-Farbe macht
+                            die Ausgrauung von WPF sonst nicht mit, und das Symbol stünde
+                            in voller Farbe neben einer blassen Beschriftung.
+                        -->
+                        <CheckBox
+                            x:Name="CHK_Tiefenpruefung"
+                            Margin="18,0,0,0"
+                            VerticalContentAlignment="Center"
+                            FontSize="12"
+                            Foreground="#FF1F2937"
+                            IsChecked="{Binding DublettenTiefenpruefung}"
+                            IsEnabled="{Binding DublettenNurGleicherName}"
+                            ToolTip="Ein (Vorgabe): Der Inhalt wird gelesen und geprüft – ein Treffer ist dann sicher. Aus: Es entscheidet allein der Dateiname, keine Datei wird geöffnet. Das ist in Sekunden fertig, kann aber gleichnamige Dateien mit verschiedenem Inhalt zusammenbringen. Nur zusammen mit „Nur gleicher Dateiname“ abschaltbar.">
+                            <StackPanel x:Name="STP_TiefenpruefungInhalt" Orientation="Horizontal">
+                                <TextBlock
+                                    x:Name="IC_Tiefenpruefung"
+                                    Margin="0,0,6,0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="13">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="&#xE9D9;" />
+                                            <Setter Property="Foreground" Value="#FF1F2937" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding DublettenTiefenpruefung}" Value="False">
+                                                    <Setter Property="Text" Value="&#xE7BA;" />
+                                                    <Setter Property="Foreground" Value="#FFB45309" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding DublettenNurGleicherName}" Value="False">
+                                                    <Setter Property="Opacity" Value="0.4" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock x:Name="TXT_Tiefenpruefung" Text="Inhalt prüfen" />
+                            </StackPanel>
+                        </CheckBox>
+                    </StackPanel>
 
                     <!--  Arbeitsanzeige: nur während des Einlesens, mit Abbruchmöglichkeit  -->
                     <StackPanel
@@ -817,36 +946,77 @@
                         BorderThickness="1"
                         CornerRadius="10">
                         <!--
-                            Feste Mindestbreiten für Zahl und Grösse: Beim Löschen zählen
-                            beide herunter, und ohne das würde die Pille bei jedem Schritt
-                            in der Breite springen. Rechtsbündig, damit die Ziffern stehen.
+                            Während der Suche zählt die Pille nichts: Die Treffer stehen
+                            erst am Ende fest, bis dahin behauptete sie minutenlang
+                            „0 markiert – 0,0 MB". Das las sich wie ein Ergebnis, war aber
+                            nur der Anfangszustand. Deshalb tritt für die Dauer der Suche
+                            eine Wortmeldung an ihre Stelle.
+
+                            Beim Löschlauf bleiben die Zahlen stehen — dort zählen sie
+                            tatsächlich herunter und sind die eigentliche Information.
                         -->
-                        <StackPanel x:Name="STP_TrefferZaehler" Orientation="Horizontal">
+                        <Grid x:Name="GRD_TrefferZaehlerInhalt">
+                            <!--
+                                Feste Mindestbreiten für Zahl und Grösse: Beim Löschen zählen
+                                beide herunter, und ohne das würde die Pille bei jedem Schritt
+                                in der Breite springen. Rechtsbündig, damit die Ziffern stehen.
+                            -->
+                            <StackPanel x:Name="STP_TrefferZaehler" Orientation="Horizontal">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CommandExecuteByteDublettenSuchenCommand.IsRunning}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock
+                                    x:Name="TXT_TrefferMarkiert"
+                                    MinWidth="26"
+                                    d:Text="18"
+                                    FontSize="12"
+                                    FontWeight="SemiBold"
+                                    Foreground="#FF1F2937"
+                                    Text="{Binding DublettenMarkierteAnzahl}"
+                                    TextAlignment="Right" />
+                                <TextBlock
+                                    x:Name="TXT_TrefferMarkiertLabel"
+                                    Margin="5,0,8,0"
+                                    FontSize="12"
+                                    Foreground="Gray"
+                                    Text="markiert" />
+                                <TextBlock
+                                    x:Name="TXT_TrefferGroesse"
+                                    MinWidth="62"
+                                    d:Text="42,3 MB"
+                                    FontSize="12"
+                                    FontWeight="SemiBold"
+                                    Foreground="#FF9B1C1C"
+                                    Text="{Binding DublettenMarkierteGroesseText}"
+                                    TextAlignment="Right" />
+                            </StackPanel>
+
                             <TextBlock
-                                x:Name="TXT_TrefferMarkiert"
-                                MinWidth="26"
-                                d:Text="18"
-                                FontSize="12"
-                                FontWeight="SemiBold"
-                                Foreground="#FF1F2937"
-                                Text="{Binding DublettenMarkierteAnzahl}"
-                                TextAlignment="Right" />
-                            <TextBlock
-                                x:Name="TXT_TrefferMarkiertLabel"
-                                Margin="5,0,8,0"
+                                x:Name="TXT_TrefferZaehlerWaehrendSuche"
+                                HorizontalAlignment="Center"
+                                d:Visibility="Collapsed"
                                 FontSize="12"
                                 Foreground="Gray"
-                                Text="markiert" />
-                            <TextBlock
-                                x:Name="TXT_TrefferGroesse"
-                                MinWidth="62"
-                                d:Text="42,3 MB"
-                                FontSize="12"
-                                FontWeight="SemiBold"
-                                Foreground="#FF9B1C1C"
-                                Text="{Binding DublettenMarkierteGroesseText}"
-                                TextAlignment="Right" />
-                        </StackPanel>
+                                Text="steht am Ende fest">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CommandExecuteByteDublettenSuchenCommand.IsRunning}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
                     </Border>
                 </Grid>
 
@@ -969,14 +1139,31 @@
                                                     x:Name="STP_ZeileReferenz"
                                                     Margin="0,3,0,0"
                                                     Orientation="Horizontal">
+                                                    <!--
+                                                        Der grüne Haken steht für „Inhalt verglichen".
+                                                        Wurde nur der Name geprüft, wäre er eine
+                                                        Zusicherung, die niemand eingelöst hat — dann
+                                                        steht dort das Warnzeichen.
+                                                    -->
                                                     <TextBlock
                                                         x:Name="IC_ZeileReferenz"
                                                         Margin="0,0,4,0"
                                                         VerticalAlignment="Center"
                                                         FontFamily="Segoe MDL2 Assets"
-                                                        FontSize="9"
-                                                        Foreground="#FF059669"
-                                                        Text="&#xE73E;" />
+                                                        FontSize="9">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Text" Value="&#xE73E;" />
+                                                                <Setter Property="Foreground" Value="#FF059669" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IstNurNamensTreffer}" Value="True">
+                                                                        <Setter Property="Text" Value="&#xE7BA;" />
+                                                                        <Setter Property="Foreground" Value="#FFB45309" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
                                                     <TextBlock
                                                         x:Name="TXT_ZeileReferenz"
                                                         FontSize="10"
@@ -984,6 +1171,32 @@
                                                         Text="{Binding ReferenzDatei}"
                                                         TextTrimming="CharacterEllipsis"
                                                         ToolTip="{Binding ReferenzDatei}" />
+
+                                                    <!--
+                                                        Nur bei Namenstreffern sichtbar. Nennt bei
+                                                        abweichender Grösse gleich die des Bestands —
+                                                        das ist der Fall, in dem sicher feststeht, dass
+                                                        es nicht dieselbe Datei ist.
+                                                    -->
+                                                    <Border
+                                                        x:Name="BRD_ZeilePruefung"
+                                                        Margin="6,0,0,0"
+                                                        Padding="5,0"
+                                                        VerticalAlignment="Center"
+                                                        d:Visibility="Visible"
+                                                        Background="#FFFEF3C7"
+                                                        BorderBrush="#FFFCD34D"
+                                                        BorderThickness="1"
+                                                        CornerRadius="4"
+                                                        ToolTip="{Binding PruefungTooltip}"
+                                                        Visibility="{Binding IstNurNamensTreffer, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                                                        <TextBlock
+                                                            x:Name="TXT_ZeilePruefung"
+                                                            d:Text="nur Name — Bestand 2,4 MB"
+                                                            FontSize="10"
+                                                            Foreground="#FFB45309"
+                                                            Text="{Binding PruefungHinweis}" />
+                                                    </Border>
                                                 </StackPanel>
                                             </StackPanel>
 
@@ -1046,13 +1259,26 @@
                             VerticalAlignment="Center"
                             d:Visibility="Collapsed"
                             IsHitTestVisible="False">
+                            <!--
+                                Nur zeigen, solange nichts läuft. DublettenLeerHinweis wird
+                                weder beim Suchstart noch beim Einlesen neu gesetzt und
+                                stand deshalb während eines langen Laufs minutenlang auf
+                                „Bereit – auf ‚Byte-Duplikate suchen‘ klicken": eine
+                                Aufforderung, genau das zu tun, was gerade lief. Für beide
+                                Fälle treten die Blöcke darunter an diese Stelle.
+                            -->
                             <StackPanel.Style>
                                 <Style TargetType="StackPanel">
                                     <Setter Property="Visibility" Value="Collapsed" />
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding ByteDublettenTreffer.Count}" Value="0">
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding ByteDublettenTreffer.Count}" Value="0" />
+                                                <Condition Binding="{Binding CommandExecuteByteDublettenSuchenCommand.IsRunning}" Value="False" />
+                                                <Condition Binding="{Binding CommandExecuteDublettenOrdnerNeuLesenCommand.IsRunning}" Value="False" />
+                                            </MultiDataTrigger.Conditions>
                                             <Setter Property="Visibility" Value="Visible" />
-                                        </DataTrigger>
+                                        </MultiDataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </StackPanel.Style>
@@ -1072,6 +1298,179 @@
                                 FontSize="12"
                                 Foreground="Gray"
                                 Text="{Binding DublettenLeerHinweis}" />
+                        </StackPanel>
+
+                        <!--
+                            Während der Suche. Die Liste bleibt bis zum Schluss leer — die
+                            Treffer werden erst gesetzt, wenn alles verglichen ist. Genau
+                            das muss hier stehen, sonst wartet man vor einer leeren Fläche
+                            und weiss nicht, ob noch etwas kommt.
+
+                            Der Fortschritt selbst steht bewusst nicht noch einmal hier: Er
+                            steht eine Karte höher mit Balken und Restzeit, und zweimal
+                            dieselbe Zahl auf einem Schirm liest sich wie zwei Vorgänge.
+                        -->
+                        <StackPanel
+                            x:Name="STP_SucheLaeuft"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            d:Visibility="Collapsed"
+                            IsHitTestVisible="False">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CommandExecuteByteDublettenSuchenCommand.IsRunning}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+
+                            <TextBlock
+                                x:Name="IC_SucheLaeuftSpinner"
+                                HorizontalAlignment="Center"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="24"
+                                Foreground="#FFCBD5E1"
+                                RenderTransformOrigin="0.5,0.5"
+                                Text="&#xE72C;">
+                                <TextBlock.RenderTransform>
+                                    <RotateTransform Angle="0" />
+                                </TextBlock.RenderTransform>
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CommandExecuteByteDublettenSuchenCommand.IsRunning}" Value="True">
+                                                <DataTrigger.EnterActions>
+                                                    <BeginStoryboard x:Name="SB_SucheLaeuftSpinner">
+                                                        <Storyboard>
+                                                            <DoubleAnimation
+                                                                RepeatBehavior="Forever"
+                                                                Storyboard.TargetProperty="(RenderTransform).(RotateTransform.Angle)"
+                                                                From="0"
+                                                                To="360"
+                                                                Duration="0:0:1.6" />
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </DataTrigger.EnterActions>
+                                                <DataTrigger.ExitActions>
+                                                    <StopStoryboard BeginStoryboardName="SB_SucheLaeuftSpinner" />
+                                                </DataTrigger.ExitActions>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <TextBlock
+                                x:Name="TXT_SucheLaeuftTitel"
+                                Margin="0,10,0,0"
+                                HorizontalAlignment="Center"
+                                FontSize="12"
+                                FontWeight="SemiBold"
+                                Foreground="#FF374151"
+                                Text="Die Suche läuft" />
+
+                            <TextBlock
+                                x:Name="TXT_SucheLaeuftHinweis"
+                                Margin="0,4,0,0"
+                                MaxWidth="380"
+                                HorizontalAlignment="Center"
+                                FontSize="11"
+                                Foreground="Gray"
+                                Text="Die Liste füllt sich erst am Ende — verglichen wird bis dahin durchgehend. Stand und Restzeit stehen oben über dieser Karte."
+                                TextAlignment="Center"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <!--
+                            Während das Einlesen des Ordners läuft. Derselbe Fall wie bei
+                            der Suche, nur kürzer: Die Liste ist geleert, und ohne diesen
+                            Block stünde mitten darin der alte Leerhinweis. Über ein
+                            Netzlaufwerk mit vielen Dateien zieht sich auch das Auflisten.
+
+                            Bewusst ein anderer Text als bei der Suche: Hier wird nichts
+                            verglichen, sondern nur aufgezählt, was auf der Löschseite
+                            liegt — und die Zusatzbedingung stellt sicher, dass nie beide
+                            Blöcke übereinanderliegen.
+                        -->
+                        <StackPanel
+                            x:Name="STP_EinlesenLaeuft"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            d:Visibility="Collapsed"
+                            IsHitTestVisible="False">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding CommandExecuteDublettenOrdnerNeuLesenCommand.IsRunning}" Value="True" />
+                                                <Condition Binding="{Binding CommandExecuteByteDublettenSuchenCommand.IsRunning}" Value="False" />
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+
+                            <TextBlock
+                                x:Name="IC_EinlesenLaeuftSpinner"
+                                HorizontalAlignment="Center"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="24"
+                                Foreground="#FFCBD5E1"
+                                RenderTransformOrigin="0.5,0.5"
+                                Text="&#xE72C;">
+                                <TextBlock.RenderTransform>
+                                    <RotateTransform Angle="0" />
+                                </TextBlock.RenderTransform>
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CommandExecuteDublettenOrdnerNeuLesenCommand.IsRunning}" Value="True">
+                                                <DataTrigger.EnterActions>
+                                                    <BeginStoryboard x:Name="SB_EinlesenLaeuftSpinner">
+                                                        <Storyboard>
+                                                            <DoubleAnimation
+                                                                RepeatBehavior="Forever"
+                                                                Storyboard.TargetProperty="(RenderTransform).(RotateTransform.Angle)"
+                                                                From="0"
+                                                                To="360"
+                                                                Duration="0:0:1.6" />
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </DataTrigger.EnterActions>
+                                                <DataTrigger.ExitActions>
+                                                    <StopStoryboard BeginStoryboardName="SB_EinlesenLaeuftSpinner" />
+                                                </DataTrigger.ExitActions>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <TextBlock
+                                x:Name="TXT_EinlesenLaeuftTitel"
+                                Margin="0,10,0,0"
+                                HorizontalAlignment="Center"
+                                FontSize="12"
+                                FontWeight="SemiBold"
+                                Foreground="#FF374151"
+                                Text="Der Ordner wird gelesen" />
+
+                            <TextBlock
+                                x:Name="TXT_EinlesenLaeuftHinweis"
+                                Margin="0,4,0,0"
+                                MaxWidth="380"
+                                HorizontalAlignment="Center"
+                                FontSize="11"
+                                Foreground="Gray"
+                                Text="Danach steht hier, was im Dubletten-Ordner liegt — aufgezählt, noch nicht verglichen. Der Stand steht oben über dieser Karte."
+                                TextAlignment="Center"
+                                TextWrapping="Wrap" />
                         </StackPanel>
                     </Grid>
                 </Border>

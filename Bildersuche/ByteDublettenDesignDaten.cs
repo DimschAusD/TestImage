@@ -4,10 +4,11 @@ namespace TestImage.Bildersuche
 {
     /// <summary>
     /// Beispieldaten für den XAML-Designer (nur über d: eingebunden, zur Laufzeit
-    /// ungenutzt). Deckt bewusst alle vier Zustände einer Trefferzeile ab, damit sich
+    /// ungenutzt). Deckt bewusst alle Zustände einer Trefferzeile ab, damit sich
     /// Darstellung und Trigger im Designer prüfen lassen, ohne die App zu starten:
-    /// bestätigt+markiert, bestätigt+abgewählt, ungeprüft (aus der Ordner-Auflistung)
-    /// und bereits im Papierkorb.
+    /// bestätigt+markiert, bestätigt+abgewählt, ungeprüft (aus der Ordner-Auflistung),
+    /// bereits im Papierkorb sowie die beiden Namenstreffer ohne Inhaltsprüfung —
+    /// einmal mit passender, einmal mit abweichender Grösse.
     /// </summary>
     public sealed class ByteDublettenDesignDaten : ObservableCollection<ByteDublettenTreffer>
     {
@@ -37,6 +38,27 @@ namespace TestImage.Bildersuche
                 ReferenzDatei = string.Empty,
                 GroesseBytes = 1_073_741_824,
                 IstMarkiert = false
+            });
+
+            // Namenstreffer ohne Inhaltsprüfung, Grössen passen zusammen.
+            Add(new ByteDublettenTreffer
+            {
+                DublettenDatei = @"C:\Downloads\Neu\Protokoll_Mai.docx",
+                ReferenzDatei = @"C:\Dokumente\Archiv\Protokoll_Mai.docx",
+                GroesseBytes = 48_112,
+                ReferenzGroesseBytes = 48_112,
+                IstNurNamensTreffer = true
+            });
+
+            // Namenstreffer mit abweichender Grösse: gleicher Name, sicher nicht
+            // dieselbe Datei — hier muss die Warnung ins Auge fallen.
+            Add(new ByteDublettenTreffer
+            {
+                DublettenDatei = @"C:\Downloads\Neu\Titelbild.jpg",
+                ReferenzDatei = @"C:\Bilder\Sammlung\Titelbild.jpg",
+                GroesseBytes = 2_517_632,
+                ReferenzGroesseBytes = 384_204,
+                IstNurNamensTreffer = true
             });
 
             // Schon im Papierkorb: ausgegraut und durchgestrichen.

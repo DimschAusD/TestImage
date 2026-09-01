@@ -31,11 +31,64 @@ namespace TestImage
             // Bildmodus verlassen, sonst liegen zwei Vollflächen-Ansichten übereinander.
             IsImageMaximiert = false;
 
-            // Dubletten-Ordner beim ersten Öffnen aus dem aktuellen Bild vorbelegen.
-            if (string.IsNullOrWhiteSpace(DublettenOrdner))
-                DublettenOrdner = AktuellerBildOrdner() ?? string.Empty;
-
+            // Erst sichtbar machen, dann vorbelegen: Das Einlesen des Ordners läuft
+            // asynchron, und so sieht man die Arbeitsanzeige von Anfang an.
             IsDublettenAnsicht = true;
+
+            UebernimmBildOrdnerAlsDublettenOrdner();
+        }
+
+        /// <summary>
+        /// Pfad, den die Ansicht zuletzt selbst eingesetzt hat. Nur daran lässt sich eine
+        /// eigene Vorbelegung von einer Angabe des Nutzers unterscheiden — getippt,
+        /// gezogen oder im Dialog gewählt. Fremde Angaben werden nie überschrieben.
+        /// </summary>
+        private string? _vorbelegterDublettenOrdner;
+
+        /// <summary>
+        /// Belegt den Dubletten-Ordner mit dem Ordner des gerade angezeigten Bildes vor.
+        ///
+        /// Bisher geschah das nur, solange das Feld leer war. Nach dem ersten Öffnen
+        /// blieb der Pfad damit für immer stehen: Wer danach ein Bild aus einem anderen
+        /// Ordner ablegte und die Ansicht erneut öffnete, sah weiter den alten Ordner —
+        /// und darunter eine Trefferliste, die zu einem dritten Ordner gehörte.
+        ///
+        /// Jetzt zieht die Vorbelegung mit, solange im Feld noch der zuletzt selbst
+        /// eingesetzte Pfad steht. Sobald der Nutzer selbst etwas einträgt, zieht oder
+        /// wählt, bleibt seine Angabe unangetastet.
+        /// </summary>
+        private void UebernimmBildOrdnerAlsDublettenOrdner()
+        {
+            // Die Ansicht lässt sich schliessen, während Suche oder Löschlauf noch
+            // laufen. Wird sie dann erneut geöffnet, darf ihr nicht der Ordner unter
+            // den Füssen weggezogen werden.
+            if (IsDublettenAufgabeLäuft)
+                return;
+
+            string? bildOrdner = AktuellerBildOrdner();
+
+            if (string.IsNullOrWhiteSpace(bildOrdner))
+                return;
+
+            bool stammtVonUns =
+                string.IsNullOrWhiteSpace(DublettenOrdner)
+                || string.Equals(DublettenOrdner, _vorbelegterDublettenOrdner,
+                                 StringComparison.OrdinalIgnoreCase);
+
+            if (!stammtVonUns)
+                return;
+
+            // Steht schon da – nicht bei jedem Öffnen denselben Ordner neu einlesen.
+            if (string.Equals(DublettenOrdner, bildOrdner, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            DublettenOrdner = bildOrdner;
+            _vorbelegterDublettenOrdner = bildOrdner;
+
+            // Denselben Weg nehmen wie ein Drop auf die Zeile: Der Inhalt des neuen
+            // Ordners wird aufgelistet, und ein Suchergebnis zum alten Ordner
+            // verschwindet dabei, statt mit fremden Pfaden stehen zu bleiben.
+            CommandExecuteDublettenOrdnerNeuLesenCommand.Execute(null);
         }
 
         [RelayCommand]
@@ -44,10 +97,24 @@ namespace TestImage
             IsDublettenAnsicht = false;
         }
 
-        /// <summary>Ordner des gerade angezeigten Bildes, sonst null.</summary>
+        /// <summary>
+        /// Ordner des gerade angezeigten Bildes, sonst null.
+        ///
+        /// Zweite Quelle <see cref="DropDateiName"/>: Beim Ablegen eines Bildes steht der
+        /// Pfad sofort fest, <see cref="SelectedBildchen"/> wird aber erst gesetzt, wenn
+        /// der Ordner durchgelaufen ist und der Eintrag in der Liste steht. Dazwischen
+        /// liegt bei einem grossen Ordner spürbar Zeit, und wer in dieser Spanne die
+        /// Dubletten-Ansicht öffnet, bekam einen leeren Pfad — obwohl das Bild sichtbar
+        /// auf dem Schirm lag. Dasselbe gilt, wenn die Auswahl leer ist, weil das
+        /// abgelegte Bild gar nicht in der Liste landet (ausgefiltert, Einlesen
+        /// abgebrochen).
+        /// </summary>
         private string? AktuellerBildOrdner()
         {
             var pfad = SelectedBildchen?.BName;
+
+            if (string.IsNullOrWhiteSpace(pfad))
+                pfad = DropDateiName;
 
             if (string.IsNullOrWhiteSpace(pfad))
                 return null;
@@ -87,6 +154,36 @@ namespace TestImage
         partial void OnDublettenAlleDateitypenChanged(bool value) => LiesDublettenOrdnerNeu();
 
         partial void OnDublettenMitUnterordnernChanged(bool value) => LiesDublettenOrdnerNeu();
+
+        /// <summary>
+        /// True = eine Datei gilt nur dann als Dublette, wenn im Bestand eine Datei
+        /// <b>gleichen Namens</b> liegt. Die Ordnernamen dürfen sich unterscheiden.
+        ///
+        /// Das ist die Denkweise der Dublettensuche im Dateimanager und zugleich der
+        /// mit Abstand schnellste Weg: Statt einer ganzen Grössengruppe bleibt pro
+        /// Kandidat meist genau ein Gegenstück übrig.
+        /// </summary>
+        [ObservableProperty]
+        public partial bool DublettenNurGleicherName { get; set; }
+
+        /// <summary>
+        /// True (Vorgabe) = der Inhalt wird gelesen und geprüft.
+        /// False = allein der Dateiname entscheidet, keine Datei wird geöffnet.
+        /// </summary>
+        [ObservableProperty]
+        public partial bool DublettenTiefenpruefung { get; set; } = true;
+
+        /// <summary>
+        /// Ohne Namensbezug darf die Tiefenprüfung nicht abgeschaltet werden — übrig
+        /// bliebe sonst „alles gleicher Grösse ist eine Dublette", und das räumt bei
+        /// Bildern und Dokumenten wahllos ab. Der Haken wird deshalb zusammen mit dem
+        /// Namensvergleich zurückgesetzt; die Ansicht sperrt ihn zusätzlich.
+        /// </summary>
+        partial void OnDublettenNurGleicherNameChanged(bool value)
+        {
+            if (!value)
+                DublettenTiefenpruefung = true;
+        }
 
         /// <summary>
         /// Stösst das Neu-Einlesen an, sofern überhaupt ein gültiger Ordner eingestellt
@@ -274,9 +371,15 @@ namespace TestImage
                 return;
             }
 
-            DublettenLeerHinweis = DublettenSucheGelaufen
-                ? "Keine byte-gleichen Dateien im Referenzbestand gefunden"
-                : "Bereit – auf „Byte-Duplikate suchen“ klicken";
+            if (DublettenSucheGelaufen)
+            {
+                DublettenLeerHinweis = DublettenTiefenpruefung
+                    ? "Keine byte-gleichen Dateien im Referenzbestand gefunden"
+                    : "Keine gleichnamigen Dateien im Referenzbestand gefunden";
+                return;
+            }
+
+            DublettenLeerHinweis = "Bereit – auf „Byte-Duplikate suchen“ klicken";
         }
 
         [ObservableProperty]
@@ -648,10 +751,9 @@ namespace TestImage
 
                     DublettenFortschrittUnbestimmt = false;
 
-                    // Der Gesamtumfang wächst während der Suche: Der Byte-Vergleich fällt
-                    // erst bei Hash-Treffern an. Ein wachsendes Maximum liesse den Balken
-                    // zurückspringen, deshalb geht er nur vorwärts und wird notfalls
-                    // langsamer.
+                    // Der Balken geht nur vorwärts. Der Umfang steht zwar seit dem
+                    // Vorfiltern fest, aber gemeldet wird aus mehreren Lesern heraus —
+                    // ein einzelner Rücksetzer sähe nach einem Fehler aus.
                     int stand = (int)(p.Erledigt * 1000 / p.Gesamt);
                     if (stand > DublettenFortschritt)
                         DublettenFortschritt = stand;
@@ -666,6 +768,8 @@ namespace TestImage
                     DublettenReferenzOrdner.ToList(),
                     DublettenMitUnterordnern,
                     DublettenAlleDateitypen,
+                    DublettenNurGleicherName,
+                    DublettenTiefenpruefung,
                     fortschritt,
                     token,
                     nichtLesbar);
@@ -684,9 +788,26 @@ namespace TestImage
                     ? string.Empty
                     : $" — {nichtLesbar.Count} Datei(en) waren gesperrt und wurden nicht geprüft, Suche später wiederholen";
 
+                // Ohne Tiefenprüfung wäre „Byte-Duplikate" eine Behauptung über den
+                // Inhalt, die gar nicht geprüft wurde. Der Text nennt deshalb genau das
+                // Kriterium, nach dem gesucht wurde.
+                int ungeprueft = treffer.Count(t => t.HatAbweichendeGroesse);
+
+                string groessenHinweis = ungeprueft == 0
+                    ? string.Empty
+                    : $" Bei {ungeprueft} davon ist das Gegenstück im Bestand unterschiedlich gross —"
+                      + " gleicher Name heisst dort nicht gleicher Inhalt.";
+
+                string gefunden = DublettenTiefenpruefung
+                    ? $"{treffer.Count} Byte-Duplikate gefunden"
+                    : $"{treffer.Count} gleichnamige Dateien gefunden (Inhalt nicht geprüft)";
+
                 DublettenStatus = (treffer.Count == 0
-                    ? "Keine Byte-Duplikate gefunden."
-                    : $"{treffer.Count} Byte-Duplikate gefunden — {DublettenMarkierteGroesseText} können frei werden.")
+                    ? (DublettenTiefenpruefung
+                        ? "Keine Byte-Duplikate gefunden."
+                        : "Keine gleichnamigen Dateien gefunden.")
+                    : $"{gefunden} — {DublettenMarkierteGroesseText} können frei werden.")
+                    + groessenHinweis
                     + zusatz;
             }
             catch (OperationCanceledException)
@@ -785,10 +906,26 @@ namespace TestImage
             // werden die Dateien, und die liegen alle im selben Dubletten-Ordner.
             string warnung = ByteDublettenService.PapierkorbWarnung(zuLoeschen[0].DublettenDatei);
 
+            // Namenstreffer sagen nichts über den Inhalt. Das gehört in die Rückfrage,
+            // und zwar bevor geklickt wird: Bei abweichender Grösse steht sogar fest,
+            // dass es nicht dieselbe Datei ist.
+            int nurName = zuLoeschen.Count(t => t.IstNurNamensTreffer);
+            int abweichend = zuLoeschen.Count(t => t.HatAbweichendeGroesse);
+
+            string namensWarnung = nurName == 0
+                ? string.Empty
+                : $"\n\nACHTUNG — bei {nurName} Datei(en) wurde nur der Name verglichen,\n"
+                  + "der Inhalt wurde nicht gelesen. Gleicher Name heisst nicht gleiche Datei."
+                  + (abweichend == 0
+                      ? string.Empty
+                      : $"\nBei {abweichend} davon ist das Gegenstück im Bestand sogar\n"
+                        + "unterschiedlich gross — dort ist es sicher nicht dieselbe Datei.");
+
             var antwort = MessageBox.Show(
                 $"{zuLoeschen.Count} Dublette(n) in den Papierkorb verschieben?\n\n" +
                 $"Es werden {DublettenMarkierteGroesseText} frei.\n" +
-                "Der Referenzbestand bleibt unangetastet.\n\n" +
+                "Der Referenzbestand bleibt unangetastet." +
+                namensWarnung + "\n\n" +
                 "Nichts wird endgültig gelöscht. Zurückholen geht so:\n" +
                 "Papierkorb auf dem Desktop öffnen, die Dateien markieren,\n" +
                 "Rechtsklick, „Wiederherstellen\" — sie landen wieder\n" +

@@ -19,6 +19,58 @@ namespace TestImage.Bildersuche
         /// <summary>Dateigrösse in Bytes (bei Byte-Gleichheit für beide identisch).</summary>
         public long GroesseBytes { get; init; }
 
+        /// <summary>
+        /// Grösse des Gegenstücks im Bestand. Weicht sie ab, war es ein reiner
+        /// Namenstreffer — bei geprüftem Inhalt sind beide Werte zwangsläufig gleich.
+        /// </summary>
+        public long ReferenzGroesseBytes { get; init; }
+
+        /// <summary>
+        /// True, wenn allein der Dateiname übereingestimmt hat und der Inhalt
+        /// <b>nicht</b> gelesen wurde (Tiefenprüfung abgeschaltet). Der Eintrag ist
+        /// löschbar wie jeder andere, aber er behauptet nichts über den Inhalt.
+        /// </summary>
+        public bool IstNurNamensTreffer { get; init; }
+
+        /// <summary>
+        /// True, wenn die beiden Dateien verschieden gross sind. Nur bei Namenstreffern
+        /// möglich und dort das deutlichste Zeichen, dass es eben doch nicht dieselbe
+        /// Datei ist — etwa eine andere Auflösung oder ein anderer Bearbeitungsstand.
+        /// </summary>
+        public bool HatAbweichendeGroesse
+            => IstNurNamensTreffer && ReferenzGroesseBytes != GroesseBytes;
+
+        /// <summary>
+        /// Kurzer Hinweis für die Trefferliste, wie sicher der Treffer ist.
+        /// Leer, wenn der Inhalt geprüft wurde — dann gibt es nichts anzumerken.
+        /// </summary>
+        public string PruefungHinweis => !IstNurNamensTreffer
+            ? string.Empty
+            : HatAbweichendeGroesse
+                ? $"nur Name — Bestand {LesbareGroesse(ReferenzGroesseBytes)}"
+                : "nur Name";
+
+        /// <summary>
+        /// Tooltip zum Hinweis — nennt den Grund, nicht nur den Zustand.
+        ///
+        /// Erste Bedingung ist kein Beiwerk: Einträge aus der reinen Ordner-Auflistung
+        /// haben kein Gegenstück und wurden mit nichts verglichen. Ohne diesen Zweig
+        /// behauptete der Text bei ihnen „Inhalt geprüft".
+        /// </summary>
+        public string PruefungTooltip => !IstBestaetigt
+            ? "Nur aufgelistet — mit dem Referenzbestand noch nicht verglichen."
+            : !IstNurNamensTreffer
+            ? "Inhalt geprüft — die Dateien sind identisch."
+            : HatAbweichendeGroesse
+                ? "Nur der Dateiname stimmt überein, der Inhalt wurde nicht gelesen.\n"
+                  + $"Die Datei im Bestand ist {LesbareGroesse(ReferenzGroesseBytes)} gross, "
+                  + $"diese hier {LesbareGroesse(GroesseBytes)} — es ist also mit Sicherheit "
+                  + "nicht dieselbe Datei.\n"
+                  + "Vor dem Löschen ansehen oder die Suche mit Tiefenprüfung wiederholen."
+                : "Nur der Dateiname stimmt überein, der Inhalt wurde nicht gelesen.\n"
+                  + "Die Grössen passen zusammen, was für dieselbe Datei spricht — "
+                  + "beweisen kann das nur die Tiefenprüfung.";
+
         /// <summary>Zum Löschen vorgemerkt. Standard: ja, denn genau dafür wurde gesucht.</summary>
         [ObservableProperty]
         public partial bool IstMarkiert { get; set; } = true;
@@ -43,8 +95,10 @@ namespace TestImage.Bildersuche
         public string ReferenzOrdner => Path.GetDirectoryName(ReferenzDatei) ?? string.Empty;
 
         /// <summary>Grösse lesbar aufbereitet (KB/MB).</summary>
-        public string GroesseText => GroesseBytes >= 1024 * 1024
-            ? $"{GroesseBytes / 1024.0 / 1024.0:0.0} MB"
-            : $"{GroesseBytes / 1024.0:0} KB";
+        public string GroesseText => LesbareGroesse(GroesseBytes);
+
+        private static string LesbareGroesse(long bytes) => bytes >= 1024 * 1024
+            ? $"{bytes / 1024.0 / 1024.0:0.0} MB"
+            : $"{bytes / 1024.0:0} KB";
     }
 }

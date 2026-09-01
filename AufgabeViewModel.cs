@@ -209,26 +209,14 @@ namespace TestImage
 
             ocAufgabensKlein = new ObservableCollection<MeinBildchen>();
 
-            // Beide Listen beginnen leer.
-            //
-            // Hier standen vier Beispieleinträge auf @".\.\HeavyO.jpg" — ein Dateipfad
-            // relativ zum Arbeitsverzeichnis. Das Bild ist aber als Resource in die
-            // Assembly eingebettet und lag nie neben der .exe; die Einträge zeigten
-            // also ins Leere und erschienen beim Start als Platzhalter-Kacheln.
-
-
             AufgabenView = CollectionViewSource.GetDefaultView(ocAufgabens) as ListCollectionView;
             AufgabenView.SortDescriptions.Clear();
             AufgabenView.CustomSort = new NaturalStringComparer();
 
             // initialisieren der AufgabenViewKlein
 
-            //ocAufgabensKlein = ocAufgabens;
             AufgabenViewKlein = new ListCollectionView(ocAufgabensKlein);
 
-
-            //AufgabenViewKlein = CollectionViewSource.GetDefaultView(ocAufgabensKlein) as ListCollectionView;
-            // Läuft Halbwegs
             //AufgabenView.CurrentChanged += new EventHandler(TerminsView_CurrentChanged);
             //AufgabenView.CurrentChanged += (s, e) =>
             //{

@@ -89,7 +89,7 @@
         Rand durchsichtig: Das Panel sass früher in einem Popup und brauchte dort eine
         eigene Kante, um sich vom Fenster dahinter abzuheben. Im eigenen Fenster ist die
         Kante überflüssig und liegt als zweiter Rahmen direkt neben dem Fensterrahmen.
-
+        
         Die Stärke bleibt bei 1, damit sich die Innenmasse nicht um einen Punkt verschieben.
     -->
     <Border
@@ -618,12 +618,12 @@
                             ToolTip="Schema-ähnliche Bilder zum gewählten Bild finden (Regler erscheint darunter nach der Suche)">
                             <StackPanel x:Name="STP_SchemaInhalt" Orientation="Horizontal">
                                 <TextBlock
-                            x:Name="TXT_SchemaIcon"
-                            Margin="0,1,7,0"
-                            VerticalAlignment="Center"
-                            FontFamily="Segoe MDL2 Assets"
-                            FontSize="14"
-                            Text="&#xE8B3;" />
+                                    x:Name="TXT_SchemaIcon"
+                                    Margin="0,1,7,0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="14"
+                                    Text="&#xE8B3;" />
                                 <!--  Bereich wandert in die Beschriftung, sobald er nicht der Einzelordner ist  -->
                                 <TextBlock
                                     x:Name="TXT_SchemaLabel"
@@ -645,30 +645,31 @@
                             Background="Transparent">
                             <MenuItem
                                 x:Name="MNI_SuchbereichWurzel"
+                                Height="32"
                                 Padding="7,0"
                                 Background="Transparent"
-                                ToolTip="Wo „Schema-ähnlich“ sucht. Mit Unterordnern lässt die Ablagen wie kein_Fav aussen vor." Height="32">
+                                ToolTip="Wo „Schema-ähnlich“ sucht. Mit Unterordnern lässt die Ablagen wie kein_Fav aussen vor.">
                                 <MenuItem.Header>
                                     <TextBlock
-                                x:Name="IC_SuchbereichChevron"
-                                VerticalAlignment="Center"
-                                FontFamily="Segoe MDL2 Assets"
-                                FontSize="10"
-                                Foreground="#FF2B2B2B"
-                                Text="&#xE70D;" />
+                                        x:Name="IC_SuchbereichChevron"
+                                        VerticalAlignment="Center"
+                                        FontFamily="Segoe MDL2 Assets"
+                                        FontSize="10"
+                                        Foreground="#FF2B2B2B"
+                                        Text="&#xE70D;" />
                                 </MenuItem.Header>
 
                                 <MenuItem
-                            x:Name="MNI_BereichOrdner"
-                            Header="dieser Ordner"
-                            IsCheckable="True"
-                            IsChecked="{Binding BereichIstOrdner, Mode=TwoWay}" />
+                                    x:Name="MNI_BereichOrdner"
+                                    Header="dieser Ordner"
+                                    IsCheckable="True"
+                                    IsChecked="{Binding BereichIstOrdner, Mode=TwoWay}" />
                                 <MenuItem
-                            x:Name="MNI_BereichZweig"
-                            d:Header="mit Unterordnern (4)"
-                            Header="{Binding BereichZweigText}"
-                            IsCheckable="True"
-                            IsChecked="{Binding BereichIstZweig, Mode=TwoWay}" />
+                                    x:Name="MNI_BereichZweig"
+                                    d:Header="mit Unterordnern (4)"
+                                    Header="{Binding BereichZweigText}"
+                                    IsCheckable="True"
+                                    IsChecked="{Binding BereichIstZweig, Mode=TwoWay}" />
                                 <MenuItem
                                     x:Name="MNI_BereichAlle"
                                     d:Header="alle Ordner (12)"
@@ -686,8 +687,8 @@
                                 -->
                                 <MenuItem
                                     x:Name="MNI_OrdnerVerwalten"
-                                    Command="{Binding CommandExecuteIndexOrdnerZeigenCommand}"
                                     d:Header="Ordner verwalten … (12)"
+                                    Command="{Binding CommandExecuteIndexOrdnerZeigenCommand}"
                                     Header="{Binding OrdnerVerwaltenText}"
                                     ToolTip="Öffnet die Einstellungen bei der Liste der indizierten Ordner" />
                             </MenuItem>
@@ -699,25 +700,25 @@
                     FS = „Fav-Sortierung". Ordnet den offenen Ordner so, dass die
                     wahrscheinlichen Ausschussbilder oben stehen — gelernt aus dem, was
                     dort liegt, gegen das, was im kein_Fav daneben liegt.
-
+                    
                     Kurze Beschriftung mit Absicht: Der Knopf steht in einer Reihe mit
                     „Schema-ähnlich", und eine ausgeschriebene zweite Beschriftung würde
                     die Zeile sprengen. Die Bedeutung steht im ToolTip.
-
+                    
                     Verschoben wird nichts — das Ergebnis landet in derselben Trefferliste
                     wie jede Suche und wird mit „Treffer übernehmen" angewandt.
                 -->
                 <!--
                     FS und die Marke „fertig sortiert" in einer Umrandung, nach demselben
                     Muster wie BRD_SchemaGeteilt daneben.
-
+                    
                     Sie gehören zusammen: Die Marke ist keine allgemeine Einstellung,
                     sondern sagt FS, ob dieser Ordner ins gemeinsame Profil darf. Getrennt
                     stehend sähe sie aus wie ein Schalter für irgendetwas anderes.
                 -->
                 <!--
                     Baustellen-Markierung: FS ist erst zu rund 10 % fertig.
-
+                    
                     Der graue Rand bleibt als Platzhalter stehen (BorderThickness 1,
                     Pinsel transparent), damit sich beim Entfernen der Markierung
                     nichts im Layout verschiebt. Darüber liegt RCT_FavBaustelle —
@@ -764,7 +765,7 @@
 
                             <!--
                                 Marke „fertig sortiert".
-
+                                
                                 Kein Beiwerk: Nur so markierte Ordner gehen ins gemeinsame
                                 Profil ein. Gemessen liegt das gemeinsame Muster über alle
                                 Ordner bei AUC 0,53 — Münzwurf —, über die gründlich
@@ -1435,7 +1436,7 @@
             <!--
                 Verzeichnis der indizierten Ordner — alles dazu in einer eigenen
                 Karte, damit erkennbar ist, was zusammengehört.
-
+                
                 Die ganze Karte ist zugleich Ablagefläche: Ein darauf gezogener
                 Ordner wird samt Unterordnern nach Indexdateien durchsucht. Das
                 Ziel sitzt bewusst hier und nicht an der Bilderzahl darüber —
@@ -1445,12 +1446,12 @@
                 x:Name="BRD_IndexOrdnerKarte"
                 Margin="2,10,2,2"
                 Padding="14"
+                d:Visibility="Visible"
                 local:OrdnerDropHelper.Command="{Binding CommandExecuteIndexOrdnerAusDropCommand}"
                 AllowDrop="True"
                 BorderBrush="#FFECECEC"
                 BorderThickness="1"
                 CornerRadius="10"
-                d:Visibility="Visible"
                 ToolTip="Ordner hierher ziehen: durchsucht ihn samt Unterordnern nach bereits indizierten Ordnern."
                 Visibility="{Binding IsIndexOrdnerKarteOffen, Converter={StaticResource CLconverterVisiblityBoolian}}">
 
@@ -1528,55 +1529,55 @@
                         </Grid.ColumnDefinitions>
 
                         <TextBlock
-                        x:Name="TXT_IndexOrdnerZusammenfassung"
-                        Grid.Column="0"
-                        VerticalAlignment="Center"
-                        d:Text="12 Ordner · 8.430 Bilder · 1 fehlt"
-                        FontFamily="Segoe UI"
-                        FontSize="12"
-                        Foreground="#FF6B6B6B"
-                        Text="{Binding IndexOrdnerZusammenfassung}" />
+                            x:Name="TXT_IndexOrdnerZusammenfassung"
+                            Grid.Column="0"
+                            VerticalAlignment="Center"
+                            d:Text="12 Ordner · 8.430 Bilder · 1 fehlt"
+                            FontFamily="Segoe UI"
+                            FontSize="12"
+                            Foreground="#FF6B6B6B"
+                            Text="{Binding IndexOrdnerZusammenfassung}" />
 
                         <!--  Nur sichtbar, solange der abgelegte Ordnerbaum durchsucht wird  -->
                         <Button
-                        x:Name="BTN_IndexOrdnerSucheAbbrechen"
-                        Grid.Column="1"
-                        Margin="0,0,4,0"
-                        Padding="6,1"
-                        VerticalAlignment="Center"
-                        d:Visibility="Visible"
-                        Command="{Binding CommandExecuteIndexOrdnerAusDropCancelCommand}"
-                        Content="&#xE711;"
-                        Cursor="Hand"
-                        FontFamily="Segoe MDL2 Assets"
-                        FontSize="10"
-                        Style="{StaticResource OutlineButtonStyle}"
-                        ToolTip="Suche nach indizierten Ordnern abbrechen"
-                        Visibility="{Binding CommandExecuteIndexOrdnerAusDropCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}}" />
+                            x:Name="BTN_IndexOrdnerSucheAbbrechen"
+                            Grid.Column="1"
+                            Margin="0,0,4,0"
+                            Padding="6,1"
+                            VerticalAlignment="Center"
+                            d:Visibility="Visible"
+                            Command="{Binding CommandExecuteIndexOrdnerAusDropCancelCommand}"
+                            Content="&#xE711;"
+                            Cursor="Hand"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="10"
+                            Style="{StaticResource OutlineButtonStyle}"
+                            ToolTip="Suche nach indizierten Ordnern abbrechen"
+                            Visibility="{Binding CommandExecuteIndexOrdnerAusDropCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}}" />
 
                         <Button
-                        x:Name="BTN_IndexOrdnerAuffrischen"
-                        Grid.Column="2"
-                        Padding="6,1"
-                        VerticalAlignment="Center"
-                        Command="{Binding CommandExecuteIndexOrdnerAuffrischenCommand}"
-                        Content="&#xE72C;"
-                        Cursor="Hand"
-                        FontFamily="Segoe MDL2 Assets"
-                        FontSize="10"
-                        Style="{StaticResource OutlineButtonStyle}"
-                        ToolTip="Liste neu prüfen – erkennt Ordner, die inzwischen fehlen" />
+                            x:Name="BTN_IndexOrdnerAuffrischen"
+                            Grid.Column="2"
+                            Padding="6,1"
+                            VerticalAlignment="Center"
+                            Command="{Binding CommandExecuteIndexOrdnerAuffrischenCommand}"
+                            Content="&#xE72C;"
+                            Cursor="Hand"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="10"
+                            Style="{StaticResource OutlineButtonStyle}"
+                            ToolTip="Liste neu prüfen – erkennt Ordner, die inzwischen fehlen" />
                     </Grid>
 
                     <TextBlock
-                    x:Name="TXT_IndexOrdnerHinweis"
-                    Margin="0,4,0,0"
-                    d:Text="7 indizierte Ordner gefunden, 3 neu aufgenommen."
-                    FontFamily="Segoe UI"
-                    FontSize="11"
-                    Foreground="#FF6B7280"
-                    Text="{Binding IndexOrdnerHinweis}"
-                    TextWrapping="Wrap">
+                        x:Name="TXT_IndexOrdnerHinweis"
+                        Margin="0,4,0,0"
+                        d:Text="7 indizierte Ordner gefunden, 3 neu aufgenommen."
+                        FontFamily="Segoe UI"
+                        FontSize="11"
+                        Foreground="#FF6B7280"
+                        Text="{Binding IndexOrdnerHinweis}"
+                        TextWrapping="Wrap">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Visibility" Value="Visible" />
@@ -1590,23 +1591,23 @@
                     </TextBlock>
 
                     <ItemsControl
-                    x:Name="IC_IndexOrdner"
-                    MaxHeight="150"
-                    Margin="0,6,0,0"
-                    d:Visibility="Visible"
-                    ItemsSource="{Binding IndexOrdnerListe}"
-                    VirtualizingPanel.IsVirtualizing="True"
-                    VirtualizingPanel.VirtualizationMode="Recycling"
-                    Visibility="{Binding HatIndexOrdner, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                        x:Name="IC_IndexOrdner"
+                        MaxHeight="150"
+                        Margin="0,6,0,0"
+                        d:Visibility="Visible"
+                        ItemsSource="{Binding IndexOrdnerListe}"
+                        VirtualizingPanel.IsVirtualizing="True"
+                        VirtualizingPanel.VirtualizationMode="Recycling"
+                        Visibility="{Binding HatIndexOrdner, Converter={StaticResource CLconverterVisiblityBoolian}}">
 
                         <d:ItemsControl.ItemsSource>
                             <x:Array Type="{x:Type bs:IndexOrdnerEintrag}">
                                 <bs:IndexOrdnerEintrag Bilder="1157" Pfad="C:\Beispiel\Bilder\Sammlung" />
                                 <bs:IndexOrdnerEintrag Bilder="387" Pfad="C:\Beispiel\Bilder\Doppelt" />
                                 <bs:IndexOrdnerEintrag
-                                Bilder="0"
-                                Existiert="False"
-                                Pfad="X:\Beispiel\Nicht_erreichbar" />
+                                    Bilder="0"
+                                    Existiert="False"
+                                    Pfad="X:\Beispiel\Nicht_erreichbar" />
                             </x:Array>
                         </d:ItemsControl.ItemsSource>
 
@@ -1614,10 +1615,10 @@
                         <ItemsControl.Template>
                             <ControlTemplate TargetType="{x:Type ItemsControl}">
                                 <ScrollViewer
-                                x:Name="SCV_IndexOrdner"
-                                CanContentScroll="True"
-                                HorizontalScrollBarVisibility="Disabled"
-                                VerticalScrollBarVisibility="Auto">
+                                    x:Name="SCV_IndexOrdner"
+                                    CanContentScroll="True"
+                                    HorizontalScrollBarVisibility="Disabled"
+                                    VerticalScrollBarVisibility="Auto">
                                     <ItemsPresenter />
                                 </ScrollViewer>
                             </ControlTemplate>
@@ -1632,14 +1633,14 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Border
-                                x:Name="BRD_IndexOrdnerZeile"
-                                Margin="0,0,4,2"
-                                Padding="5,2"
-                                Background="White"
-                                BorderBrush="#FFECECEC"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                ToolTip="{Binding Tooltip}">
+                                    x:Name="BRD_IndexOrdnerZeile"
+                                    Margin="0,0,4,2"
+                                    Padding="5,2"
+                                    Background="White"
+                                    BorderBrush="#FFECECEC"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    ToolTip="{Binding Tooltip}">
                                     <Grid x:Name="GRD_IndexOrdnerZeile">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition x:Name="COL_OrdnerIcon" Width="Auto" />
@@ -1649,23 +1650,23 @@
                                         </Grid.ColumnDefinitions>
 
                                         <TextBlock
-                                        x:Name="IC_OrdnerZeile"
-                                        Grid.Column="0"
-                                        Margin="0,0,6,0"
-                                        VerticalAlignment="Center"
-                                        FontFamily="Segoe MDL2 Assets"
-                                        FontSize="12"
-                                        Foreground="#FF6B7280"
-                                        Text="&#xE8B7;" />
+                                            x:Name="IC_OrdnerZeile"
+                                            Grid.Column="0"
+                                            Margin="0,0,6,0"
+                                            VerticalAlignment="Center"
+                                            FontFamily="Segoe MDL2 Assets"
+                                            FontSize="12"
+                                            Foreground="#FF6B7280"
+                                            Text="&#xE8B7;" />
 
                                         <TextBlock
-                                        x:Name="TXT_OrdnerName"
-                                        Grid.Column="1"
-                                        VerticalAlignment="Center"
-                                        FontFamily="Segoe UI"
-                                        FontSize="11"
-                                        Text="{Binding Anzeigename}"
-                                        TextTrimming="CharacterEllipsis">
+                                            x:Name="TXT_OrdnerName"
+                                            Grid.Column="1"
+                                            VerticalAlignment="Center"
+                                            FontFamily="Segoe UI"
+                                            FontSize="11"
+                                            Text="{Binding Anzeigename}"
+                                            TextTrimming="CharacterEllipsis">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
                                                     <Setter Property="Foreground" Value="#FF1F2937" />
@@ -1681,28 +1682,28 @@
                                         </TextBlock>
 
                                         <TextBlock
-                                        x:Name="TXT_OrdnerInfo"
-                                        Grid.Column="2"
-                                        Margin="8,0,4,0"
-                                        VerticalAlignment="Center"
-                                        FontFamily="Segoe UI"
-                                        FontSize="10"
-                                        Foreground="Gray"
-                                        Text="{Binding Beschreibung}" />
+                                            x:Name="TXT_OrdnerInfo"
+                                            Grid.Column="2"
+                                            Margin="8,0,4,0"
+                                            VerticalAlignment="Center"
+                                            FontFamily="Segoe UI"
+                                            FontSize="10"
+                                            Foreground="Gray"
+                                            Text="{Binding Beschreibung}" />
 
                                         <Button
-                                        x:Name="BTN_IndexOrdnerEntfernen"
-                                        Grid.Column="3"
-                                        Padding="5,0"
-                                        VerticalAlignment="Center"
-                                        Command="{Binding DataContext.CommandExecuteIndexOrdnerEntfernenCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                        CommandParameter="{Binding Pfad}"
-                                        Content="&#xE711;"
-                                        Cursor="Hand"
-                                        FontFamily="Segoe MDL2 Assets"
-                                        FontSize="10"
-                                        Style="{StaticResource OutlineButtonStyle}"
-                                        ToolTip="Diesen Ordner aus der Liste nehmen (die Indexdatei bleibt liegen)" />
+                                            x:Name="BTN_IndexOrdnerEntfernen"
+                                            Grid.Column="3"
+                                            Padding="5,0"
+                                            VerticalAlignment="Center"
+                                            Command="{Binding DataContext.CommandExecuteIndexOrdnerEntfernenCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding Pfad}"
+                                            Content="&#xE711;"
+                                            Cursor="Hand"
+                                            FontFamily="Segoe MDL2 Assets"
+                                            FontSize="10"
+                                            Style="{StaticResource OutlineButtonStyle}"
+                                            ToolTip="Diesen Ordner aus der Liste nehmen (die Indexdatei bleibt liegen)" />
                                     </Grid>
                                 </Border>
                             </DataTemplate>
@@ -1713,11 +1714,11 @@
 
             <!--
                 Alles zur Texterkennung in einer Karte: einmal lesen, danach suchen.
-
+                
                 Sie steht hier und nicht in der Normalansicht, weil sie zum Suchen gehört
                 — und die Treffer landen in derselben Ergebnisliste wie die Begriffssuche,
                 samt „Treffer öffnen" und „In Liste übernehmen".
-
+                
                 Ohne Sprachpaket bleibt nur der Hinweis stehen; Knöpfe und Suchfeld sind
                 dann über CanExecute gesperrt.
             -->
@@ -1819,108 +1820,108 @@
                         Visibility="{Binding IsOcrOffen, Converter={StaticResource CLconverterVisiblityBoolian}}">
 
                         <TextBlock
-                        x:Name="TXT_OcrUntertitel"
-                        Margin="0,2,0,0"
-                        FontFamily="Segoe UI"
-                        FontSize="11"
-                        Foreground="Gray"
-                        Text="Den Ordner einmal durchlesen — danach lässt sich nach Text suchen, der auf den Bildern steht. Der Text wird neben die Bilder gelegt und wandert mit ihnen mit."
-                        TextWrapping="Wrap" />
+                            x:Name="TXT_OcrUntertitel"
+                            Margin="0,2,0,0"
+                            FontFamily="Segoe UI"
+                            FontSize="11"
+                            Foreground="Gray"
+                            Text="Den Ordner einmal durchlesen — danach lässt sich nach Text suchen, der auf den Bildern steht. Der Text wird neben die Bilder gelegt und wandert mit ihnen mit."
+                            TextWrapping="Wrap" />
 
                         <!--  Warnung, solange der Text unverschlüsselt abgelegt wird  -->
                         <TextBlock
-                        x:Name="TXT_OcrKlartextHinweis"
-                        Margin="0,6,0,0"
-                        FontFamily="Segoe UI"
-                        FontSize="11"
-                        Foreground="#FFB45309"
-                        Text="Der erkannte Text liegt im Klartext in .bildocr.json. Bei Bildschirmfotos mit Kennwörtern steht er danach ein zweites Mal lesbar auf der Platte."
-                        TextWrapping="Wrap" />
+                            x:Name="TXT_OcrKlartextHinweis"
+                            Margin="0,6,0,0"
+                            FontFamily="Segoe UI"
+                            FontSize="11"
+                            Foreground="#FFB45309"
+                            Text="Der erkannte Text liegt im Klartext in .bildocr.json. Bei Bildschirmfotos mit Kennwörtern steht er danach ein zweites Mal lesbar auf der Platte."
+                            TextWrapping="Wrap" />
 
                         <!--
-                        Lesen und Abbrechen. Der Abbrechen-Knopf steht nur da, solange
-                        gelesen wird — ein dauerhaft sichtbarer, meist gesperrter Knopf
-                        nähme Platz, ohne je etwas zu sagen.
-                    -->
+                            Lesen und Abbrechen. Der Abbrechen-Knopf steht nur da, solange
+                            gelesen wird — ein dauerhaft sichtbarer, meist gesperrter Knopf
+                            nähme Platz, ohne je etwas zu sagen.
+                        -->
                         <StackPanel
-                        x:Name="STP_OcrLesenReihe"
-                        Margin="0,10,0,0"
-                        Orientation="Horizontal">
+                            x:Name="STP_OcrLesenReihe"
+                            Margin="0,10,0,0"
+                            Orientation="Horizontal">
                             <Button
-                            x:Name="BTN_OcrOrdnerLesen"
-                            Command="{Binding CommandExecuteOcrOrdnerLesenCommand}"
-                            Content="Ordner lesen"
-                            Style="{StaticResource OutlineButtonStyle}"
-                            ToolTip="Alle Bilder dieses Ordners einmal durch die Texterkennung schicken. Schon gelesene werden übersprungen." />
+                                x:Name="BTN_OcrOrdnerLesen"
+                                Command="{Binding CommandExecuteOcrOrdnerLesenCommand}"
+                                Content="Ordner lesen"
+                                Style="{StaticResource OutlineButtonStyle}"
+                                ToolTip="Alle Bilder dieses Ordners einmal durch die Texterkennung schicken. Schon gelesene werden übersprungen." />
 
                             <Button
-                            x:Name="BTN_OcrAbbrechen"
-                            Margin="6,0,0,0"
-                            d:Visibility="Visible"
-                            Command="{Binding CommandExecuteOcrOrdnerLesenCancelCommand}"
-                            Content="Abbrechen"
-                            Foreground="#FFB03030"
-                            Style="{StaticResource OutlineButtonStyle}"
-                            ToolTip="Das Lesen anhalten — was bis hierher erkannt wurde, bleibt gespeichert, und ein neuer Lauf macht dort weiter"
-                            Visibility="{Binding OcrLaeuft, Converter={StaticResource CLconverterVisiblityBoolian}}" />
+                                x:Name="BTN_OcrAbbrechen"
+                                Margin="6,0,0,0"
+                                d:Visibility="Visible"
+                                Command="{Binding CommandExecuteOcrOrdnerLesenCancelCommand}"
+                                Content="Abbrechen"
+                                Foreground="#FFB03030"
+                                Style="{StaticResource OutlineButtonStyle}"
+                                ToolTip="Das Lesen anhalten — was bis hierher erkannt wurde, bleibt gespeichert, und ein neuer Lauf macht dort weiter"
+                                Visibility="{Binding OcrLaeuft, Converter={StaticResource CLconverterVisiblityBoolian}}" />
                         </StackPanel>
 
                         <!--
-                        Balken und Zahlen erscheinen zusammen mit dem Lauf. Die Zahlen
-                        stehen in OcrStatus darunter: Stückzahl, Prozent, Restzeit und
-                        Tempo — dieselben vier Angaben wie bei den übrigen Läufen.
-                    -->
+                            Balken und Zahlen erscheinen zusammen mit dem Lauf. Die Zahlen
+                            stehen in OcrStatus darunter: Stückzahl, Prozent, Restzeit und
+                            Tempo — dieselben vier Angaben wie bei den übrigen Läufen.
+                        -->
                         <ProgressBar
-                        x:Name="PGB_OcrFortschritt"
-                        Height="6"
-                        Margin="0,8,0,0"
-                        d:Value="40"
-                        d:Visibility="Visible"
-                        Maximum="{Binding OcrFortschrittMax}"
-                        Value="{Binding OcrFortschritt}"
-                        Visibility="{Binding OcrLaeuft, Converter={StaticResource CLconverterVisiblityBoolian}}" />
+                            x:Name="PGB_OcrFortschritt"
+                            Height="6"
+                            Margin="0,8,0,0"
+                            d:Value="40"
+                            d:Visibility="Visible"
+                            Maximum="{Binding OcrFortschrittMax}"
+                            Visibility="{Binding OcrLaeuft, Converter={StaticResource CLconverterVisiblityBoolian}}"
+                            Value="{Binding OcrFortschritt}" />
 
                         <!--  Suchfeld: Enter sucht, damit man nicht zum Knopf greifen muss  -->
                         <StackPanel
-                        x:Name="STP_OcrSucheReihe"
-                        Margin="0,10,0,0"
-                        Orientation="Horizontal">
+                            x:Name="STP_OcrSucheReihe"
+                            Margin="0,10,0,0"
+                            Orientation="Horizontal">
                             <TextBox
-                            x:Name="TXB_OcrSuche"
-                            Width="180"
-                            Height="26"
-                            VerticalContentAlignment="Center"
-                            FontSize="12"
-                            Text="{Binding OcrSuchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                x:Name="TXB_OcrSuche"
+                                Width="180"
+                                Height="26"
+                                VerticalContentAlignment="Center"
+                                FontSize="12"
+                                Text="{Binding OcrSuchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
                                 <TextBox.InputBindings>
                                     <KeyBinding Key="Enter" Command="{Binding CommandExecuteOcrSuchenCommand}" />
                                 </TextBox.InputBindings>
                             </TextBox>
 
                             <Button
-                            x:Name="BTN_OcrSuchen"
-                            Margin="6,0,0,0"
-                            Command="{Binding CommandExecuteOcrSuchenCommand}"
-                            Content="Im Text suchen"
-                            Style="{StaticResource OutlineButtonStyle}"
-                            ToolTip="Die Zeichenfolge im gelesenen Text suchen. Gross- und Kleinschreibung spielt keine Rolle." />
+                                x:Name="BTN_OcrSuchen"
+                                Margin="6,0,0,0"
+                                Command="{Binding CommandExecuteOcrSuchenCommand}"
+                                Content="Im Text suchen"
+                                Style="{StaticResource OutlineButtonStyle}"
+                                ToolTip="Die Zeichenfolge im gelesenen Text suchen. Gross- und Kleinschreibung spielt keine Rolle." />
                         </StackPanel>
 
                         <TextBlock
-                        x:Name="TXT_OcrStatus"
-                        Margin="0,8,0,0"
-                        d:Text="42 Bilder gelesen."
-                        FontFamily="Segoe UI"
-                        FontSize="11"
-                        Foreground="#FF888888"
-                        Text="{Binding OcrStatus}"
-                        TextWrapping="Wrap" />
+                            x:Name="TXT_OcrStatus"
+                            Margin="0,8,0,0"
+                            d:Text="42 Bilder gelesen."
+                            FontFamily="Segoe UI"
+                            FontSize="11"
+                            Foreground="#FF888888"
+                            Text="{Binding OcrStatus}"
+                            TextWrapping="Wrap" />
 
                         <!--
                             Der erkannte Text des Bildes, das gerade zu sehen ist. Er
                             wechselt beim Durchklicken der Trefferliste mit — so sieht
                             man zum Fund auch gleich, was sonst noch auf dem Bild steht.
-
+                            
                             Als TextBox und nicht als TextBlock: nur so lässt sich der
                             Text markieren und herauskopieren, und genau dafür liest man
                             ihn meistens.
@@ -2065,16 +2066,16 @@
                                 Height="96"
                                 Margin="0,0,10,0"
                                 VerticalAlignment="Top"
+                                d:Visibility="Visible"
                                 BorderBrush="#FFCBD5E1"
                                 BorderThickness="1"
-                                d:Visibility="Visible"
                                 Visibility="{Binding WasserzeichenBefundHatBild, Converter={StaticResource CLconverterVisiblityBoolian}}">
                                 <Image
                                     x:Name="IMG_BefundMuster"
+                                    d:Source="/Images/HeavyO.jpg"
                                     RenderOptions.BitmapScalingMode="HighQuality"
                                     Source="{Binding WasserzeichenBefundBild}"
-                                    Stretch="Uniform"
-                                    d:Source="/Images/HeavyO.jpg" />
+                                    Stretch="Uniform" />
                             </Border>
 
                             <StackPanel
@@ -2256,8 +2257,8 @@
                             x:Name="CBX_WasserzeichenBereich"
                             Grid.Column="1"
                             Height="26"
-                            HorizontalAlignment="Left"
                             MinWidth="150"
+                            HorizontalAlignment="Left"
                             VerticalContentAlignment="Center"
                             FontSize="12"
                             SelectedIndex="{Binding WasserzeichenLernBereich, Mode=TwoWay}"
@@ -2967,12 +2968,12 @@
                     <!--
                         Wörter, die der Übersetzer nicht kannte — eigene Zeile über die
                         ganze Breite, nicht angehängt an die Statuszeile darüber.
-
+                        
                         Zwei Gründe: Die Statuszeile kürzt mit Auslassungspunkten, und
                         ausgerechnet der Hinweis stünde am Ende, also würde er als Erstes
                         abgeschnitten. Und er ist wichtiger als der Rest — wer nichts
                         findet, erfährt hier, ob das Bild fehlte oder das Wort.
-
+                        
                         Die Wörter selbst kräftig und grösser: In einer durchgehend grauen
                         Zeile in Kleinschrift gehen sie unter.
                     -->
