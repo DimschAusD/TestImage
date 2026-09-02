@@ -1990,37 +1990,195 @@
                 BorderBrush="#FFECECEC"
                 BorderThickness="1"
                 CornerRadius="10"
-                Visibility="{Binding IsWasserzeichenOffen, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                UseLayoutRounding="True">
+
+                <!--
+                    UseLayoutRounding gilt für die ganze Karte (die Eigenschaft vererbt sich
+                    an alle Kinder) und richtet jede Kante auf ganze Gerätepixel aus.
+
+                    Ohne sie fehlte der untere Rahmenstrich von BTN_WasserzeichenMusterEinklappen,
+                    sobald die Untergliederung zugeklappt war. Kein Platzmangel — darunter
+                    liegen 12 Punkte Padding —, sondern eine krumme Summe: Trennlinie 1,
+                    Abstand 8, Knopfhöhe 20 ergeben bei 125 % Anzeigeskalierung eine
+                    Unterkante auf einer halben Pixelgrenze, und die verschluckt der
+                    Rasterer. SnapsToDevicePixels hilft dagegen nicht, das rastert nur
+                    Kanten innerhalb eines Elements, nicht dessen Lage.
+                -->
+
+                <!--
+                    Die Karte zeigt sich nur, wenn das gewählte Bild ein Wasserzeichen
+                    trägt — dann steht sie als eine Zeile da, genauso hoch wie die
+                    geschlossene BRD_OcrKarte. Ihr blosses Erscheinen ist der Befund; der
+                    Kasten mit Muster und Zahlen kommt beim Aufklappen.
+
+                    Zweite Bedingung ist IsWasserzeichenOffen: Ohne sie bliebe die Karte
+                    bei einem sauberen Bild auch dann fort, wenn man sie über
+                    BTN_WasserzeichenToggle in der Kopfleiste ausdrücklich aufruft — der
+                    Knopf wäre dann wirkungslos, und an die gelernten Muster käme man
+                    nicht mehr heran.
+                -->
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding WasserzeichenBefundIstTreffer}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsWasserzeichenOffen}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+
                 <StackPanel x:Name="STP_WasserzeichenKarte" Orientation="Vertical">
 
-                    <TextBlock
-                        x:Name="TXT_WasserzeichenTitel"
-                        FontFamily="Segoe UI"
-                        FontSize="13"
-                        FontWeight="SemiBold"
-                        Foreground="#FF1F2937"
-                        Text="Wasserzeichen" />
+                    <!--
+                        Titelzeile mit dem Einklapp-Knopf rechts, wie bei BRD_OcrKarte. Sie
+                        bleibt immer stehen — eingeklappt schrumpft die Karte auf diese eine
+                        Zeile, statt ganz zu verschwinden.
 
-                    <TextBlock
-                        x:Name="TXT_WasserzeichenUntertitel"
-                        Margin="0,2,0,0"
-                        FontFamily="Segoe UI"
-                        FontSize="11"
-                        Foreground="Gray"
-                        Text="Muster einmalig aus einem Beispielordner lernen – danach prüft jedes Indexieren mit."
-                        TextWrapping="Wrap" />
+                        Vorher hing die ganze Karte an IsWasserzeichenOffen und war sonst
+                        fort. Wiederfinden liess sie sich nur über BTN_WasserzeichenToggle
+                        in der Kopfleiste — man musste also wissen, dass es sie gibt.
+                    -->
+                    <Grid x:Name="GRD_WasserzeichenKopf">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition x:Name="COL_WasserzeichenTitel" Width="*" />
+                            <ColumnDefinition x:Name="COL_WasserzeichenKnopf" Width="Auto" />
+                        </Grid.ColumnDefinitions>
 
-                    <!--  Solange nichts gelernt ist, bleibt die Erkennung auf Metadaten beschränkt.  -->
-                    <TextBlock
-                        x:Name="TXT_WasserzeichenKeinMuster"
-                        Margin="0,6,0,0"
-                        d:Visibility="Collapsed"
-                        FontFamily="Segoe UI"
-                        FontSize="11"
-                        Foreground="#FFB45309"
-                        Text="Noch kein Muster gelernt – es wird nur nach Metadaten gesucht."
-                        TextWrapping="Wrap"
-                        Visibility="{Binding WasserzeichenMaskeVorhanden, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}" />
+                        <!--
+                            Tropfen, Titel, gefundenes Zeichen — in dieser Reihenfolge.
+
+                            Der Tropfen ist derselbe Vektor wie an BTN_WasserzeichenToggle
+                            in der Kopfleiste; er bleibt auch aufgeklappt stehen, sonst
+                            spränge die Zeile bei jedem Umschalten um seine Breite.
+
+                            Das Kleinbild dagegen nur zugeklappt: Aufgeklappt steht das
+                            Muster gleich darunter in 96 Punkten, zweimal dasselbe Zeichen
+                            in einer Karte sagt nichts Zusätzliches.
+                        -->
+                        <StackPanel
+                            x:Name="STP_WasserzeichenTitelZeile"
+                            Grid.Column="0"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal">
+
+                            <Path
+                                x:Name="PTH_WasserzeichenKarteIcon"
+                                Width="11"
+                                Height="14"
+                                Margin="0,1,7,0"
+                                VerticalAlignment="Center"
+                                Data="M12,2.5 C12,2.5 4.5,11 4.5,15.5 C4.5,19.6 7.9,23 12,23 C16.1,23 19.5,19.6 19.5,15.5 C19.5,11 12,2.5 12,2.5 Z"
+                                Stretch="Uniform"
+                                Stroke="#FF374151"
+                                StrokeLineJoin="Round"
+                                StrokeThickness="1.3" />
+
+                            <TextBlock
+                                x:Name="TXT_WasserzeichenTitel"
+                                VerticalAlignment="Center"
+                                FontFamily="Segoe UI"
+                                FontSize="13"
+                                FontWeight="SemiBold"
+                                Foreground="#FF1F2937"
+                                Text="Wasserzeichen" />
+
+                            <!--
+                                Das erkannte Zeichen in Briefmarkengrösse. Weisser Grund,
+                                weil die Masken durchsichtige Stellen haben — auf dem grauen
+                                Kartengrund liefe die Struktur sonst ineinander.
+                            -->
+                            <Border
+                                x:Name="BRD_WasserzeichenTitelMuster"
+                                Width="18"
+                                Height="18"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"
+                                d:Visibility="Visible"
+                                Background="White"
+                                BorderBrush="#FFCBD5E1"
+                                BorderThickness="1"
+                                ToolTip="{Binding WasserzeichenBefundMuster}">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding IsWasserzeichenOffen}" Value="False" />
+                                                    <Condition Binding="{Binding WasserzeichenBefundHatBild}" Value="True" />
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+
+                                <Image
+                                    x:Name="IMG_WasserzeichenTitelMuster"
+                                    d:Source="/Images/HeavyO.jpg"
+                                    RenderOptions.BitmapScalingMode="HighQuality"
+                                    Source="{Binding WasserzeichenBefundBild}"
+                                    Stretch="Uniform" />
+                            </Border>
+                        </StackPanel>
+
+                        <!--  Dreht sich beim Umschalten, gleiche Mechanik wie TXT_OcrChevron.  -->
+                        <Button
+                            x:Name="BTN_WasserzeichenEinklappen"
+                            Grid.Column="1"
+                            Width="24"
+                            Height="22"
+                            Padding="0"
+                            VerticalAlignment="Center"
+                            Command="{Binding CommandExecuteWasserzeichenToggleCommand}"
+                            Style="{StaticResource OutlineButtonStyle}"
+                            ToolTip="Diese Karte ein- und ausklappen">
+                            <TextBlock
+                                x:Name="TXT_WasserzeichenKarteChevron"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="10"
+                                RenderTransformOrigin="0.5,0.5"
+                                Text="&#xE70D;">
+                                <TextBlock.RenderTransform>
+                                    <RotateTransform x:Name="wasserzeichenKarteChevronDrehung" Angle="0" />
+                                </TextBlock.RenderTransform>
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsWasserzeichenOffen}" Value="True">
+                                                <DataTrigger.EnterActions>
+                                                    <BeginStoryboard>
+                                                        <Storyboard>
+                                                            <DoubleAnimation
+                                                                Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                To="180"
+                                                                Duration="0:0:0.2" />
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </DataTrigger.EnterActions>
+                                                <DataTrigger.ExitActions>
+                                                    <BeginStoryboard>
+                                                        <Storyboard>
+                                                            <DoubleAnimation
+                                                                Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                To="0"
+                                                                Duration="0:0:0.2" />
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </DataTrigger.ExitActions>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Button>
+                    </Grid>
 
                     <!--
                         Befund zum gerade gewählten Bild. Bisher stand er nur im ToolTip
@@ -2031,9 +2189,11 @@
                         x:Name="BRD_WasserzeichenBefund"
                         Margin="0,10,0,0"
                         Padding="8,6"
+                        d:Visibility="Visible"
                         BorderBrush="#FFE3E3E3"
                         BorderThickness="1"
-                        CornerRadius="6">
+                        CornerRadius="6"
+                        Visibility="{Binding IsWasserzeichenOffen, Converter={StaticResource CLconverterVisiblityBoolian}}">
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Setter Property="Background" Value="#FFFAFAFA" />
@@ -2233,6 +2393,132 @@
                         </Grid>
                     </Border>
 
+                    <!--  Alles unterhalb klappt weg, wie STP_OcrInhalt bei der OCR-Karte.  -->
+                    <StackPanel
+                        x:Name="STP_WasserzeichenInhalt"
+                        d:Visibility="Visible"
+                        Orientation="Vertical"
+                        Visibility="{Binding IsWasserzeichenOffen, Converter={StaticResource CLconverterVisiblityBoolian}}">
+
+                    <!--
+                        Solange nichts gelernt ist, bleibt die Erkennung auf Metadaten
+                        beschränkt. Der Hinweis steht ausserhalb der Untergliederung: Er
+                        erklärt, warum ein Befund dürftig ausfällt, und wäre hinter einer
+                        zugeklappten Gliederung nicht zu sehen, wenn man ihn braucht.
+                    -->
+                    <TextBlock
+                        x:Name="TXT_WasserzeichenKeinMuster"
+                        Margin="0,10,0,0"
+                        d:Visibility="Collapsed"
+                        FontFamily="Segoe UI"
+                        FontSize="11"
+                        Foreground="#FFB45309"
+                        Text="Noch kein Muster gelernt – es wird nur nach Metadaten gesucht."
+                        TextWrapping="Wrap"
+                        Visibility="{Binding WasserzeichenMaskeVorhanden, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}" />
+
+                    <!--
+                        Untergliederung „Muster lernen und verwalten".
+
+                        Die Karte trägt zweierlei: den Befund zum gewählten Bild, den man
+                        beim Blättern immer wieder ansieht, und die Einrichtung, die man
+                        einmal macht. Getrennt, damit der Befund nicht unter Lernknöpfen,
+                        Bereichswahl und Musterliste verschwindet.
+
+                        Eine Stufe leiser als die Kartentitelzeile: Schrift 12 statt 13,
+                        Knopf 20 statt 22, dazu eine Trennlinie darüber. Sonst läse sich
+                        die Gliederung wie eine zweite Karte.
+                    -->
+                    <Border
+                        x:Name="BRD_WasserzeichenMusterTrenner"
+                        Height="1"
+                        Margin="0,12,0,0"
+                        Background="#FFEFEFEF" />
+
+                    <Grid x:Name="GRD_WasserzeichenMusterKopf" Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition x:Name="COL_WzMusterTitel" Width="*" />
+                            <ColumnDefinition x:Name="COL_WzMusterKnopf" Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock
+                            x:Name="TXT_WasserzeichenMusterTitel"
+                            Grid.Column="0"
+                            VerticalAlignment="Center"
+                            FontFamily="Segoe UI"
+                            FontSize="12"
+                            FontWeight="SemiBold"
+                            Foreground="#FF374151"
+                            Text="Muster lernen und verwalten" />
+
+                        <Button
+                            x:Name="BTN_WasserzeichenMusterEinklappen"
+                            Grid.Column="1"
+                            Width="22"
+                            Height="20"
+                            Padding="0"
+                            VerticalAlignment="Center"
+                            Command="{Binding CommandExecuteWasserzeichenMusterToggleCommand}"
+                            Style="{StaticResource OutlineButtonStyle}"
+                            ToolTip="Muster-Einrichtung ein- und ausklappen">
+                            <TextBlock
+                                x:Name="TXT_WasserzeichenMusterChevron"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="9"
+                                RenderTransformOrigin="0.5,0.5"
+                                Text="&#xE70D;">
+                                <TextBlock.RenderTransform>
+                                    <RotateTransform x:Name="wasserzeichenMusterChevronDrehung" Angle="0" />
+                                </TextBlock.RenderTransform>
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsWasserzeichenMusterOffen}" Value="True">
+                                                <DataTrigger.EnterActions>
+                                                    <BeginStoryboard>
+                                                        <Storyboard>
+                                                            <DoubleAnimation
+                                                                Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                To="180"
+                                                                Duration="0:0:0.2" />
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </DataTrigger.EnterActions>
+                                                <DataTrigger.ExitActions>
+                                                    <BeginStoryboard>
+                                                        <Storyboard>
+                                                            <DoubleAnimation
+                                                                Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                To="0"
+                                                                Duration="0:0:0.2" />
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </DataTrigger.ExitActions>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Button>
+                    </Grid>
+
+                    <StackPanel
+                        x:Name="STP_WasserzeichenMusterInhalt"
+                        d:Visibility="Visible"
+                        Orientation="Vertical"
+                        Visibility="{Binding IsWasserzeichenMusterOffen, Converter={StaticResource CLconverterVisiblityBoolian}}">
+
+                    <TextBlock
+                        x:Name="TXT_WasserzeichenUntertitel"
+                        Margin="0,6,0,0"
+                        FontFamily="Segoe UI"
+                        FontSize="11"
+                        Foreground="Gray"
+                        Text="Muster einmalig aus einem Beispielordner lernen – danach prüft jedes Indexieren mit."
+                        TextWrapping="Wrap" />
+
                     <!--
                         Wo sitzt das Zeichen? Die Reihenfolge muss zu WasserzeichenBereich
                         passen — gebunden wird der Index, damit kein Konverter nötig ist.
@@ -2287,7 +2573,7 @@
                             Command="{Binding CommandExecuteWasserzeichenMaskeLernenCommand}"
                             Cursor="Hand"
                             Style="{StaticResource OutlineButtonStyle}"
-                            ToolTip="Muster aus einem Beispielordner lernen – mindestens 5 Bilder, am besten rund 20, alle mit Wasserzeichen desselben Anbieters. Mehr Bilder machen das Muster kaum besser, dauern aber länger; bei über 20 kommt deshalb eine Rückfrage. Ab 12 Bildern wird geprüft, ob der Ordner zwei verschiedene Zeichen enthält; bestätigt sich das, werden zwei Muster daraus.">
+                            ToolTip="Muster aus einem Beispielordner lernen – rund 20 Bilder aus diesem einen Ordner genügen, mindestens 5 werden gebraucht, und alle sollen dasselbe Zeichen tragen.&#x0a;&#x0a;Für ein besseres Muster nicht einen grösseren Ordner nehmen, sondern denselben Knopf für den nächsten Ordner noch einmal aufrufen: Die Bilder werden dem Muster zugerechnet, zu dem sie passen, und ein Muster darf über viele Ordner beliebig gross werden. Genau das macht es allgemeiner – der immer gleiche Teil des Zeichens bleibt, der je Ordner wechselnde verliert an Gewicht.&#x0a;&#x0a;Passt der Ordner zu keinem vorhandenen Muster, entsteht ein neues. Ab 12 Bildern wird ausserdem geprüft, ob der Ordner selbst zweierlei Zeichen enthält; bestätigt sich das, werden zwei Muster daraus.">
                             <StackPanel x:Name="STP_WzLernenInhalt" Orientation="Horizontal">
                                 <TextBlock
                                     x:Name="IC_WzLernen"
@@ -2408,40 +2694,14 @@
                                     BorderThickness="1"
                                     CornerRadius="6">
 
-                                    <!--  ToolTip mit grosser Musteransicht statt nur Text  -->
-                                    <Border.ToolTip>
-                                        <ToolTip x:Name="TTP_Muster">
-                                            <StackPanel x:Name="STP_MusterTooltip" Orientation="Vertical">
-                                                <Border
-                                                    x:Name="BRD_MusterGross"
-                                                    Width="128"
-                                                    Height="128"
-                                                    Margin="0,0,0,6"
-                                                    HorizontalAlignment="Left"
-                                                    BorderBrush="#FFCBD5E1"
-                                                    BorderThickness="1">
-                                                    <!--
-                                                        NearestNeighbor beim Vergrössern: Das Muster ist 96 Punkte
-                                                        breit, weichgezeichnet verschmiert gerade die feine Struktur,
-                                                        auf die es hier ankommt.
-                                                    -->
-                                                    <Image
-                                                        x:Name="IMG_MusterGross"
-                                                        d:Source="/Images/HeavyO.jpg"
-                                                        RenderOptions.BitmapScalingMode="NearestNeighbor"
-                                                        Source="{Binding Vorschau}"
-                                                        Stretch="Uniform" />
-                                                </Border>
-                                                <TextBlock
-                                                    x:Name="TXT_MusterTooltip"
-                                                    MaxWidth="260"
-                                                    FontFamily="Segoe UI"
-                                                    FontSize="11"
-                                                    Text="{Binding Tooltip}"
-                                                    TextWrapping="Wrap" />
-                                            </StackPanel>
-                                        </ToolTip>
-                                    </Border.ToolTip>
+                                    <!--
+                                        HIER HING DER TOOLTIP MIT DER GROSSEN MUSTERANSICHT.
+
+                                        An der ganzen Zeile ging er bei jeder Mausbewegung über die
+                                        Liste auf — auch beim blossen Scrollen und beim Zielen auf den
+                                        Entfernen-Knopf. Er sitzt jetzt an BRD_MusterKlein: Wer das
+                                        Muster grösser sehen will, zeigt auf das Muster.
+                                    -->
 
                                     <Grid x:Name="GRD_MusterZeile">
                                         <Grid.ColumnDefinitions>
@@ -2462,8 +2722,55 @@
                                             Height="18"
                                             Margin="0,0,6,0"
                                             VerticalAlignment="Center"
+                                            Background="White"
                                             BorderBrush="#FFCBD5E1"
                                             BorderThickness="1">
+
+                                            <!--
+                                                Grosse Musteransicht, angeschlagen am kleinen Muster statt an
+                                                der Zeile: 18 Punkte im Quadrat trifft man nur, wenn man sie
+                                                meint — beim Lesen der Namen und beim Zielen auf den
+                                                Entfernen-Knopf bleibt die Liste ruhig.
+
+                                                Background="White" ist hier Trefferfläche, keine Farbe: WPF
+                                                prüft nur gegen Gezeichnetes, sonst fiele der Zeiger durch die
+                                                durchsichtigen Stellen des Musters hindurch und der Tooltip
+                                                bliebe je nach Zeichen aus.
+                                            -->
+                                            <Border.ToolTip>
+                                                <ToolTip x:Name="TTP_Muster">
+                                                    <StackPanel x:Name="STP_MusterTooltip" Orientation="Vertical">
+                                                        <Border
+                                                            x:Name="BRD_MusterGross"
+                                                            Width="128"
+                                                            Height="128"
+                                                            Margin="0,0,0,6"
+                                                            HorizontalAlignment="Left"
+                                                            BorderBrush="#FFCBD5E1"
+                                                            BorderThickness="1">
+                                                            <!--
+                                                                NearestNeighbor beim Vergrössern: Das Muster ist 96 Punkte
+                                                                breit, weichgezeichnet verschmiert gerade die feine Struktur,
+                                                                auf die es hier ankommt.
+                                                            -->
+                                                            <Image
+                                                                x:Name="IMG_MusterGross"
+                                                                d:Source="/Images/HeavyO.jpg"
+                                                                RenderOptions.BitmapScalingMode="NearestNeighbor"
+                                                                Source="{Binding Vorschau}"
+                                                                Stretch="Uniform" />
+                                                        </Border>
+                                                        <TextBlock
+                                                            x:Name="TXT_MusterTooltip"
+                                                            MaxWidth="260"
+                                                            FontFamily="Segoe UI"
+                                                            FontSize="11"
+                                                            Text="{Binding Tooltip}"
+                                                            TextWrapping="Wrap" />
+                                                    </StackPanel>
+                                                </ToolTip>
+                                            </Border.ToolTip>
+
                                             <Image
                                                 x:Name="IMG_MusterKlein"
                                                 d:Source="/Images/HeavyO.jpg"
@@ -2511,6 +2818,8 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    </StackPanel>
+                    </StackPanel>
                 </StackPanel>
             </Border>
 

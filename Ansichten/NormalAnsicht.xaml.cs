@@ -245,6 +245,27 @@ namespace TestImage.Ansichten
             _scrollZielV = 0;
         }
 
+        /// <summary>
+        /// Erster Klick irgendwo in der Ansicht blendet die Meldungskarte aus.
+        ///
+        /// Die Karte meldet den Ausgang des letzten Drops — etwa dass ein stehender Filter
+        /// das abgelegte Bild versteckt. Sie blieb danach stehen, bis irgendein Vorgang
+        /// ihren Text überschrieb, und stand damit oft noch da, wenn längst weitergearbeitet
+        /// wurde. Wer klickt, hat sie gelesen.
+        ///
+        /// Preview, damit es auch dann greift, wenn das angeklickte Element das Ereignis
+        /// selbst verbraucht — Knöpfe tun das. Läuft gerade ein Vorgang, hält CanExecute im
+        /// ViewModel dagegen: Dann trägt die Karte Restzeit und Durchsatz.
+        /// </summary>
+        private void Ansicht_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (DataContext is AufgabeViewModel vm
+                && vm.CommandExecuteMeldungSchliessenCommand.CanExecute(null))
+            {
+                vm.CommandExecuteMeldungSchliessenCommand.Execute(null);
+            }
+        }
+
         private void scdd_DragEnter(object sender, DragEventArgs e)
         {
             if (e.Data.GetDataPresent(DataFormats.FileDrop))

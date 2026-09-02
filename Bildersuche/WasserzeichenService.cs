@@ -192,6 +192,139 @@ namespace TestImage.Bildersuche
         internal static string LetzteLernMeldung { get; private set; } = string.Empty;
 
         /// <summary>
+        /// Anteil der Bilder eines Ordners, die zu einem vorhandenen Muster passen müssen,
+        /// damit der Ordner als <b>dasselbe Zeichen</b> gilt und dort dazugelernt wird.
+        ///
+        /// Nicht alle, sondern eine deutliche Mehrheit: In einem echten Ordner sind
+        /// erfahrungsgemäss einzelne Bilder ohne Zeichen dabei, und ein einzelnes davon
+        /// darf die Zuordnung nicht kippen. Umgekehrt ist ein fremder Zeichentyp weit von
+        /// diesem Wert entfernt — er liegt beim Prüfen nahe null.
+        /// </summary>
+        private const double ZuordnungsAnteil = 0.6;
+
+        /// <summary>
+        /// Lernt aus einem Ordner und ordnet ihn dabei selbst ein: Passen seine Bilder zu
+        /// einem bereits gelernten Muster, wird dieses <b>ergänzt</b>; sonst entsteht ein
+        /// neues.
+        ///
+        /// Das ist der Weg zum gemeinsamen Muster. Was in allen Ordnern gleich aussieht,
+        /// behält sein Gewicht; was je Ordner wechselt, verliert es. Die Prüfung davor ist
+        /// dabei kein Beiwerk: Ein Anbieter verwendet durchaus mehrere Zeichentypen ohne
+        /// Gemeinsamkeit — DeviantArt allein drei. Würde man die blind zusammenrechnen,
+        /// entstünde ein Muster, das keines davon mehr erkennt.
+        /// </summary>
+        /// <returns>
+        /// Name des betroffenen Musters, seine neue Grundmenge, und ob es neu angelegt
+        /// wurde. Name leer und Anzahl 0 heisst: zu wenige oder unlesbare Bilder.
+        /// </returns>
+        internal static async Task<(string Name, int Bilder, bool IstNeu)> ErgaenzeOderLerneAsync(
+            string ordner,
+            string name,
+            WasserzeichenBereich bereich,
+            IProgress<(int Erledigt, int Gesamt)>? fortschritt,
+            CancellationToken token)
+        {
+            if (string.IsNullOrWhiteSpace(ordner) || !Directory.Exists(ordner))
+                return (string.Empty, 0, false);
+
+            var dateien = SammleBilder(ordner);
+            if (dateien.Count < 5)
+                return (string.Empty, 0, false);
+
+            // Muster aus Dateien vor dieser Erweiterung tragen keine Summen und können
+            // nicht fortgeschrieben werden. Sie stehen hier gar nicht erst zur Wahl.
+            var erweiterbare = HoleMasken().Where(m => m.KannErweitertWerden).ToList();
+
+            if (erweiterbare.Count > 0)
+            {
+                var (beste, felder) = await Task.Run(
+                    () => SucheBestesMuster(dateien, erweiterbare, fortschritt, token), token)
+                    .ConfigureAwait(false);
+
+                if (beste is not null && felder is not null)
+                {
+                    var erweitert = beste.Erweitere(felder);
+                    if (erweitert is not null)
+                    {
+                        var alle = HoleMasken();
+                        int platz = alle.IndexOf(beste);
+                        if (platz >= 0)
+                            alle[platz] = erweitert;
+                        else
+                            alle.Add(erweitert);
+
+                        SpeichereMasken(alle);
+
+                        LetzteLernMeldung = string.Empty;
+                        return (erweitert.Name, erweitert.Grundmenge, false);
+                    }
+                }
+            }
+
+            int anzahl = await LerneMaskeAsync(ordner, name, bereich, fortschritt, token)
+                .ConfigureAwait(false);
+
+            return anzahl > 0 ? (name, anzahl, true) : (string.Empty, 0, false);
+        }
+
+        /// <summary>
+        /// Sucht das Muster, zu dem die Bilder des Ordners am besten passen — und gibt die
+        /// dabei berechneten Merkmalsfelder gleich mit zurück, weil das Dazulernen sie
+        /// unmittelbar wieder braucht.
+        ///
+        /// Die Felder hängen an Vorverarbeitung und Bildstelle des jeweiligen Musters, ein
+        /// Zeichen oben rechts wird in der Bildmitte nicht gefunden. Deshalb je Kombination
+        /// aus beidem ein eigener Durchgang — bei gleichartigen Mustern also nur einer.
+        /// </summary>
+        private static (WasserzeichenMaske? Beste, List<float[]>? Felder) SucheBestesMuster(
+            List<string> dateien,
+            List<WasserzeichenMaske> masken,
+            IProgress<(int Erledigt, int Gesamt)>? fortschritt,
+            CancellationToken token)
+        {
+            WasserzeichenMaske? beste = null;
+            List<float[]>? besteFelder = null;
+            double besterAnteil = 0;
+
+            foreach (var gruppe in masken.GroupBy(m => (m.Modus, m.Bereich)))
+            {
+                var felder = new List<float[]>(dateien.Count);
+
+                for (int i = 0; i < dateien.Count; i++)
+                {
+                    token.ThrowIfCancellationRequested();
+
+                    var feld = WasserzeichenMaske.Merkmalsfeld(
+                        dateien[i], gruppe.Key.Modus, gruppe.Key.Bereich);
+
+                    if (feld is not null)
+                        felder.Add(feld);
+
+                    fortschritt?.Report((i + 1, dateien.Count));
+                }
+
+                if (felder.Count < 5)
+                    continue;
+
+                foreach (var maske in gruppe)
+                {
+                    float schwelle = maske.Schwelle > 0f ? maske.Schwelle : Schwelle;
+                    int passend = felder.Count(f => maske.Pruefe(f) >= schwelle);
+                    double anteil = (double)passend / felder.Count;
+
+                    if (anteil >= ZuordnungsAnteil && anteil > besterAnteil)
+                    {
+                        besterAnteil = anteil;
+                        beste = maske;
+                        besteFelder = felder;
+                    }
+                }
+            }
+
+            return (beste, besteFelder);
+        }
+
+        /// <summary>
         /// Mindestabstand zwischen eigener und fremder Übereinstimmung, damit eine
         /// Aufteilung als bewiesen gilt.
         ///

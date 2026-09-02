@@ -100,31 +100,66 @@
             <Button.Template>
                 <ControlTemplate TargetType="{x:Type Button}">
                     <Border x:Name="BRD_ZoneLinks" Background="Transparent">
-                        <Image
-                            x:Name="IMG_PfeilLinks"
+                        <Grid
+                            x:Name="GRD_PfeilLinks"
                             Width="48"
                             Height="48"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center"
                             IsHitTestVisible="False"
-                            Opacity="0"
-                            RenderOptions.BitmapScalingMode="HighQuality"
-                            Source="{StaticResource di_PfeilLinks}" />
+                            Opacity="0">
+                            <Path x:Name="PTH_FüllungLinks" Data="M 35,4 L 11,24 L 35,44 Z" Fill="#FF101010" />
+                            <!--
+                                Kontur als sechs Halbstrecken, jede beginnt an einer Ecke und
+                                endet in der Mitte der Kante. Das Strichmuster fängt bei jeder
+                                Teilstrecke neu an, deshalb wächst mit einem einzigen
+                                StrokeDashOffset die Kontur gleichzeitig aus allen drei Spitzen.
+                            -->
+                            <Path
+                                x:Name="PTH_KonturLinks"
+                                Data="M 35,4 L 23,14 M 11,24 L 23,14 M 11,24 L 23,34 M 35,44 L 23,34 M 35,44 L 35,24 M 35,4 L 35,24"
+                                Stroke="White"
+                                StrokeDashArray="10 10"
+                                StrokeDashOffset="10"
+                                StrokeEndLineCap="Round"
+                                StrokeStartLineCap="Round"
+                                StrokeThickness="3" />
+                        </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="IMG_PfeilLinks" Property="Opacity" Value="0.85" />
+                            <Setter TargetName="GRD_PfeilLinks" Property="Opacity" Value="0.85" />
+                            <Trigger.EnterActions>
+                                <BeginStoryboard x:Name="SB_KonturLinks">
+                                    <Storyboard>
+                                        <DoubleAnimation
+                                            Storyboard.TargetName="PTH_KonturLinks"
+                                            Storyboard.TargetProperty="StrokeDashOffset"
+                                            From="10"
+                                            To="3"
+                                            Duration="0:0:0.4">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <!--  Zurück auf den Ruhewert, damit die Kontur beim nächsten Mal wieder zuläuft.  -->
+                            <Trigger.ExitActions>
+                                <StopStoryboard BeginStoryboardName="SB_KonturLinks" />
+                            </Trigger.ExitActions>
                         </Trigger>
                         <!--  Kein Bild mehr in dieser Richtung: nur schwach andeuten.  -->
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="IMG_PfeilLinks" Property="Opacity" Value="0" />
+                            <Setter TargetName="GRD_PfeilLinks" Property="Opacity" Value="0" />
                         </Trigger>
                         <MultiTrigger>
                             <MultiTrigger.Conditions>
                                 <Condition Property="IsMouseOver" Value="True" />
                                 <Condition Property="IsEnabled" Value="False" />
                             </MultiTrigger.Conditions>
-                            <Setter TargetName="IMG_PfeilLinks" Property="Opacity" Value="0.2" />
+                            <Setter TargetName="GRD_PfeilLinks" Property="Opacity" Value="0.2" />
                         </MultiTrigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -147,30 +182,58 @@
             <Button.Template>
                 <ControlTemplate TargetType="{x:Type Button}">
                     <Border x:Name="BRD_ZoneRechts" Background="Transparent">
-                        <Image
-                            x:Name="IMG_PfeilRechts"
+                        <Grid
+                            x:Name="GRD_PfeilRechts"
                             Width="48"
                             Height="48"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center"
                             IsHitTestVisible="False"
-                            Opacity="0"
-                            RenderOptions.BitmapScalingMode="HighQuality"
-                            Source="{StaticResource di_PfeilRechts}" />
+                            Opacity="0">
+                            <Path x:Name="PTH_FüllungRechts" Data="M 13,4 L 37,24 L 13,44 Z" Fill="#FF101010" />
+                            <Path
+                                x:Name="PTH_KonturRechts"
+                                Data="M 13,4 L 25,14 M 37,24 L 25,14 M 37,24 L 25,34 M 13,44 L 25,34 M 13,44 L 13,24 M 13,4 L 13,24"
+                                Stroke="White"
+                                StrokeDashArray="10 10"
+                                StrokeDashOffset="10"
+                                StrokeEndLineCap="Round"
+                                StrokeStartLineCap="Round"
+                                StrokeThickness="3" />
+                        </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="IMG_PfeilRechts" Property="Opacity" Value="0.85" />
+                            <Setter TargetName="GRD_PfeilRechts" Property="Opacity" Value="0.85" />
+                            <Trigger.EnterActions>
+                                <BeginStoryboard x:Name="SB_KonturRechts">
+                                    <Storyboard>
+                                        <DoubleAnimation
+                                            Storyboard.TargetName="PTH_KonturRechts"
+                                            Storyboard.TargetProperty="StrokeDashOffset"
+                                            From="10"
+                                            To="3"
+                                            Duration="0:0:0.4">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <StopStoryboard BeginStoryboardName="SB_KonturRechts" />
+                            </Trigger.ExitActions>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="IMG_PfeilRechts" Property="Opacity" Value="0" />
+                            <Setter TargetName="GRD_PfeilRechts" Property="Opacity" Value="0" />
                         </Trigger>
                         <MultiTrigger>
                             <MultiTrigger.Conditions>
                                 <Condition Property="IsMouseOver" Value="True" />
                                 <Condition Property="IsEnabled" Value="False" />
                             </MultiTrigger.Conditions>
-                            <Setter TargetName="IMG_PfeilRechts" Property="Opacity" Value="0.2" />
+                            <Setter TargetName="GRD_PfeilRechts" Property="Opacity" Value="0.2" />
                         </MultiTrigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

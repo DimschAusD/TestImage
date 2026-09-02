@@ -41,6 +41,17 @@ namespace TestImage
         public partial bool IsWasserzeichenOffen { get; set; }
 
         /// <summary>
+        /// Untergliederung „Muster lernen und verwalten" innerhalb der aufgeklappten Karte.
+        ///
+        /// Die Karte trägt zweierlei: den Befund zum gerade gewählten Bild — den sieht man
+        /// beim Blättern immer wieder an — und die Einrichtung, die man einmal macht und
+        /// danach jahrelang nicht mehr anfasst. Zugeklappt als Vorgabe, damit der Befund
+        /// nicht unter Lernknöpfen und Musterliste verschwindet.
+        /// </summary>
+        [ObservableProperty]
+        public partial bool IsWasserzeichenMusterOffen { get; set; }
+
+        /// <summary>
         /// Auswahl der Stelle im Bild, als Index der Auswahlliste. 0 heisst „alle
         /// Bereiche" und ist die Vorgabe — dann sucht das Lernen die Stelle selbst.
         ///
@@ -60,6 +71,11 @@ namespace TestImage
         [RelayCommand]
         private void CommandExecuteWasserzeichenToggle()
             => IsWasserzeichenOffen = !IsWasserzeichenOffen;
+
+        /// <summary>Klappt die Untergliederung „Muster lernen und verwalten" auf und zu.</summary>
+        [RelayCommand]
+        private void CommandExecuteWasserzeichenMusterToggle()
+            => IsWasserzeichenMusterOffen = !IsWasserzeichenMusterOffen;
 
         /// <summary>
         /// Gelernte Muster für die Anzeige. Mehrere sind der Normalfall: DeviantArt
@@ -125,15 +141,24 @@ namespace TestImage
 
             // Erinnerung an die empfohlene Ordnergrösse. Erst nach der Wahl, weil die
             // Zahl vorher niemandem etwas sagt – und mit Ausweg, falls es Absicht war.
+            //
+            // Die Zahl gilt je Ordner, nicht für die Sammlung: Ein Ordner soll einen
+            // Zeichentyp zeigen, und dafür genügen rund 20 Bilder. Wer mehr Material hat,
+            // ruft den Knopf für den nächsten Ordner noch einmal auf — die Bilder werden
+            // dem passenden Muster zugerechnet, und in der Summe dürfen es beliebig viele
+            // sein.
             int vorhandeneBilder = WasserzeichenService.ZähleBilder(dlg.FolderName);
             if (vorhandeneBilder > WasserzeichenLernBilderEmpfohlen)
             {
                 var antwort = System.Windows.MessageBox.Show(
                     $"Der Ordner enthält {vorhandeneBilder} Bilder.\n\n"
-                    + $"Zum Lernen genügen rund {WasserzeichenLernBilderEmpfohlen} Bilder – "
-                    + "mehr machen das Muster kaum besser, das Lernen dauert aber "
+                    + $"Aus einem Ordner genügen rund {WasserzeichenLernBilderEmpfohlen} Bilder – "
+                    + "mehr aus demselben Ordner machen das Muster kaum besser, dauern aber "
                     + "entsprechend länger.\n\n"
-                    + "Trotzdem mit allen Bildern lernen?",
+                    + "Für ein besseres Muster nimmt man stattdessen weitere Ordner: Dieser "
+                    + "Knopf lässt sich beliebig oft aufrufen, und jeder Ordner wird dem "
+                    + "Muster zugerechnet, zu dem er passt.\n\n"
+                    + "Trotzdem mit allen Bildern dieses Ordners lernen?",
                     "Viele Bilder im Lernordner",
                     System.Windows.MessageBoxButton.YesNo,
                     System.Windows.MessageBoxImage.Warning,
@@ -150,7 +175,7 @@ namespace TestImage
             string name = NameAusOrdner(dlg.FolderName);
 
             WasserzeichenAufgabeLäuft = true;
-            WasserzeichenStatus = $"Lerne Muster „{name}“ …";
+            WasserzeichenStatus = "Ordner wird gelesen …";
 
             try
             {
@@ -159,26 +184,37 @@ namespace TestImage
                 var uhr = System.Diagnostics.Stopwatch.StartNew();
 
                 var fortschritt = new Progress<(int Erledigt, int Gesamt)>(p =>
-                    WasserzeichenStatus = $"Lerne Muster „{name}“ … {p.Erledigt}/{p.Gesamt}"
+                    WasserzeichenStatus = $"Ordner wird gelesen … {p.Erledigt}/{p.Gesamt}"
                                           + RestzeitZusatz(uhr.Elapsed, p.Erledigt, p.Gesamt));
 
-                int anzahl = await WasserzeichenService.LerneMaskeAsync(
+                // Ein Weg für beides: Trägt der Ordner dasselbe Zeichen wie ein schon
+                // gelerntes Muster, wird dieses ergänzt; sonst entsteht ein neues. Vorher
+                // waren das zwei Knöpfe, und die Wahl dazwischen konnte niemand treffen —
+                // ob der Ordner zu einem vorhandenen Muster passt, weiss man ja erst,
+                // nachdem seine Bilder gelesen sind.
+                var (musterName, bilder, istNeu) = await WasserzeichenService.ErgaenzeOderLerneAsync(
                     dlg.FolderName, name, GewaehlterLernBereich, fortschritt, token);
 
                 AktualisiereWasserzeichenMuster();
 
                 // Bei „alle Bereiche" ist die gefundene Stelle das eigentlich Interessante.
                 string stelle = WasserzeichenMuster
-                    .FirstOrDefault(m => string.Equals(m.MusterName, name, StringComparison.OrdinalIgnoreCase))
+                    .FirstOrDefault(m => string.Equals(m.MusterName, musterName, StringComparison.OrdinalIgnoreCase))
                     ?.BereichName ?? string.Empty;
 
-                WasserzeichenStatus = anzahl > 0
-                    ? $"Muster „{name}“ aus {anzahl} Bildern gelernt"
-                      + (stelle.Length > 0 ? $" – Stelle: {stelle}" : string.Empty)
-                      + "."
-                      + WasserzeichenService.LetzteLernMeldung
-                      + " Ordner neu indexieren, um es anzuwenden."
-                    : "Zu wenige oder unlesbare Bilder – es werden mindestens 5 gebraucht.";
+                WasserzeichenStatus = bilder switch
+                {
+                    0 => "Zu wenige oder unlesbare Bilder – es werden mindestens 5 gebraucht.",
+
+                    _ when istNeu => $"Neues Muster „{musterName}“ aus {bilder} Bildern gelernt"
+                                     + (stelle.Length > 0 ? $" – Stelle: {stelle}" : string.Empty)
+                                     + "."
+                                     + WasserzeichenService.LetzteLernMeldung
+                                     + " Ordner neu indexieren, um es anzuwenden.",
+
+                    _ => $"Der Ordner trägt das bekannte Zeichen „{musterName}“ – Muster ergänzt, "
+                         + $"jetzt aus {bilder} Bildern. Ordner neu indexieren, um es anzuwenden."
+                };
             }
             catch (OperationCanceledException)
             {
@@ -281,6 +317,20 @@ namespace TestImage
                 AktualisiereWasserzeichenBefundAnzeige();
 
                 int treffer = WasserzeichenTrefferAnzahl;
+
+                // Ohne gelerntes Muster sucht der Dienst nur nach Metadaten — sichtbare
+                // Zeichen werden gar nicht geprüft. „Keine Wasserzeichen gefunden" behauptete
+                // dort eine Prüfung, die nie stattgefunden hat, und beim ersten Indizieren
+                // eines Ordners ist genau das der Normalfall.
+                if (!WasserzeichenService.MaskeVorhanden)
+                {
+                    WasserzeichenStatus = treffer == 0
+                        ? "Nur Metadaten geprüft – für sichtbare Zeichen fehlt ein gelerntes Muster."
+                        : $"{treffer} Bild(er) mit Metadaten-Markierung. Sichtbare Zeichen wurden "
+                          + "nicht geprüft – dafür fehlt ein gelerntes Muster.";
+                    return;
+                }
+
                 WasserzeichenStatus = treffer == 0
                     ? "Keine Wasserzeichen gefunden."
                     : $"{treffer} Bild(er) mit Wasserzeichen oder Metadaten-Markierung.";

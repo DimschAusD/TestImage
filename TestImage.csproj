@@ -131,4 +131,29 @@
     <Copy SourceFiles="@(ClipModel)" DestinationFolder="$(PublishDir)models" SkipUnchangedFiles="true" />
   </Target>
 
+  <!--
+    Nutzerdaten gehoeren nicht ins Verteilpaket.
+
+    Die Anwendung legt diese Dateien neben der Exe an: die gelernten Wasserzeichen-Muster,
+    das Verzeichnis der indexierten Ordner, das gemeinsame FS-Profil und das
+    Fehlerprotokoll. Startet man die Anwendung einmal aus dem Veroeffentlichungsordner —
+    etwa um das Paket zu pruefen —, liegen sie anschliessend dort und wandern mit ins ZIP.
+    Beim Entpacken ueber eine vorhandene Installation ueberschrieben sie dann genau das,
+    was der Nutzer sich erarbeitet hat: seine gelernten Muster und seine Ordnerliste.
+
+    dotnet publish raeumt den Zielordner nicht auf, weggeloescht wird hier also
+    ausdruecklich. Nicht vorhandene Dateien sind fuer Delete kein Fehler.
+  -->
+  <Target Name="EntferneNutzerdatenAusPublish" AfterTargets="Publish">
+    <ItemGroup>
+      <NutzerDatei Include="$(PublishDir)wasserzeichen.masken.json" />
+      <NutzerDatei Include="$(PublishDir)wasserzeichen.maske.json" />
+      <NutzerDatei Include="$(PublishDir)index.ordner.json" />
+      <NutzerDatei Include="$(PublishDir)fav.profile.json" />
+      <NutzerDatei Include="$(PublishDir)TestImage-Fehler.log" />
+    </ItemGroup>
+
+    <Delete Files="@(NutzerDatei)" />
+  </Target>
+
 </Project>

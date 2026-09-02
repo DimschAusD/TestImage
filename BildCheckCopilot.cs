@@ -1,12 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text;
+using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-
-using System.Linq;
 
 
 namespace TestImage
@@ -34,7 +32,9 @@ namespace TestImage
             // 0) Null-Datei zuerst prüfen
             bool istNull = IsBildNullDatei(filePath);
             if (istNull)
+            {
                 return (false, false, false, true, "unknown", true);
+            }
             // Header/HatFrame/DownloadKorrupt sind hier irrelevant; 
             // "IstBeschädigt" = true, weil 0-Byte-Dateien faktisch unbrauchbar sind.
 
@@ -71,7 +71,9 @@ namespace TestImage
             catch { hatFrame = false; }
 
             bool grauleiste = false;
-            try { grauleiste = HatGraueAbschlusszeile(filePath); } catch { grauleiste = false; }
+            try
+            { grauleiste = HatGraueAbschlusszeile(filePath); }
+            catch { grauleiste = false; }
 
             bool downloadKorrupt = heuristikKorrupt || decoderKorrupt || grauleiste;
             bool istBeschaedigt = IsBildDateiBeschädigt(filePath);
@@ -106,7 +108,9 @@ namespace TestImage
             _ = IsHeaderPassendZurErweiterung(filePath, out var fmt);
             bool strukturell = IstWahrscheinlichKorrupt(filePath, fmt);
             bool grau = false;
-            try { grau = HatGraueAbschlusszeile(filePath); } catch { grau = false; }
+            try
+            { grau = HatGraueAbschlusszeile(filePath); }
+            catch { grau = false; }
             return strukturell || grau;
         }
 
@@ -116,7 +120,9 @@ namespace TestImage
 
             // Null/leer → wie Null-Datei behandeln
             if (string.IsNullOrWhiteSpace(pfad))
+            {
                 return true;
+            }
 
             try
             {
@@ -124,11 +130,15 @@ namespace TestImage
 
                 // Nicht vorhanden → wie Null-Datei behandeln
                 if (!fi.Exists)
+                {
                     return true;
+                }
 
                 // 0 Bytes → Null-Datei
                 if (fi.Length == 0)
+                {
                     return true;
+                }
 
                 // > 0 Bytes → nicht Null-Datei
                 return false;
@@ -151,11 +161,15 @@ namespace TestImage
             try
             {
                 if (string.IsNullOrWhiteSpace(dateiPfad) || !File.Exists(dateiPfad))
+                {
                     return true;
+                }
 
                 var fi = new FileInfo(dateiPfad);
                 if (fi.Length == 0)
+                {
                     return true;
+                }
 
                 var ext = Path.GetExtension(dateiPfad).TrimStart('.').ToLowerInvariant();
 
@@ -199,7 +213,10 @@ namespace TestImage
         {
             detectedFormat = "unknown";
 
-            if (!File.Exists(filePath)) return false;
+            if (!File.Exists(filePath))
+            {
+                return false;
+            }
 
             var ext = Path.GetExtension(filePath).ToLowerInvariant().TrimStart('.'); // "webp", "png", ...
 
@@ -250,12 +267,21 @@ namespace TestImage
                     default:
                         var key = ext.ToUpperInvariant();
                         if (!ImageHeaders.TryGetValue(key, out var magic) || magic == null)
+                        {
                             return false;
+                        }
 
-                        if (buffer.Length < magic.Length) return false;
+                        if (buffer.Length < magic.Length)
+                        {
+                            return false;
+                        }
 
                         bool ok = buffer.AsSpan(0, magic.Length).SequenceEqual(magic);
-                        if (ok) detectedFormat = NormalisiereExt(ext);
+                        if (ok)
+                        {
+                            detectedFormat = NormalisiereExt(ext);
+                        }
+
                         return ok;
                 }
             }
@@ -320,21 +346,55 @@ namespace TestImage
 
                 bool Beginnt(params byte[] muster)
                 {
-                    if (gelesen < muster.Length) return false;
+                    if (gelesen < muster.Length)
+                    {
+                        return false;
+                    }
+
                     for (int i = 0; i < muster.Length; i++)
                     {
-                        if (kopf[i] != muster[i]) return false;
+                        if (kopf[i] != muster[i])
+                        {
+                            return false;
+                        }
                     }
                     return true;
                 }
 
-                if (Beginnt(0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)) return "png";
-                if (Beginnt(0xFF, 0xD8, 0xFF)) return "jpg";
-                if (Beginnt((byte)'G', (byte)'I', (byte)'F', (byte)'8')) return "gif";
-                if (Beginnt((byte)'B', (byte)'M')) return "bmp";
-                if (Beginnt(0x00, 0x00, 0x01, 0x00)) return "ico";
-                if (Beginnt((byte)'I', (byte)'I', 42, 0)) return "tiff";
-                if (Beginnt((byte)'M', (byte)'M', 0, 42)) return "tiff";
+                if (Beginnt(0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A))
+                {
+                    return "png";
+                }
+
+                if (Beginnt(0xFF, 0xD8, 0xFF))
+                {
+                    return "jpg";
+                }
+
+                if (Beginnt((byte)'G', (byte)'I', (byte)'F', (byte)'8'))
+                {
+                    return "gif";
+                }
+
+                if (Beginnt((byte)'B', (byte)'M'))
+                {
+                    return "bmp";
+                }
+
+                if (Beginnt(0x00, 0x00, 0x01, 0x00))
+                {
+                    return "ico";
+                }
+
+                if (Beginnt((byte)'I', (byte)'I', 42, 0))
+                {
+                    return "tiff";
+                }
+
+                if (Beginnt((byte)'M', (byte)'M', 0, 42))
+                {
+                    return "tiff";
+                }
 
                 // WEBP steckt im RIFF-Behälter: „RIFF" … „WEBP" ab Byte 8.
                 if (gelesen >= 12
@@ -361,43 +421,78 @@ namespace TestImage
             try
             {
                 var len = new FileInfo(filePath).Length;
-                if (len < 2) return true;
+                if (len < 2)
+                {
+                    return true;
+                }
 
                 using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
 
                 switch (detectedFormat)
                 {
                     case "jpg":
-                        if (len < 4) return true;
+                        if (len < 4)
+                        {
+                            return true;
+                        }
+
                         fs.Position = len - 2;
                         Span<byte> end2 = stackalloc byte[2];
-                        if (fs.Read(end2) < 2) return true;
+                        if (fs.Read(end2) < 2)
+                        {
+                            return true;
+                        }
+
                         return !(end2[0] == 0xFF && end2[1] == 0xD9);
 
                     case "png":
-                        if (len < 45) return true;
+                        if (len < 45)
+                        {
+                            return true;
+                        }
+
                         fs.Position = len - 8;
                         Span<byte> last8 = stackalloc byte[8];
-                        if (fs.Read(last8) < 8) return true;
+                        if (fs.Read(last8) < 8)
+                        {
+                            return true;
+                        }
+
                         return !(last8[0] == (byte)'I' && last8[1] == (byte)'E' &&
                                  last8[2] == (byte)'N' && last8[3] == (byte)'D');
 
                     case "gif":
-                        if (len < 14) return true;
+                        if (len < 14)
+                        {
+                            return true;
+                        }
+
                         fs.Position = len - 1;
                         int b = fs.ReadByte();
                         return b != 0x3B;
 
                     case "bmp":
-                        if (len < 26) return true;
+                        if (len < 26)
+                        {
+                            return true;
+                        }
+
                         fs.Position = 2;
                         Span<byte> sizeLE = stackalloc byte[4];
-                        if (fs.Read(sizeLE) < 4) return true;
+                        if (fs.Read(sizeLE) < 4)
+                        {
+                            return true;
+                        }
+
                         uint declared = BitConverter.ToUInt32(sizeLE);
                         return declared > len;
 
                     case "webp":
-                        if (len < 12) return true;
+                        if (len < 12)
+                        {
+                            return true;
+                        }
+
                         Span<byte> riff = stackalloc byte[12];
                         fs.Position = 0;
 #if NET8_0_OR_GREATER
@@ -407,10 +502,16 @@ namespace TestImage
 #endif
                         bool riffWebp = riff[0] == 'R' && riff[1] == 'I' && riff[2] == 'F' && riff[3] == 'F' &&
                                         riff[8] == 'W' && riff[9] == 'E' && riff[10] == 'B' && riff[11] == 'P';
-                        if (!riffWebp) return true;
+                        if (!riffWebp)
+                        {
+                            return true;
+                        }
 
                         uint riffSize = BitConverter.ToUInt32(riff.Slice(4, 4)); // LE
-                        if ((ulong)riffSize + 8UL > (ulong)len) return true;
+                        if ((ulong)riffSize + 8UL > (ulong)len)
+                        {
+                            return true;
+                        }
 
                         if (len >= 16)
                         {
@@ -423,7 +524,9 @@ namespace TestImage
 #endif
                             if (!(fourcc[0] == 'V' && fourcc[1] == 'P' && fourcc[2] == '8' &&
                                   (fourcc[3] == (byte)' ' || fourcc[3] == (byte)'L' || fourcc[3] == (byte)'X')))
+                            {
                                 return true;
+                            }
                         }
                         return false;
 
@@ -431,12 +534,23 @@ namespace TestImage
                         return len < 8;
 
                     case "ico":
-                        if (len < 6) return true;
+                        if (len < 6)
+                        {
+                            return true;
+                        }
+
                         fs.Position = 0;
                         Span<byte> hdr = stackalloc byte[6];
-                        if (fs.Read(hdr) < 6) return true;
-                        if (!(hdr[0] == 0x00 && hdr[1] == 0x00 && hdr[2] == 0x01 && hdr[3] == 0x00))
+                        if (fs.Read(hdr) < 6)
+                        {
                             return true;
+                        }
+
+                        if (!(hdr[0] == 0x00 && hdr[1] == 0x00 && hdr[2] == 0x01 && hdr[3] == 0x00))
+                        {
+                            return true;
+                        }
+
                         ushort count = BitConverter.ToUInt16(hdr.Slice(4, 2));
                         long minSize = 6L + 16L * count;
                         return len < minSize;
@@ -459,7 +573,10 @@ namespace TestImage
             using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
             var decoder = BitmapDecoder.Create(fs, BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
 
-            if (decoder.Frames == null || decoder.Frames.Count == 0) return false;
+            if (decoder.Frames == null || decoder.Frames.Count == 0)
+            {
+                return false;
+            }
 
             var frame = decoder.Frames[0];
             _ = frame.DpiX; // leichte Zugriffe triggern Validierung
@@ -475,7 +592,10 @@ namespace TestImage
         private static bool IsValidWebpRiffHeader(string path)
         {
             using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-            if (fs.Length < 12) return false;
+            if (fs.Length < 12)
+            {
+                return false;
+            }
 
             Span<byte> head = stackalloc byte[12];
 #if NET8_0_OR_GREATER
@@ -486,10 +606,16 @@ namespace TestImage
 
             bool riffWebp = head[0] == 'R' && head[1] == 'I' && head[2] == 'F' && head[3] == 'F'
                           && head[8] == 'W' && head[9] == 'E' && head[10] == 'B' && head[11] == 'P';
-            if (!riffWebp) return false;
+            if (!riffWebp)
+            {
+                return false;
+            }
 
             uint riffSize = BitConverter.ToUInt32(head.Slice(4, 4)); // LE
-            if ((ulong)riffSize + 8UL > (ulong)fs.Length) return false;
+            if ((ulong)riffSize + 8UL > (ulong)fs.Length)
+            {
+                return false;
+            }
 
             if (fs.Length >= 16)
             {
@@ -502,7 +628,9 @@ namespace TestImage
 #endif
                 if (!(fourcc[0] == 'V' && fourcc[1] == 'P' && fourcc[2] == '8' &&
                       (fourcc[3] == (byte)' ' || fourcc[3] == (byte)'L' || fourcc[3] == (byte)'X')))
+                {
                     return false;
+                }
             }
             return true;
         }
@@ -529,7 +657,10 @@ namespace TestImage
 
             int width = bmp.PixelWidth;
             int height = bmp.PixelHeight;
-            if (width <= 0 || height <= 0) return false;
+            if (width <= 0 || height <= 0)
+            {
+                return false;
+            }
 
             int stride = width * 4;
             byte[] lastPixels = new byte[stride];
@@ -546,12 +677,24 @@ namespace TestImage
                 byte r = lastPixels[i + 2];
 
                 if (r == grau && g == grau && b == grau)
+                {
                     grayCount++;
+                }
             }
 
             return grayCount > (int)(width * schwelleAnteil);
         }
     }
+
+
+
+
+
+
+
+
+
+
 
 
 }

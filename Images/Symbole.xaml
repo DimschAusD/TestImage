@@ -38,6 +38,50 @@
     </DrawingImage>
 
     <!--
+        Blätter-Pfeile fürs Vollbild: dasselbe Dreieck, aber mit weisser Kontur.
+
+        DERZEIT NICHT VERWENDET: Die Vollbildansicht zeichnet den Pfeil inzwischen selbst
+        aus zwei Path-Elementen, weil die Kontur dort beim Auftauchen aus den drei Spitzen
+        zuläuft — eine Animation, die ein DrawingImage nicht leisten kann. Diese beiden
+        Symbole bleiben als ruhige Fassung stehen, falls die Animation wieder entfällt.
+
+        Im Vollbild liegt der Pfeil direkt auf dem Bild, und dessen Helligkeit ist nicht
+        vorhersehbar: auf hellen Motiven trägt die dunkle Füllung, auf dunklen die weisse
+        Kontur. Ein Paar aus Schwarz und Weiss ist gegen jeden Untergrund lesbar — derselbe
+        Kniff, den der Windows-Fotoanzeiger benutzt.
+
+        Die Kontur sitzt mittig auf dem Rand, die Zeichnung wird dadurch etwas grösser als
+        512 x 512; das Dreieck erscheint bei gleicher Anzeigegrösse also minimal kleiner.
+        LineJoin="Round" rundet die Spitze, sonst zieht der Gehrungsstoss dort einen Dorn.
+    -->
+
+    <DrawingImage x:Key="di_PfeilLinksKontur">
+        <DrawingImage.Drawing>
+            <GeometryDrawing Brush="#FF101010" Geometry="M 384,64 L 128,256 L 384,448 Z">
+                <GeometryDrawing.Pen>
+                    <Pen
+                        Brush="#FFFFFFFF"
+                        LineJoin="Round"
+                        Thickness="30" />
+                </GeometryDrawing.Pen>
+            </GeometryDrawing>
+        </DrawingImage.Drawing>
+    </DrawingImage>
+
+    <DrawingImage x:Key="di_PfeilRechtsKontur">
+        <DrawingImage.Drawing>
+            <GeometryDrawing Brush="#FF101010" Geometry="M 128,64 L 384,256 L 128,448 Z">
+                <GeometryDrawing.Pen>
+                    <Pen
+                        Brush="#FFFFFFFF"
+                        LineJoin="Round"
+                        Thickness="30" />
+                </GeometryDrawing.Pen>
+            </GeometryDrawing>
+        </DrawingImage.Drawing>
+    </DrawingImage>
+
+    <!--
         ORDNER-SYMBOLE
 
         Die Lasche links oben ist der Grund, warum gezeichnet und nicht als Schriftzeichen:

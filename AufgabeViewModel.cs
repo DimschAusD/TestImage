@@ -29,8 +29,9 @@ namespace TestImage
         // v2x.0.129.332 Beta 2026-07-18 (.NETCore net10.0)
         // v2x.0.80.860 Beta 2026-08-20 (.NETCore net10.0)
         // v2x.0.72.254 Beta 2026-08-30 (.NETCore net10.0)
+        // v2x.0.73.140 Beta 2026-09-01 (.NETCore net10.0)
         [ObservableProperty]
-        public partial string Version { get; set; } = "v2x.0.73.140 Beta 2026-09-01 (.NETCore net10.0)";
+        public partial string Version { get; set; } = "v2x.0.70.881 Beta 2026-09-02 (.NETCore net10.0)";
 
 
         [ObservableProperty]
@@ -44,6 +45,13 @@ namespace TestImage
         public partial string BildchenVorher { get; set; } = string.Empty;
 
         private string _filterText = string.Empty;
+
+        /// <summary>
+        /// True, solange <c>AufgabenView.Refresh()</c> läuft. Solange wird
+        /// <c>SelectedBildchen</c> nicht gemeldet — siehe
+        /// <see cref="AktualisiereAufgabenView"/>.
+        /// </summary>
+        private bool _ansichtWirdAufgebaut;
 
 
         [ObservableProperty]
@@ -133,7 +141,30 @@ namespace TestImage
         /// Streifen gestanden.
         /// </summary>
         [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteMeldungSchliessenCommand))]
         public partial string LabelDropContent { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Nur zu schliessen, wenn wirklich etwas steht — und nicht, während ein Vorgang
+        /// läuft: Dann trägt die Karte Restzeit und Durchsatz, und die sollen nicht beim
+        /// ersten Klick verschwinden.
+        /// </summary>
+        private bool CanExecuteMeldungSchliessen()
+            => !string.IsNullOrEmpty(LabelDropContent) && !AufgabeLäuft;
+
+        /// <summary>
+        /// Blendet die Meldungskarte aus.
+        ///
+        /// Eine Meldung wie „Filter blendet dieses Bild aus" gehört zum letzten Drop.
+        /// Bis hierher blieb sie stehen, bis der nächste Vorgang den Text überschrieb —
+        /// sie stand also noch da, wenn längst weitergearbeitet wurde. Ausgelöst wird das
+        /// aus NormalAnsicht.xaml.cs beim ersten Klick irgendwo in der Ansicht.
+        /// </summary>
+        [RelayCommand(CanExecute = nameof(CanExecuteMeldungSchliessen))]
+        private void CommandExecuteMeldungSchliessen()
+        {
+            LabelDropContent = string.Empty;
+        }
 
         [ObservableProperty]
         public partial ImageSource Bildchen { get; set; } = null;
@@ -702,7 +733,17 @@ namespace TestImage
 
 
                 // Aufgaben view zu curent machen
-                var bildchen = OcAufgabens.FirstOrDefault(b => b.BName == fullDateiName);
+                // OrdinalIgnoreCase wie in allen anderen Pfadvergleichen (siehe
+                // CommandExecuteTrefferOeffnen). Links steht der Name so, wie ihn das
+                // Dateisystem beim Einlesen geliefert hat, rechts so, wie ihn die
+                // Drop-Quelle schreibt — der Explorer trifft die echte Schreibweise,
+                // andere Quellen müssen das nicht. Ein reiner == liesse das abgelegte
+                // Bild dann unausgewählt, obwohl es in der Liste steht.
+                //
+                // Ohne Risiko: Windows lässt im selben Ordner keine zwei Dateien zu, die
+                // sich nur in der Gross-/Kleinschreibung unterscheiden.
+                var bildchen = OcAufgabens.FirstOrDefault(
+                    b => string.Equals(b.BName, fullDateiName, StringComparison.OrdinalIgnoreCase));
                 if (bildchen != null)
                 {
                     var ivm = AufgabenView.IndexOf(bildchen);
@@ -715,6 +756,11 @@ namespace TestImage
                 AufgabenView.Refresh();
                 AlleBilderVerschoben = false;
 
+                // Dieser Weg läuft an AktualisiereAufgabenView vorbei: Steht beim
+                // Neu-Einlesen ein Filter, kann er im neuen Ordner treffen oder auch
+                // nicht — ohne diese Meldung behielte das Feld die Farbe des alten.
+                OnPropertyChanged(nameof(FilterOhneTreffer));
+
                 // Index-Status des (neuen) Ordners bestimmen → steuert „Schema-ähnlich".
                 PruefeAktuellerOrdnerIndiziert();
 
@@ -723,6 +769,10 @@ namespace TestImage
 
                 // Übersichtsleiste (Bilder je Zeitraum) im Hintergrund neu aufbauen.
                 AktualisiereZeitleiste();
+
+                // Zuletzt: Sagen, wenn ein stehender Filter das abgelegte Bild versteckt.
+                // Erst hier steht fest, was die Ansicht nach dem Einlesen zeigt.
+                MeldeVersteckendenFilter(fullDateiName);
             }
 
 
@@ -735,6 +785,56 @@ namespace TestImage
 
         }
 
+
+        /// <summary>
+        /// Meldet nach einem Drop, wenn ein stehender Filter das abgelegte Bild versteckt.
+        ///
+        /// Wer eine Datei hierher zieht, will genau sie sehen. Steht aber noch ein Filter
+        /// aus einer früheren Suche, entscheidet dessen Text mit: Passt er nicht auf den
+        /// Dateinamen, fehlt das Bild in Liste und Miniaturleiste, obwohl der Ordner
+        /// eingelesen wurde — MoveCurrentToPosition weiter oben findet es in der
+        /// gefilterten Ansicht nicht. Zu sehen war davon nichts; es blieb kommentarlos
+        /// die 100-Pixel-Vorschau aus OnFileDrop stehen, ein Bild also, das in keiner
+        /// Liste steht.
+        ///
+        /// Der Filter bleibt bewusst stehen. Ihn im Vorbeigehen zu leeren würde eine von
+        /// Hand gesetzte Auswahl verwerfen — gesagt wird stattdessen, was los ist.
+        /// </summary>
+        private void MeldeVersteckendenFilter(string fullDateiName)
+        {
+            if (string.IsNullOrEmpty(FilterText))
+            {
+                return;
+            }
+
+            string dateiname = Path.GetFileName(fullDateiName);
+
+            // Dieselbe Prüfung wie in PersonViewSource_Filter. Läuft sie hier anders,
+            // meldet die Karte etwas anderes, als die Liste zeigt.
+            if (dateiname.IndexOf(FilterText, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return;
+            }
+
+            if (AufgabenView.IsEmpty)
+            {
+                // Kein einziger Treffer: Liste und Miniaturleiste sind leer, dann darf
+                // auch die Bildfläche nichts mehr zeigen.
+                LeereBildAnzeige();
+                LabelDropContent = $"Filter „{FilterText}“ passt hier auf keine Datei – die Liste ist leer.";
+                return;
+            }
+
+            // Es gibt Treffer, nur nicht den gewünschten. Ohne gültige Auswahl bliebe die
+            // Vorschau des abgelegten Bildes stehen — dann lieber den ersten Treffer
+            // zeigen, denn den enthält die Liste wirklich.
+            if (AufgabenView.CurrentItem is null)
+            {
+                AufgabenView.MoveCurrentToFirst();
+            }
+
+            LabelDropContent = $"Filter „{FilterText}“ blendet „{dateiname}“ aus – die Liste zeigt {AufgabenView.Count} andere Treffer.";
+        }
 
         public ListCollectionView AufgabenView { get; }
 
@@ -772,20 +872,19 @@ namespace TestImage
             {
                 if (SetProperty(ref _filterText, value))
                 {
-                    AufgabenView.Refresh();
+                    // Genau eine Aktualisierung je Tastendruck.
+                    //
+                    // Hier wurde zusätzlich der Filter an- und abgehängt, je nachdem ob
+                    // Text da war. Das hatte zwei Folgen. Erstens löst schon das Zuweisen
+                    // von Filter eine Aktualisierung aus — es liefen also zwei kurz
+                    // hintereinander. Zweitens hängt += den Delegaten an, statt ihn zu
+                    // ersetzen: Mit jedem getippten Zeichen kam eine weitere Kopie der
+                    // Prüfung dazu, und -= nahm nur eine davon wieder weg.
+                    //
+                    // Der Filter hängt seit dem Konstruktor an der Ansicht und bleibt dort.
+                    // Bei leerem Text lässt PersonViewSource_Filter ohnehin alles durch.
+                    AktualisiereAufgabenView();
                     CommandExecuteFilterLeerenCommandCommand?.NotifyCanExecuteChanged();
-
-                    // evtl Filter löschen oder setzen
-                    if (string.IsNullOrEmpty(_filterText))
-                    {
-                        // Filter löschen
-                        AufgabenView.Filter -= PersonViewSource_Filter;
-                    }
-                    else
-                    {
-                        // Filter setzen
-                        AufgabenView.Filter += PersonViewSource_Filter;
-                    }
 
                     // Die Bildfläche nachziehen.
                     //
@@ -830,6 +929,56 @@ namespace TestImage
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Läuft der Filter gerade ins Leere? Färbt TXB_DateinameFiltern rot.
+        ///
+        /// Nur wahr, solange wirklich gefiltert wird: Eine leere Ansicht ohne Filtertext
+        /// ist kein Fehlschlag, sondern ein leerer Ordner — dort wäre Rot eine Falschmeldung.
+        ///
+        /// Gemeldet wird in <see cref="AktualisiereAufgabenView"/>, also überall dort, wo
+        /// sich die gefilterte Auswahl ändert.
+        /// </summary>
+        public bool FilterOhneTreffer => !string.IsNullOrEmpty(FilterText) && AufgabenView is { IsEmpty: true };
+
+        /// <summary>
+        /// Baut die Bilderansicht neu auf und meldet <c>SelectedBildchen</c> erst danach.
+        ///
+        /// An derselben Ansicht hängen drei Listen — Dateiliste, Miniaturleiste,
+        /// Vollbildleiste —, alle mit <c>IsSynchronizedWithCurrentItem</c> und einer
+        /// Zweiwege-Bindung von <c>SelectedItem</c> auf <c>SelectedBildchen</c>.
+        ///
+        /// Beim Aufbau bekommt jede von ihnen der Reihe nach ein Reset gemeldet. Die
+        /// erste sucht sich sofort eine neue Auswahl und schreibt sie über ihre Bindung
+        /// ins ViewModel zurück — mitten in den laufenden Aufbau hinein. Wird von dort
+        /// aus <c>SelectedBildchen</c> gemeldet, greift die zweite Liste danach, hat ihr
+        /// eigenes Reset aber noch vor sich: Sie sucht die Position ihres alten Standes
+        /// (etwa 16) in einer Ansicht, die schon auf ein Bild geschrumpft ist, und
+        /// <c>Selector.SetCurrentToSelected</c> wirft eine ArgumentOutOfRangeException.
+        ///
+        /// Deshalb bleibt die Meldung während des Aufbaus aus und kommt einmal hinterher,
+        /// wenn alle drei Listen umgestellt sind. Wer nur die Ansicht selbst aktualisiert
+        /// (die übrigen <c>AufgabenView.Refresh()</c> im ViewModel), ist davon unberührt —
+        /// dort kommt der Anstoss nicht aus einer Bindung, sondern aus dem Code.
+        /// </summary>
+        private void AktualisiereAufgabenView()
+        {
+            _ansichtWirdAufgebaut = true;
+            try
+            {
+                AufgabenView.Refresh();
+            }
+            finally
+            {
+                _ansichtWirdAufgebaut = false;
+            }
+
+            OnPropertyChanged(nameof(SelectedBildchen));
+
+            // Der Rot-Zustand des Filterfelds hängt daran, ob die Ansicht nach dem
+            // Refresh leer ist — das steht erst hier fest.
+            OnPropertyChanged(nameof(FilterOhneTreffer));
         }
 
 
@@ -886,10 +1035,28 @@ namespace TestImage
                 //}
 
 
-                AufgabenView.MoveCurrentTo(value);
+                // Nur bewegen, wenn sich wirklich etwas ändert.
+                //
+                // An derselben Ansicht hängen drei Listen (Dateiliste, Miniaturleiste,
+                // Vollbildleiste), alle mit IsSynchronizedWithCurrentItem. Jede schreibt
+                // ihre Auswahl über SelectedItem hierher zurück. Ohne den Vergleich
+                // schickt jeder Klick eine Runde durch alle drei — und trifft dabei
+                // womöglich eine, die gerade neu aufbaut.
+                if (!ReferenceEquals(AufgabenView.CurrentItem, value))
+                {
+                    AufgabenView.MoveCurrentTo(value);
+                }
+
                 OnPropertyChanged(nameof(SelectedBildchen.BildFürLinks));
 
-                OnPropertyChanged();
+                // Während die Ansicht neu aufgebaut wird, nicht melden: Die Listen stehen
+                // dann auf verschiedenen Ständen, und die Meldung schickte eine von ihnen
+                // auf eine Position, die es nicht mehr gibt. AktualisiereAufgabenView holt
+                // die Meldung nach, sobald alle umgestellt sind.
+                if (!_ansichtWirdAufgebaut)
+                {
+                    OnPropertyChanged();
+                }
 
                 // Neuer Ordner? → prüfen, ob er indiziert ist (steuert „Schema-ähnlich").
                 PruefeAktuellerOrdnerIndiziert();
@@ -3228,7 +3395,11 @@ namespace TestImage
         /// Drop gerufen: Treffer aus dem alten Ordner würden sonst beim Anklicken dorthin
         /// zurückspringen.
         /// </summary>
-        private void VerwerfeSuchtreffer()
+        /// <param name="grund">
+        /// Meldung für die Statuszeile, wenn tatsächlich Treffer verworfen wurden. Ohne
+        /// Angabe gilt der Ordnerwechsel als Grund.
+        /// </param>
+        private void VerwerfeSuchtreffer(string? grund = null)
         {
             bool hatteTreffer = SuchErgebnisse.Count > 0 || _alleSuchTreffer.Count > 0;
 
@@ -3239,7 +3410,7 @@ namespace TestImage
 
             if (hatteTreffer)
             {
-                SucheStatus = "Neuer Ordner geladen – Suche bitte wiederholen.";
+                SucheStatus = grund ?? "Neuer Ordner geladen – Suche bitte wiederholen.";
 
                 // Nach LeereTrefferCache() setzen, das die Markierung zurücknimmt.
                 SuchErgebnisseVeraltet = true;
@@ -4169,7 +4340,8 @@ namespace TestImage
                 IndexFortschrittText =
                     $"Fertig: {anzahl} Bilder indexiert.{aufraeumText} {WasserzeichenStatus}{IndexMessung()}";
                 AktualisiereFilterOptionen();
-                PruefeAktuellerOrdnerIndiziert();   // Index existiert jetzt → „Schema-ähnlich" freischalten
+                // Erzwungen: Der Ordner ist derselbe geblieben, nur die Indexdatei ist neu.
+                PruefeAktuellerOrdnerIndiziert(erzwingen: true);   // Index existiert jetzt → „Schema-ähnlich" freischalten
 
                 if (!string.IsNullOrWhiteSpace(SucheText) && _alleSuchTreffer.Count > 0)
                 {
@@ -4865,26 +5037,64 @@ namespace TestImage
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteFavSortierenCommand))]
         public partial bool AktuellerOrdnerIndiziert { get; set; }
 
-        /// <summary>Bestimmt neu, ob der Ordner des aktuellen Bildes indiziert ist.</summary>
-        private void PruefeAktuellerOrdnerIndiziert()
+        /// <summary>
+        /// Ordner, dessen Indexstand zuletzt bestimmt wurde. <c>null</c> heisst „keiner" —
+        /// etwa vor dem ersten Bild oder nachdem der Ordner verschwunden ist.
+        /// </summary>
+        private string? _zuletztGepruefterIndexOrdner;
+
+        /// <summary>
+        /// Läuft bei jedem Bildwechsel: bestimmt den Indexstand des Ordners und zieht die
+        /// bildbezogenen Anzeigen nach.
+        ///
+        /// Der Ordnerteil läuft nur bei einem Ordnerwechsel. Er kostet einen Gang ans
+        /// Dateisystem, und der Aufruf hängt am Setter von <c>SelectedBildchen</c> — auf
+        /// einem Netzlaufwerk wäre das eine Umlaufzeit je Pfeiltastendruck, für eine
+        /// Antwort, die sich innerhalb eines Ordners nicht ändert. Dass die Indexdatei
+        /// währenddessen auftaucht oder von Hand gelöscht wird, deckt
+        /// <c>_indexWaechter</c> über <c>BeiIndexDateiAenderung</c> ab.
+        ///
+        /// Die Abkürzung gilt nur, solange dieser Wächter wirklich läuft. Netzlaufwerke
+        /// und manche Wechseldatenträger lassen keine Überwachung zu; dort bleibt es bei
+        /// der Prüfung zu jedem Bild, sonst fiele eine gelöschte Indexdatei überhaupt
+        /// nicht mehr auf.
+        ///
+        /// Ein Ordnerwechsel ist keine Seltenheit: In einer Trefferliste stehen Bilder
+        /// aus vielen Ordnern nebeneinander. Dort greift die Abkürzung nur, solange
+        /// aufeinanderfolgende Treffer aus demselben Ordner stammen.
+        /// </summary>
+        /// <param name="erzwingen">
+        /// True = den Ordnerteil auch bei gleichem Ordner ausführen. Nötig, wenn sich der
+        /// Indexstand geändert hat, ohne dass das Bild gewechselt hat: direkt nach dem
+        /// Indexieren und wenn der Wächter anschlägt.
+        /// </param>
+        private void PruefeAktuellerOrdnerIndiziert(bool erzwingen = false)
         {
             string? pfad = SelectedBildchen?.BName;
             string? ordner = string.IsNullOrEmpty(pfad) ? null : Path.GetDirectoryName(pfad);
-            AktuellerOrdnerIndiziert = !string.IsNullOrEmpty(ordner)
-                && File.Exists(Path.Combine(ordner, BildAnalyseService.CacheDateiName));
 
-            // Gleich nachtragen, falls der Ordner noch nicht im Verzeichnis steht. So
-            // füllt sich die Liste auch mit Ordnern, die vor dieser Funktion indexiert
-            // wurden — es genügt, sie einmal zu öffnen.
-            if (AktuellerOrdnerIndiziert)
+            if (erzwingen
+                || !_indexWaechter.IstAktiv
+                || !string.Equals(ordner, _zuletztGepruefterIndexOrdner, StringComparison.OrdinalIgnoreCase))
             {
-                MerkeOrdnerFallsIndiziert(ordner);
-            }
+                _zuletztGepruefterIndexOrdner = ordner;
 
-            // Diesen Ordner überwachen: Wird die Indexdatei von Hand gelöscht, merkt es
-            // die Anwendung sonst erst beim nächsten Bildwechsel — und „Schema-ähnlich"
-            // liefe bis dahin ins Leere.
-            UeberwacheIndexDatei(ordner);
+                AktuellerOrdnerIndiziert = !string.IsNullOrEmpty(ordner)
+                    && File.Exists(Path.Combine(ordner, BildAnalyseService.CacheDateiName));
+
+                // Gleich nachtragen, falls der Ordner noch nicht im Verzeichnis steht. So
+                // füllt sich die Liste auch mit Ordnern, die vor dieser Funktion indexiert
+                // wurden — es genügt, sie einmal zu öffnen.
+                if (AktuellerOrdnerIndiziert)
+                {
+                    MerkeOrdnerFallsIndiziert(ordner);
+                }
+
+                // Diesen Ordner überwachen: Wird die Indexdatei von Hand gelöscht, merkt es
+                // die Anwendung sonst erst beim nächsten Bildwechsel — und „Schema-ähnlich"
+                // liefe bis dahin ins Leere.
+                UeberwacheIndexDatei(ordner);
+            }
 
             // Befund zum jetzt gewählten Bild in der Wasserzeichen-Karte nachziehen.
             // Diese Methode läuft bei jedem Bildwechsel, ist also der passende Ort.

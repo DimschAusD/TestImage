@@ -37,6 +37,15 @@ namespace TestImage.Bildersuche
         /// </summary>
         internal Action? BeiAenderung { get; set; }
 
+        /// <summary>
+        /// True, wenn ein Ordner tatsächlich überwacht wird.
+        ///
+        /// Auf Laufwerken, die keine Überwachung zulassen, bleibt sie False — der Aufrufer
+        /// muss den Indexstand dann weiter selbst nachsehen, statt sich auf eine Meldung
+        /// zu verlassen, die nie kommt.
+        /// </summary>
+        internal bool IstAktiv => _waechter != null;
+
         internal IndexDateiWaechter()
         {
             _sammler = new DispatcherTimer(DispatcherPriority.Background, _dispatcher)
@@ -93,8 +102,8 @@ namespace TestImage.Bildersuche
             catch
             {
                 // Netzlaufwerke und manche Wechseldatenträger lassen keine Überwachung zu.
-                // Dann bleibt es beim bisherigen Verhalten — geprüft wird ohnehin bei
-                // jedem Bildwechsel.
+                // IstAktiv bleibt dann False, und der Aufrufer sieht bei jedem Bildwechsel
+                // selbst nach — siehe PruefeAktuellerOrdnerIndiziert.
                 _waechter = null;
             }
         }

@@ -114,7 +114,10 @@ namespace TestImage
         {
             // Setzt AktuellerOrdnerIndiziert neu; darüber werden „Schema-ähnlich" und
             // die verwandten Befehle freigegeben oder gesperrt.
-            PruefeAktuellerOrdnerIndiziert();
+            //
+            // Erzwungen: Es ist genau der Fall, dass sich der Indexstand ändert, ohne
+            // dass das Bild oder der Ordner gewechselt hätte.
+            PruefeAktuellerOrdnerIndiziert(erzwingen: true);
 
             // Und die Liste nachziehen: Ein Ordner ohne Indexdatei gilt dort als fehlend.
             AktualisiereIndexOrdner();
@@ -132,6 +135,11 @@ namespace TestImage
             IndexAnzahlText = string.Empty;
             IndexFortschrittText = "Index gelöscht – der Ordner ist nicht mehr indexiert.";
             WasserzeichenStatus = string.Empty;
+
+            // Auch die Trefferliste gehört zu dem Index, den es nicht mehr gibt. Sie blieb
+            // stehen, während die Knöpfe schon gesperrt waren — anklickbare Kacheln zu
+            // einer Suche, die sich nicht wiederholen lässt.
+            VerwerfeSuchtreffer("Index gelöscht – die Treffer dazu wurden verworfen.");
 
             // Wasserzeichen-Befunde neu von der Platte lesen statt blind zu leeren:
             // Die Befunddatei ist eine eigene Datei. Liegt sie noch, bleibt sie gültig;

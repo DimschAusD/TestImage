@@ -91,6 +91,28 @@ namespace TestImage.Bildersuche
         private readonly float[] _muster;    // Kante*Kante, gefiltert und mittelwertfrei
         private readonly float[] _gewicht;   // Kante*Kante, 0 … 1 — wie stabil das Pixel über die Beispiele war
 
+        /// <summary>
+        /// Laufende Summen der Beispielfelder — Summe und Summe der Quadrate je Bildpunkt.
+        ///
+        /// Damit lässt sich ein weiterer Ordner <b>dazulernen</b>, ohne die alten Bilder
+        /// noch einmal zu lesen: Aus Summe, Quadratsumme und Anzahl entstehen Muster und
+        /// Gewichte genauso, als wäre alles auf einmal gelernt worden.
+        ///
+        /// <c>null</c> bei Mustern aus Dateien vor dieser Erweiterung. Die prüfen weiter
+        /// wie bisher, lassen sich aber nicht fortschreiben — dafür müssen sie einmal neu
+        /// gelernt werden. Zurückrechnen liesse sich das nicht: Das gespeicherte Muster ist
+        /// mittelwertfrei zentriert, und die Gewichte sind auf den Median der Streuungen
+        /// normiert. Beide Male ist der Bezugswert weg.
+        /// </summary>
+        private readonly double[]? _summe;
+        private readonly double[]? _summeQuadrat;
+
+        /// <summary>
+        /// True, wenn dieses Muster um weitere Ordner ergänzt werden kann — siehe
+        /// <see cref="Erweitere"/>.
+        /// </summary>
+        public bool KannErweitertWerden => _summe is not null && _summeQuadrat is not null;
+
         public int Grundmenge { get; }
 
         /// <summary>
@@ -177,12 +199,20 @@ namespace TestImage.Bildersuche
             }
         }
 
-        private WasserzeichenMaske(float[] muster, float[] gewicht, int grundmenge, WasserzeichenVorverarbeitung modus)
+        private WasserzeichenMaske(
+            float[] muster,
+            float[] gewicht,
+            int grundmenge,
+            WasserzeichenVorverarbeitung modus,
+            double[]? summe = null,
+            double[]? summeQuadrat = null)
         {
             _muster = muster;
             _gewicht = gewicht;
             Grundmenge = grundmenge;
             Modus = modus;
+            _summe = summe;
+            _summeQuadrat = summeQuadrat;
         }
 
         #region Lernen
@@ -235,14 +265,29 @@ namespace TestImage.Bildersuche
         /// damit dieselben Felder mehrfach verwendet werden können — etwa beim Aufteilen
         /// eines Ordners in zwei Muster.
         /// </summary>
+        /// <param name="startSumme">
+        /// Summen eines bereits gelernten Musters, auf die aufaddiert wird. Ohne Angabe
+        /// beginnt das Lernen bei null — der gewöhnliche Fall.
+        /// </param>
+        /// <param name="startSummeQuadrat">Quadratsummen dazu.</param>
+        /// <param name="startAnzahl">Zahl der Bilder, die in den Startsummen stecken.</param>
         internal static WasserzeichenMaske? LerneAusFeldern(
             IReadOnlyList<float[]> felder,
             WasserzeichenVorverarbeitung modus,
-            WasserzeichenBereich bereich)
+            WasserzeichenBereich bereich,
+            double[]? startSumme = null,
+            double[]? startSummeQuadrat = null,
+            int startAnzahl = 0)
         {
-            var summe = new double[Kante * Kante];
-            var summeQuadrat = new double[Kante * Kante];
-            int gezaehlt = 0;
+            var summe = startSumme is { Length: Kante * Kante }
+                ? (double[])startSumme.Clone()
+                : new double[Kante * Kante];
+
+            var summeQuadrat = startSummeQuadrat is { Length: Kante * Kante }
+                ? (double[])startSummeQuadrat.Clone()
+                : new double[Kante * Kante];
+
+            int gezaehlt = startSumme is { Length: Kante * Kante } ? startAnzahl : 0;
 
             foreach (var feld in felder)
             {
@@ -272,13 +317,47 @@ namespace TestImage.Bildersuche
 
             ZentriereAufMittelwert(muster);
 
-            var maske = new WasserzeichenMaske(muster, BerechneGewichte(varianz), gezaehlt, modus)
+            var maske = new WasserzeichenMaske(
+                muster, BerechneGewichte(varianz), gezaehlt, modus, summe, summeQuadrat)
             {
                 Bereich = bereich
             };
 
             maske.Schwelle = MesseSchwelle(maske, felder);
             return maske;
+        }
+
+        /// <summary>
+        /// Ergänzt dieses Muster um die Beispiele eines weiteren Ordners und gibt das
+        /// gemeinsame Muster zurück. <c>null</c>, wenn die Summen fehlen
+        /// (<see cref="KannErweitertWerden"/>) oder zu wenige Felder ankommen.
+        ///
+        /// Das Ergebnis ist rechnerisch dasselbe, als hätte man alle Bilder auf einmal
+        /// gelernt. Genau darin liegt der Gewinn: Was in <b>allen</b> Ordnern gleich
+        /// aussieht — bei DeviantArt das Logo — bleibt stabil und behält sein Gewicht;
+        /// was je Ordner wechselt — der Künstlerschriftzug darunter — schwankt jetzt über
+        /// eine viel breitere Menge und verliert es. Jeder weitere Ordner schärft also das
+        /// Gemeinsame und schwächt das Besondere.
+        /// </summary>
+        internal WasserzeichenMaske? Erweitere(IReadOnlyList<float[]> felder)
+        {
+            if (!KannErweitertWerden || felder.Count == 0)
+                return null;
+
+            var erweitert = LerneAusFeldern(felder, Modus, Bereich, _summe, _summeQuadrat, Grundmenge);
+            if (erweitert is null)
+                return null;
+
+            erweitert.Name = Name;
+
+            // Die Schwelle konnte nur an den neuen Beispielen gemessen werden — die alten
+            // Felder sind längst verworfen. Der niedrigere der beiden Werte gilt: Eine zu
+            // hohe Schwelle liesse gerade die Bilder durchfallen, für die das Muster schon
+            // vorher gut war.
+            if (Schwelle > 0f && (erweitert.Schwelle <= 0f || Schwelle < erweitert.Schwelle))
+                erweitert.Schwelle = Schwelle;
+
+            return erweitert;
         }
 
         /// <summary>
@@ -668,6 +747,15 @@ namespace TestImage.Bildersuche
 
             /// <summary>Fehlt in Dateien der ersten Fassung – dann zählen alle Pixel gleich.</summary>
             public float[]? Gewicht { get; set; }
+
+            /// <summary>
+            /// Laufende Summen der Beispielfelder. Fehlen in Dateien vor dem Dazulernen —
+            /// solche Muster prüfen weiter, lassen sich aber nicht ergänzen.
+            /// </summary>
+            public double[]? Summe { get; set; }
+
+            /// <summary>Quadratsummen dazu.</summary>
+            public double[]? SummeQuadrat { get; set; }
         }
 
         internal MaskenDatei AlsDatensatz() => new()
@@ -679,7 +767,9 @@ namespace TestImage.Bildersuche
             Bereich = Bereich,
             Schwelle = Schwelle,
             Muster = _muster,
-            Gewicht = _gewicht
+            Gewicht = _gewicht,
+            Summe = _summe,
+            SummeQuadrat = _summeQuadrat
         };
 
         internal static WasserzeichenMaske? AusDatensatz(MaskenDatei? daten)
@@ -700,7 +790,18 @@ namespace TestImage.Bildersuche
                 Array.Fill(gewicht, 1f);
             }
 
-            return new WasserzeichenMaske(daten.Muster, gewicht, daten.Grundmenge, daten.Modus)
+            // Summen nur übernehmen, wenn beide vollständig da sind — halbe Summen wären
+            // schlimmer als keine, weil sie zu einem falschen gemeinsamen Muster führten.
+            bool summenDa = daten.Summe is { Length: Kante * Kante }
+                            && daten.SummeQuadrat is { Length: Kante * Kante };
+
+            return new WasserzeichenMaske(
+                daten.Muster,
+                gewicht,
+                daten.Grundmenge,
+                daten.Modus,
+                summenDa ? daten.Summe : null,
+                summenDa ? daten.SummeQuadrat : null)
             {
                 Name = daten.Name,
                 Bereich = daten.Bereich,

@@ -13,6 +13,7 @@
     xmlns:sys="clr-namespace:System;assembly=mscorlib"
     d:DesignHeight="700"
     d:DesignWidth="800"
+    PreviewMouseLeftButtonDown="Ansicht_PreviewMouseLeftButtonDown"
     mc:Ignorable="d">
 
     <UserControl.Resources>
@@ -212,6 +213,42 @@
         </Style>
 
         <!--
+            Diagnosekachel: dieselbe Kachel, nur zurückgenommen. Fläche und Rahmen
+            fallen weg, die Zahl steht in hellem Grau — sie soll neben den echten
+            Info-Kacheln nicht mitreden.
+
+            Höhe, Ränder und Padding bleiben die der InfoKachel. Beim Überfahren kommen
+            Fläche und Rahmen zurück und die Zahl wird dunkler; weil sich dabei nur
+            Farben ändern und keine Masse, rückt in der Reihe nichts.
+        -->
+        <Style
+            x:Key="DiagnoseKachel"
+            BasedOn="{StaticResource InfoKachel}"
+            TargetType="{x:Type Border}">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="White" />
+                    <Setter Property="BorderBrush" Value="#FFCBD5E1" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style
+            x:Key="DiagnoseKachelText"
+            BasedOn="{StaticResource InfoKachelText}"
+            TargetType="{x:Type TextBlock}">
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Foreground" Value="#FFB4BCC7" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType={x:Type Border}}}" Value="True">
+                    <Setter Property="Foreground" Value="#FF4B5563" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--
             Knöpfe der Kopfleiste: hell, neutral, nur ein feiner Rahmen.
             
             Die beiden Knöpfe kamen aus dem MainWindow, wo sie als dunkle, halbdurch-
@@ -252,6 +289,151 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <!--
+            Filterfeld der Kopfleiste.
+
+            Vorher eine nackte TextBox: 26 hoch neben 22 hohen Kacheln, scharfkantig
+            zwischen lauter gerundeten Nachbarn, blauer Rahmen, Schrift 14 gegen 11 —
+            und im gefüllten Zustand ein kräftiges LightGreen, der stärkste Farbfleck
+            der ganzen Leiste, ausgerechnet im Dauerzustand beim Arbeiten. Das
+            Hover-Grün von BTN_FilterLeeren ging darauf unter.
+
+            Jetzt Kachelmasse (Höhe 22, CornerRadius 4, Schrift 11) und vier Zustände:
+
+              leer, ohne Fokus   graue Fläche, Lupe und „Name filtern"
+              leer, mit Fokus    weiss — freies Feld zum Tippen
+              Treffer            helles Grün
+              keine Treffer      helles Rot
+
+            Der Fokus färbt nur das LEERE Feld weiss. Getippt wird immer im
+            fokussierten Feld; ginge Weiss auch über Grün und Rot, bekäme man die
+            Rückmeldung nie zu sehen.
+
+            Ein ControlTemplate ist nötig, weil eine TextBox kein CornerRadius kennt.
+            Der ScrollViewer muss PART_ContentHost heissen, sonst nimmt das Feld keine
+            Eingabe an. Sein rechter Rand hält den Text von BTN_FilterLeeren fern, der
+            von aussen über das Feld gelegt wird.
+
+            Der Platzhalter liegt im Template statt wie vorher als VisualBrush auf dem
+            Hintergrund: Der Brush war zentriert und stünde neben der Lupe schief, und
+            er belegt die Eigenschaft, die hier die vier Zustände tragen muss. Die
+            Ressource WasserzeichenFilter in App.xaml bleibt stehen, wird von hier aber
+            nicht mehr benutzt.
+        -->
+        <Style x:Key="Filterfeld" TargetType="{x:Type TextBox}">
+            <Setter Property="Height" Value="22" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <!--
+                Kein Tooltip am Tastaturfokus.
+
+                WPF zeigt den Tooltip eines Elements nicht nur bei der Maus, sondern auch,
+                sobald es den Tastaturfokus bekommt — und dieser Tooltip kennt keine
+                Anzeigedauer: Er steht, solange der Fokus steht. Genau das passierte beim
+                Ablegen einer Datei: Nach dem Filtern liegt der Fokus im Feld, das Fenster
+                wird durch den Drop wieder aktiv, das Feld holt sich den Fokus zurück — und
+                der Erklärtext blieb quer über der Kopfleiste stehen, während die Maus ganz
+                woanders war.
+
+                Das betrifft nur den Fokus-Weg; beim Überfahren mit der Maus erscheint der
+                Tooltip weiter wie gewohnt.
+            -->
+            <Setter Property="ToolTipService.ShowsToolTipOnKeyboardFocus" Value="False" />
+            <!--  Ausgangszustand ist „gefüllt mit Treffern"; die Trigger unten decken die anderen drei ab.  -->
+            <Setter Property="Foreground" Value="#FF1F2937" />
+            <Setter Property="Background" Value="#FFEAF7E1" />
+            <Setter Property="BorderBrush" Value="#FF86C05F" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type TextBox}">
+                        <Border
+                            x:Name="BRD_Filterfeld"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="4"
+                            SnapsToDevicePixels="True">
+                            <Grid x:Name="GRD_FilterfeldInhalt">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock
+                                    x:Name="IC_FilterLupe"
+                                    Grid.Column="0"
+                                    Margin="5,0,3,0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="10"
+                                    Foreground="#FF5E6B7A"
+                                    Text="&#xE721;" />
+
+                                <TextBlock
+                                    x:Name="TXT_FilterPlatzhalter"
+                                    Grid.Column="1"
+                                    Margin="1,0,22,0"
+                                    VerticalAlignment="Center"
+                                    FontStyle="Italic"
+                                    Foreground="#FF5E6B7A"
+                                    IsHitTestVisible="False"
+                                    Text="Name filtern"
+                                    TextTrimming="CharacterEllipsis"
+                                    Visibility="Collapsed" />
+
+                                <ScrollViewer
+                                    x:Name="PART_ContentHost"
+                                    Grid.Column="1"
+                                    Margin="0,0,22,0"
+                                    VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Text" Value="">
+                                <Setter TargetName="TXT_FilterPlatzhalter" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <!--
+                    Leer und unbeachtet: spürbar dunkler als der helle Grund der Leiste.
+                    Mit dem ersten Ton (#FFF3F4F6) verschwand das Feld darin — man sah
+                    einen Rahmen und musste raten, ob dort etwas einzugeben ist. Eine
+                    eingetiefte Fläche zeigt es auf einen Blick.
+                -->
+                <Trigger Property="Text" Value="">
+                    <Setter Property="Background" Value="#FFCBD5E1" />
+                    <Setter Property="BorderBrush" Value="#FF98A5B4" />
+                </Trigger>
+
+                <!--
+                    Leer und im Fokus: die eingetiefte Fläche hellt auf, der Rahmen wird
+                    kräftiger. Das Feld öffnet sich also beim Hineinklicken, statt sich wie
+                    zuvor erst durch Weiss bemerkbar zu machen.
+                -->
+                <MultiTrigger>
+                    <MultiTrigger.Conditions>
+                        <Condition Property="Text" Value="" />
+                        <Condition Property="IsKeyboardFocusWithin" Value="True" />
+                    </MultiTrigger.Conditions>
+                    <Setter Property="Background" Value="#FFF7F9FB" />
+                    <Setter Property="BorderBrush" Value="#FF8894A3" />
+                </MultiTrigger>
+
+                <!--  Gefiltert, aber nichts passt: rot. Steht zuletzt und schlägt damit Grün.  -->
+                <DataTrigger Binding="{Binding FilterOhneTreffer}" Value="True">
+                    <Setter Property="Background" Value="#FFFCE9E9" />
+                    <Setter Property="BorderBrush" Value="#FFDD8A8A" />
+                    <Setter Property="Foreground" Value="#FF7F1D1D" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
 
         <!--
@@ -2375,124 +2557,13 @@
 
 
             <!--
-                Filterfeld mit eingebautem Lösch-Knopf.
+                HIER STANDEN GRD_Filterfeld (mit TXB_DateinameFiltern und BTN_FilterLeeren)
+                UND BRD_InnerZaehler.
 
-                Der Knopf liegt IM Feld, wie in jedem Suchfeld von Windows. Dafür braucht
-                es das Grid: Eine TextBox hat keinen Platz für Beiwerk, also wird der Knopf
-                darübergelegt und rechtsbündig gesetzt.
-
-                Padding rechts 24 hält den Text vom Knopf fern — ohne das liefe eine lange
-                Eingabe darunter hindurch. Die Breite ist um dieselben 24 gewachsen, damit
-                zum Tippen so viel Platz bleibt wie vorher.
+                Beide sitzen jetzt am rechten Ende von STP_KopfleisteLinks. Sie gehören
+                nicht zu den Angaben über das angezeigte Bild, sondern zum Umgang mit der
+                Liste — dort, wo auch „Bilder neu einlesen" und die Bildersuche stehen.
             -->
-            <Grid x:Name="GRD_Filterfeld" Margin="2,0,2,0">
-                <TextBox
-                    x:Name="TXB_DateinameFiltern"
-                    Width="94"
-                    Height="26"
-                    Padding="0,0,24,0"
-                    VerticalContentAlignment="Center"
-                    BorderBrush="#FF9AB0F3"
-                    FontSize="14"
-                    Text="{Binding FilterText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                    TextWrapping="NoWrap">
-                    <TextBox.Style>
-                        <Style TargetType="{x:Type TextBox}">
-                            <Setter Property="Background" Value="LightGreen" />
-                            <Style.Triggers>
-                                <Trigger Property="Text" Value="">
-                                    <Setter Property="Background" Value="{StaticResource WasserzeichenFilter}" />
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBox.Style>
-                </TextBox>
-
-                <!--
-                    Das ✕ im Feld ist die Geste, die jeder aus Such- und Adressfeldern
-                    kennt — hier heisst es nicht „abbrechen", sondern „Feld leeren". Ein
-                    Radiergummi wäre treffender benannt, aber niemand sucht danach.
-
-                    E10A aus Segoe UI Symbol, weil es dort kräftig ist. Dieselbe Nummer in
-                    Segoe MDL2 Assets ist eine Haarlinie und verschwindet bei 20 Punkten
-                    Knopfgrösse fast.
-
-                    Randlos und mit durchsichtigem Grund, damit er im Feld liegt statt
-                    darauf. Beim Überfahren dasselbe Grün wie überall sonst.
-
-                    Die Visibility-Bindung auf das EIGENE IsEnabled ist der Kniff, der ihn
-                    verschwinden lässt, solange das Feld leer ist — CanExecuteFilterLeeren
-                    schaltet ihn dann ab. Der ElementName muss auf diesen Knopf zeigen;
-                    beim Umbenennen bricht die Bindung sonst still.
-                -->
-                <Button
-                    x:Name="BTN_FilterLeeren"
-                    Width="20"
-                    Height="24"
-                    Margin="0,0,1,0"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Center"
-                    d:Visibility="Visible"
-                    Command="{Binding CommandExecuteFilterLeerenCommandCommand, Mode=OneWay}"
-                    Cursor="Hand"
-                    ToolTip="Filter leeren"
-                    Visibility="{Binding IsEnabled, Converter={StaticResource CLconverterVisiblityBoolian}, ElementName=BTN_FilterLeeren}">
-                    <Button.Style>
-                        <Style TargetType="{x:Type Button}">
-                            <Setter Property="Background" Value="Transparent" />
-                            <Setter Property="Foreground" Value="#FF3F4650" />
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="{x:Type Button}">
-                                        <Border
-                                            x:Name="BRD_FilterLeeren"
-                                            Background="{TemplateBinding Background}"
-                                            CornerRadius="4">
-                                            <TextBlock
-                                                x:Name="IC_FilterLeeren"
-                                                HorizontalAlignment="Center"
-                                                VerticalAlignment="Center"
-                                                FontFamily="Segoe UI Symbol"
-                                                FontSize="11"
-                                                Foreground="{TemplateBinding Foreground}"
-                                                Text="&#xE10A;" />
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="BRD_FilterLeeren" Property="Background" Value="#FFB7F393" />
-                                                <Setter Property="Foreground" Value="#FF17300A" />
-                                            </Trigger>
-                                            <Trigger Property="IsPressed" Value="True">
-                                                <Setter TargetName="BRD_FilterLeeren" Property="Background" Value="#FFCACFFE" />
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                        </Style>
-                    </Button.Style>
-                </Button>
-            </Grid>
-            <!--
-                Diagnosezähler, gleiche Machart wie die drei Info-Kacheln links.
-
-                Visibility ausdrücklich auf Visible: Der Style InfoKachel blendet über
-                HatBild aus, aber dieser Zähler beschreibt kein Bild — er zählt
-                Filterdurchläufe und Ordner-Einlesevorgänge und soll gerade dann lesbar
-                bleiben, wenn ein Filter alles ausgeblendet hat.
-            -->
-            <Border
-                x:Name="BRD_InnerZaehler"
-                Style="{StaticResource InfoKachel}"
-                ToolTip="Innerer Zähler — Diagnose: zählt die Filterdurchläufe und das Einlesen von Ordnern"
-                Visibility="Visible">
-                <TextBlock
-                    x:Name="TXT_InnerZaehler"
-                    d:Text="IC 1130"
-                    Style="{StaticResource InfoKachelText}"
-                    Text="{Binding InnerZählerCount, StringFormat=IC \{0:D\}}"
-                    TextWrapping="NoWrap" />
-            </Border>
 
             <!--
                 Aufnahme-Anzeigen und die beiden Ansichts-Knöpfe. Sie lagen bis hierher im
@@ -4292,6 +4363,119 @@
                 Index-Karte zu ziehen. Ausserdem lässt sich ein Popup nicht in der Grösse
                 ändern.
             -->
+
+            <!--
+                Filterfeld mit eingebautem Lösch-Knopf. Stand vorher in
+                STP_KopfleisteRechts zwischen den Angaben zum Bild; es beschreibt aber
+                kein Bild, sondern engt die Liste ein — und steht damit hier richtig,
+                neben „Bilder neu einlesen" und der Bildersuche.
+
+                Der Knopf liegt IM Feld, wie in jedem Suchfeld von Windows. Dafür braucht
+                es das Grid: Eine TextBox hat keinen Platz für Beiwerk, also wird der Knopf
+                darübergelegt und rechtsbündig gesetzt.
+
+                Das Freihalten des Knopfplatzes steckt im Style Filterfeld: Der
+                ScrollViewer im Template hält 22 nach rechts frei, sonst liefe eine lange
+                Eingabe unter dem Knopf hindurch.
+            -->
+            <Grid x:Name="GRD_Filterfeld" Margin="10,0,0,0" VerticalAlignment="Center">
+                <TextBox
+                    x:Name="TXB_DateinameFiltern"
+                    Width="108"
+                    Style="{StaticResource Filterfeld}"
+                    Text="{Binding FilterText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    TextWrapping="NoWrap"
+                    ToolTip="Dateinamen filtern: zeigt nur Bilder, deren Name den eingegebenen Text enthält" />
+
+                <!--
+                    Das ✕ im Feld ist die Geste, die jeder aus Such- und Adressfeldern
+                    kennt — hier heisst es nicht „abbrechen", sondern „Feld leeren". Ein
+                    Radiergummi wäre treffender benannt, aber niemand sucht danach.
+
+                    E10A aus Segoe UI Symbol, weil es dort kräftig ist. Dieselbe Nummer in
+                    Segoe MDL2 Assets ist eine Haarlinie und verschwindet bei 20 Punkten
+                    Knopfgrösse fast.
+
+                    Randlos und mit durchsichtigem Grund, damit er im Feld liegt statt
+                    darauf. Beim Überfahren dasselbe Grün wie überall sonst.
+
+                    Die Visibility-Bindung auf das EIGENE IsEnabled ist der Kniff, der ihn
+                    verschwinden lässt, solange das Feld leer ist — CanExecuteFilterLeeren
+                    schaltet ihn dann ab. Der ElementName muss auf diesen Knopf zeigen;
+                    beim Umbenennen bricht die Bindung sonst still.
+                -->
+                <Button
+                    x:Name="BTN_FilterLeeren"
+                    Width="18"
+                    Height="18"
+                    Margin="0,0,2,0"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    d:Visibility="Visible"
+                    Command="{Binding CommandExecuteFilterLeerenCommandCommand, Mode=OneWay}"
+                    Cursor="Hand"
+                    ToolTip="Filter leeren"
+                    Visibility="{Binding IsEnabled, Converter={StaticResource CLconverterVisiblityBoolian}, ElementName=BTN_FilterLeeren}">
+                    <Button.Style>
+                        <Style TargetType="{x:Type Button}">
+                            <Setter Property="Background" Value="Transparent" />
+                            <Setter Property="Foreground" Value="#FF3F4650" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="{x:Type Button}">
+                                        <Border
+                                            x:Name="BRD_FilterLeeren"
+                                            Background="{TemplateBinding Background}"
+                                            CornerRadius="4">
+                                            <TextBlock
+                                                x:Name="IC_FilterLeeren"
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center"
+                                                FontFamily="Segoe UI Symbol"
+                                                FontSize="11"
+                                                Foreground="{TemplateBinding Foreground}"
+                                                Text="&#xE10A;" />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="BRD_FilterLeeren" Property="Background" Value="#FFB7F393" />
+                                                <Setter Property="Foreground" Value="#FF17300A" />
+                                            </Trigger>
+                                            <Trigger Property="IsPressed" Value="True">
+                                                <Setter TargetName="BRD_FilterLeeren" Property="Background" Value="#FFCACFFE" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </Button.Style>
+                </Button>
+            </Grid>
+
+            <!--
+                Diagnosezähler, gleiche Machart wie die Info-Kacheln der rechten Leiste.
+
+                Steht neben dem Filterfeld, weil er genau dessen Arbeit zählt:
+                Filterdurchläufe und Ordner-Einlesevorgänge.
+
+                Visibility ausdrücklich auf Visible: Der Style InfoKachel blendet über
+                HatBild aus, aber dieser Zähler beschreibt kein Bild und soll gerade dann
+                lesbar bleiben, wenn ein Filter alles ausgeblendet hat.
+            -->
+            <Border
+                x:Name="BRD_InnerZaehler"
+                Margin="4,0,0,0"
+                Style="{StaticResource DiagnoseKachel}"
+                ToolTip="Innerer Zähler — Diagnose: zählt die Filterdurchläufe und das Einlesen von Ordnern"
+                Visibility="Visible">
+                <TextBlock
+                    x:Name="TXT_InnerZaehler"
+                    d:Text="IC 1130"
+                    Style="{StaticResource DiagnoseKachelText}"
+                    Text="{Binding InnerZählerCount, StringFormat=IC \{0:D\}}"
+                    TextWrapping="NoWrap" />
+            </Border>
 
         </StackPanel>
 
