@@ -155,8 +155,7 @@ Den ausgepackten Ordner löschen. Das war es — es gibt keine Einträge in der
 Registrierung und nichts unter `AppData`.
 
 **Was liegen bleibt:** die Cache-Dateien in jedem Bilderordner, den du bearbeitet
-hast. Wer sie loswerden will, sucht im
-Explorer nach
+hast. Wer sie loswerden will, sucht im Explorer nach
 
 ```
 .bildindex.clip.json
