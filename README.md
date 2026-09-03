@@ -14,8 +14,8 @@ liegt eine Hand auf den vier Pfeiltasten, und das reicht:
 | **↓** | weg damit — das Bild wandert nach `kein_Fav` |
 | **↑** | zurückholen, sonst die letzte Verschiebung rückgängig |
 
-Verschoben wird in einen Unterordner, nicht gelöscht. Nichts ist endgültig, jeder
-Griff lässt sich zurücknehmen.
+Verschoben wird in einen Unterordner, nicht gelöscht. Jeder Griff lässt sich
+zurücknehmen.
 
 ![Die Normalansicht: das Bild in der Mitte, die Miniaturleiste darunter, links
 die Prüf-Ampel](docs/normalansicht.png)
@@ -24,7 +24,7 @@ Und dasselbe Bild im Vollbild — nichts als das Bild, Zoom mit dem Mausrad:
 
 ![Vollbildansicht](docs/vollbild.png)
 
-Alles Weitere — Doubletten, Prüfungen, Konturansicht, Begriffssuche — ist Beiwerk
+Alles Weitere — Dubletten, Prüfungen, Konturansicht, Begriffssuche — ist Beiwerk
 für den Fall, dass das blosse Ansehen nicht reicht.
 
 Quelltext und Kommentare sind auf Deutsch.
@@ -38,7 +38,7 @@ Ablagen führt ein Knopf wieder eine Ebene höher.
 
 **Alle Tastenkürzel** stehen im Programm selbst unter **F1**.
 
-**Doubletten finden**
+**Dubletten finden**
 Vier Wege, vom billigsten zum teuersten:
 
 | Verfahren | findet |
@@ -195,7 +195,7 @@ angefasst werden. Mit der Angabe bleibt das Paket bei rund 37 MB.
 
 Der Build läuft auch ohne sie durch und meldet nur eine Warnung. Ohne die Modelle
 fehlen die Begriffssuche, „schema-ähnlich" und das Sortieren nach Vorlieben —
-Betrachter, Doublettensuche, Prüfung und Konturansicht arbeiten vollständig.
+Betrachter, Dublettensuche, Prüfung und Konturansicht arbeiten vollständig.
 
 Die beiden Gewichtsdateien sind zusammen rund 580 MB und liegen deshalb nicht im
 Repo; GitHub lehnt einzelne Dateien über 100 MB ab. Woher man sie bekommt, steht
