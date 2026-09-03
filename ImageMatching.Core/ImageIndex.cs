@@ -81,6 +81,13 @@ public sealed class ImageIndex
     /// </summary>
     public int EntfernteEintraege { get; private set; }
 
+    /// <summary>
+    /// Wie viele Einträge der letzte <see cref="Load"/> verworfen hat, weil sie zu einem
+    /// anderen Ordner gehören — Kennzeichen einer mitkopierten Cache-Datei. Nur zur
+    /// Rückmeldung; gefiltert wird ausschliesslich mit <c>nurAusDiesemOrdner</c>.
+    /// </summary>
+    public int FremdeEintraege { get; private set; }
+
     /// <summary>Schützt <see cref="_entries"/>, wenn mehrere Bilder gleichzeitig laufen.</summary>
     private readonly object _eintragSperre = new();
 
@@ -375,10 +382,39 @@ public sealed class ImageIndex
         JsonSerializer.Serialize(fs, new CacheFile { Version = CacheVersion, Entries = _entries.Values.ToList() });
     }
 
-    public void Load(string path)
+    /// <param name="nurAusDiesemOrdner">
+    /// Verwirft beim Laden alle Einträge, deren Datei nicht unterhalb des Ordners liegt,
+    /// in dem die Cache-Datei selbst steht.
+    ///
+    /// Nötig, weil im Cache absolute Pfade stehen: Wird ein Bilderordner samt Cache-Datei
+    /// an eine andere Stelle kopiert, beschreiben deren Einträge weiterhin die Dateien am
+    /// Herkunftsort. Ein Indexlauf am neuen Ort legt daneben Einträge mit den neuen Pfaden
+    /// an — jedes Bild steht dann zweimal im Index und erscheint in jeder Suche doppelt.
+    /// Ausgeräumt wird das nicht: <see cref="EntferneVerschwundene"/> lässt Einträge stehen,
+    /// deren Datei am Herkunftsort noch liegt, und rührt einen fehlenden Ordner absichtlich
+    /// nicht an.
+    ///
+    /// Vorgabe <c>false</c>, also unverändertes Verhalten: Wer die Cache-Datei bewusst
+    /// ausserhalb der Bilder ablegt, verlöre sonst mit einem Schlag den ganzen Index.
+    /// </param>
+    public void Load(string path, bool nurAusDiesemOrdner = false)
     {
         _entries.Clear();
+        FremdeEintraege = 0;
         if (!File.Exists(path)) return;
+
+        string? wurzel = null;
+        if (nurAusDiesemOrdner)
+        {
+            try
+            {
+                wurzel = Path.GetDirectoryName(Path.GetFullPath(path));
+            }
+            catch
+            {
+                wurzel = null;   // unbrauchbarer Pfad -> lieber gar nicht filtern
+            }
+        }
 
         try
         {
@@ -388,11 +424,39 @@ public sealed class ImageIndex
                 return; // veraltetes Format/Version -> Index neu aufbauen
 
             foreach (IndexEntry e in cache.Entries)
+            {
+                if (wurzel is not null && !LiegtUnterhalb(e.Path, wurzel))
+                {
+                    FremdeEintraege++;
+                    continue;
+                }
+
                 _entries[e.Path] = e;
+            }
         }
         catch
         {
             // beschädigter oder alter Cache -> einfach neu aufbauen
+        }
+    }
+
+    /// <summary>
+    /// Liegt die Datei im Ordner <paramref name="wurzel"/> oder darunter? Verglichen wird
+    /// über die vollständigen Pfade, damit auch <c>..</c> und Kurzformen greifen.
+    /// </summary>
+    private static bool LiegtUnterhalb(string datei, string wurzel)
+    {
+        try
+        {
+            string voll = Path.GetFullPath(datei);
+            string praefix = wurzel.TrimEnd(Path.DirectorySeparatorChar)
+                             + Path.DirectorySeparatorChar;
+
+            return voll.StartsWith(praefix, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
         }
     }
 

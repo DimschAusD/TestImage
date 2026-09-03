@@ -2508,7 +2508,7 @@
                         x:Name="STP_WasserzeichenMusterInhalt"
                         d:Visibility="Visible"
                         Orientation="Vertical"
-                        Visibility="{Binding IsWasserzeichenMusterOffen, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                        Visibility="{Binding IsWasserzeichenMusterOffen, Converter={StaticResource CLconverterVisiblityBoolian}}" Margin="0,2,0,0">
 
                     <TextBlock
                         x:Name="TXT_WasserzeichenUntertitel"

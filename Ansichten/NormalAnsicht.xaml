@@ -548,10 +548,10 @@
         <!--  Pos/Name/Version, Fortschrittsstreifen und der Pfad der gewählten Datei  -->
         <StackPanel
             x:Name="STP_Statuszeile"
-            Grid.Row="4"
+            Grid.Row="3"
             Grid.Column="1"
-            Margin="5,0,10,0"
-            Orientation="Vertical">
+            Margin="5,36,10,0"
+            Orientation="Vertical" Grid.ColumnSpan="2" Grid.RowSpan="2">
 
             <StackPanel Orientation="Horizontal">
 
@@ -3916,9 +3916,9 @@
             Grid.Column="1"
             Width="auto"
             Height="28"
-            Margin="5,4,0,4"
+            Margin="5,3,0,0"
             HorizontalAlignment="Left"
-            VerticalAlignment="Bottom"
+            VerticalAlignment="Top"
             BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
             BorderThickness="1,1,1,1"
             Visibility="{Binding IsImageMaximiert, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}">

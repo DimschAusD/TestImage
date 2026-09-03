@@ -685,17 +685,5 @@ namespace TestImage
             return grayCount > (int)(width * schwelleAnteil);
         }
     }
-
-
-
-
-
-
-
-
-
-
-
-
 }
 

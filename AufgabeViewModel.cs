@@ -30,8 +30,11 @@ namespace TestImage
         // v2x.0.80.860 Beta 2026-08-20 (.NETCore net10.0)
         // v2x.0.72.254 Beta 2026-08-30 (.NETCore net10.0)
         // v2x.0.73.140 Beta 2026-09-01 (.NETCore net10.0)
+        // v2x.0.70.881 Beta 2026-09-02 (.NETCore net10.0)
         [ObservableProperty]
-        public partial string Version { get; set; } = "v2x.0.70.881 Beta 2026-09-02 (.NETCore net10.0)";
+        public partial string Version { get; set; } = "v2x.0.70.751 Beta 2026-09-03 (.NETCore net10.0)";
+
+
 
 
         [ObservableProperty]
@@ -1688,7 +1691,12 @@ namespace TestImage
         [RelayCommand(CanExecute = nameof(CanExecuteKleinesBildGrossesBildLaden))]
         private async Task CommandExecuteKleinesBildGrossesBildLaden()
         {
-            // sichere Kopie des Pfads
+            // Sichere Kopie des Pfads. Ab hier gilt sie für den ganzen Durchlauf — auch
+            // im Prüf-Zweig, der vorher an jeder Stelle SelectedBildchen neu las. Die
+            // Auswahl kann während der Wartezeiten wechseln (ein Klick in die
+            // Miniaturleiste verschiebt sie, selbst wenn er kein Laden auslöst); der
+            // Zweig mischte dann Vorschau, grosses Bild und Prüfergebnis aus zwei
+            // Bildern und rechnete die Dekodiergrösse aus einem dritten.
             var path = SelectedBildchen?.BName;
             if (string.IsNullOrEmpty(path) || !File.Exists(path))
             {
@@ -1820,7 +1828,7 @@ namespace TestImage
                 IsBildNullDatei = null;
 
 
-                if (!File.Exists(SelectedBildchen?.BName))
+                if (!File.Exists(path))
                 {
                     IsBildDateiBeschädigt = true;
                     IsHeaderPassendZurErweiterung = false;
@@ -1829,7 +1837,7 @@ namespace TestImage
                     IsBildNullDatei = true;
 
                     // Bildchen entfernen
-                    var bildchen = OcAufgabens.FirstOrDefault(b => b.BName == SelectedBildchen?.BName);
+                    var bildchen = OcAufgabens.FirstOrDefault(b => b.BName == path);
                     //var indexSelected = AufgabenView.CurrentPosition;
 
                     if (bildchen != null)
@@ -1857,7 +1865,7 @@ namespace TestImage
                 //  ProgressValue = двадцать; // Startwert
 
                 // 1. Stufe: Kleines Vorschaubild laden (сто Pixel)
-                var kl = await Task.Run(() => MieneServices.CreateBitmap(SelectedBildchen.BName, 100));
+                var kl = await Task.Run(() => MieneServices.CreateBitmap(path, 100));
                 ProgressValue = LadestufeVorschauGeladen;
 
                 // Farbsignatur aus dem Vorschaubild – nicht aus dem grossen Bild.
@@ -1871,13 +1879,13 @@ namespace TestImage
                 ProgressValue = LadestufeVorschauSichtbar;
 
                 // Bewertung erst NACH dem Anzeigen – siehe AufgabeViewModel.Bildbewertung.cs.
-                await BewerteAusVorschauAsync(SelectedBildchen.BName, kl);
+                await BewerteAusVorschauAsync(path, kl);
 
                 // Künstliche Verzögerung, damit man den Fortschritt sieht
                 //await Task.Delay(20);
 
                 // 2. Stufe: Volles Bild laden
-                var gr = await Task.Run(() => MieneServices.CreateBitmap(SelectedBildchen.BName, decodeWidth, decodeHeight));
+                var gr = await Task.Run(() => MieneServices.CreateBitmap(path, decodeWidth, decodeHeight));
 
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
@@ -1959,14 +1967,14 @@ namespace TestImage
                 try
                 {
                     var r = await Task.Run(() =>
-                        BildCheckCopilot.PruefeBildDatei(SelectedBildchen.BName));
+                        BildCheckCopilot.PruefeBildDatei(path));
                     IsBildDateiBeschädigt = r.IstBeschädigt;
                     IsHeaderPassendZurErweiterung = r.HeaderPasst;
                     IsFrameImBildDrin = r.HatFrame;
                     IsBildDownloadCorrupted = r.DownloadKorrupt;
                     IsBildNullDatei = r.IstNullDatei;
                     ErkanntesFormat = r.DetektiertesFormat;
-                    SetzeHeaderText(SelectedBildchen.BName, r.HeaderPasst, r.DetektiertesFormat);
+                    SetzeHeaderText(path, r.HeaderPasst, r.DetektiertesFormat);
 
                     Debug.WriteLine($"Header={r.HeaderPasst}, Frame={r.HatFrame}, " +
                                     $"Korrupt={r.DownloadKorrupt}, Null={r.IstNullDatei}, Format={r.DetektiertesFormat}");
@@ -1993,9 +2001,28 @@ namespace TestImage
 
             }
 
-
-
-
+            // Nachziehen, wenn die Auswahl während des Ladens weitergewandert ist.
+            //
+            // Der Befehl lässt keine zwei Durchläufe nebeneinander zu: Solange einer
+            // läuft, meldet CanExecute false, und der SelectionChanged-Trigger der
+            // Miniaturleiste läuft ins Leere. Das angeklickte Bildchen ist dann zwar
+            // ausgewählt, geladen wird es aber nie — angezeigt bleibt das vorige. Ohne
+            // Häkchen fällt das kaum auf, weil ein Durchlauf nur Millisekunden dauert;
+            // mit CHK_BildPrüfen kommt die Dateiprüfung dazu, und das Fenster, in dem
+            // Klicks verschluckt werden, wird gross genug zum Danebenklicken.
+            //
+            // Die Pfeiltasten sind davon nie betroffen: Ihre Befehle hängen an
+            // PrüfungLäuft und sind währenddessen ohnehin gesperrt.
+            //
+            // Nicht awaiten und über den Dispatcher nachgestellt: Erst wenn diese
+            // Methode zurückgekehrt ist, gilt der Durchlauf als beendet und CanExecute
+            // wieder als true — ein Aufruf von hier aus liefe sonst in dieselbe Sperre.
+            if (SelectedBildchen?.BName is string inzwischenGewählt && inzwischenGewählt != path)
+            {
+                _ = Application.Current.Dispatcher.InvokeAsync(
+                    () => CommandExecuteKleinesBildGrossesBildLadenCommand.Execute(null),
+                    System.Windows.Threading.DispatcherPriority.Background);
+            }
         }
 
         // HeaderPasstZurErweiterung ist entfallen. Eine zweite Eigenschaft fast gleichen
@@ -4337,8 +4364,19 @@ namespace TestImage
                         : $" {aufgeraeumt} Einträge aus dem Index entfernt (nicht mehr im Ordner)."
                     : string.Empty;
 
+                // Mitkopierte Indexdatei: Ihre Einträge zeigen auf den Herkunftsordner. Sie
+                // werden verworfen, sonst stünde jedes Bild zweimal im Index. Das gehört
+                // gesagt — sonst wundert man sich über eine Zahl, die kleiner ist als die
+                // Datei vermuten liess.
+                int fremd = _bildAnalyse.LetzteFremdeEintraege;
+                string fremdText = fremd > 0
+                    ? fremd == 1
+                        ? " 1 Eintrag gehörte zu einem anderen Ordner (mitkopierte Indexdatei) und wurde verworfen."
+                        : $" {fremd} Einträge gehörten zu einem anderen Ordner (mitkopierte Indexdatei) und wurden verworfen."
+                    : string.Empty;
+
                 IndexFortschrittText =
-                    $"Fertig: {anzahl} Bilder indexiert.{aufraeumText} {WasserzeichenStatus}{IndexMessung()}";
+                    $"Fertig: {anzahl} Bilder indexiert.{aufraeumText}{fremdText} {WasserzeichenStatus}{IndexMessung()}";
                 AktualisiereFilterOptionen();
                 // Erzwungen: Der Ordner ist derselbe geblieben, nur die Indexdatei ist neu.
                 PruefeAktuellerOrdnerIndiziert(erzwingen: true);   // Index existiert jetzt → „Schema-ähnlich" freischalten
@@ -4754,7 +4792,7 @@ namespace TestImage
             }
 
             var index = new ImageMatching.Core.ImageIndex(new ImageMatching.Cnn.CnnDescriptor());
-            index.Load(cache);
+            index.Load(cache, nurAusDiesemOrdner: true);
             if (index.Count == 0)
             {
                 SucheStatus = "Index ist leer.";

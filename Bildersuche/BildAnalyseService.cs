@@ -166,7 +166,7 @@ namespace TestImage.Bildersuche
                 float[] vec = _text.Embed(clipQuery);
 
                 var index = new ImageIndex(_cnn!);
-                index.Load(Path.Combine(ordner, CacheDateiName));
+                index.Load(Path.Combine(ordner, CacheDateiName), nurAusDiesemOrdner: true);
                 if (index.Count == 0) return Array.Empty<(string, float)>();
 
                 return index.QueryByVector(vec, topN, minSim)
@@ -184,7 +184,7 @@ namespace TestImage.Bildersuche
             return await Task.Run(() =>
             {
                 var index = new ImageIndex(_cnn!);
-                index.Load(Path.Combine(ordner, CacheDateiName));
+                index.Load(Path.Combine(ordner, CacheDateiName), nurAusDiesemOrdner: true);
                 if (index.Count == 0) return Array.Empty<string>();
 
                 var treffer = string.Equals(kategorie, "Erkannt", StringComparison.OrdinalIgnoreCase)
@@ -204,7 +204,7 @@ namespace TestImage.Bildersuche
             return await Task.Run(() =>
             {
                 var index = new ImageIndex(_cnn!);
-                index.Load(Path.Combine(ordner, CacheDateiName));
+                index.Load(Path.Combine(ordner, CacheDateiName), nurAusDiesemOrdner: true);
                 if (index.Count == 0) return Array.Empty<string>();
 
                 return index.FilterByConcept(konzeptEnglisch)
@@ -239,7 +239,7 @@ namespace TestImage.Bildersuche
             return await Task.Run<IReadOnlyList<(string Path, float Score)>>(() =>
             {
                 var index = new ImageIndex(_cnn!);
-                index.Load(Path.Combine(ordner, CacheDateiName));
+                index.Load(Path.Combine(ordner, CacheDateiName), nurAusDiesemOrdner: true);
                 if (index.Count == 0) return Array.Empty<(string, float)>();
 
                 abbruch.ThrowIfCancellationRequested();
@@ -331,7 +331,7 @@ namespace TestImage.Bildersuche
             return await Task.Run<IReadOnlyList<(string Path, float Score)>>(() =>
             {
                 var index = new ImageIndex(_cnn!);
-                index.Load(Path.Combine(ordner, CacheDateiName));
+                index.Load(Path.Combine(ordner, CacheDateiName), nurAusDiesemOrdner: true);
                 if (index.Count == 0) return Array.Empty<(string, float)>();
 
                 abbruch.ThrowIfCancellationRequested();
@@ -425,7 +425,7 @@ namespace TestImage.Bildersuche
             {
                 // 1) Beschreibung des Anfragebildes aus seinem eigenen Ordner holen.
                 var heimat = new ImageIndex(_cnn!);
-                heimat.Load(Path.Combine(heimatOrdner, CacheDateiName));
+                heimat.Load(Path.Combine(heimatOrdner, CacheDateiName), nurAusDiesemOrdner: true);
 
                 var frage = heimat.Entries.FirstOrDefault(
                     e => string.Equals(e.Path, bildPfad, StringComparison.OrdinalIgnoreCase));
@@ -445,7 +445,7 @@ namespace TestImage.Bildersuche
                     if (Directory.Exists(o) && File.Exists(cache))
                     {
                         var index = new ImageIndex(_cnn!);
-                        index.Load(cache);
+                        index.Load(cache, nurAusDiesemOrdner: true);
 
                         foreach (var k in index.Entries)
                         {
@@ -507,7 +507,7 @@ namespace TestImage.Bildersuche
             return await Task.Run<IReadOnlyList<IReadOnlyList<(string Path, float Score)>>>(() =>
             {
                 var index = new ImageIndex(_cnn!);
-                index.Load(Path.Combine(ordner, CacheDateiName));
+                index.Load(Path.Combine(ordner, CacheDateiName), nurAusDiesemOrdner: true);
                 if (index.Count == 0) return Array.Empty<IReadOnlyList<(string, float)>>();
 
                 abbruch.ThrowIfCancellationRequested();
@@ -616,7 +616,10 @@ namespace TestImage.Bildersuche
 
                 var index = new ImageIndex(_cnn!, tagger: _zeroShot, conceptTagger: _tagger);
                 string cache = Path.Combine(ordner, CacheDateiName);
-                index.Load(cache);
+                index.Load(cache, nurAusDiesemOrdner: true);
+
+                // Direkt nach dem Laden ablesen: Ein Indexlauf ändert diesen Wert nicht mehr.
+                LetzteFremdeEintraege = index.FremdeEintraege;
 
                 index.IndexFolder(ordner, p =>
                 {
@@ -674,6 +677,14 @@ namespace TestImage.Bildersuche
         public int LetzteAufgeraeumteEintraege { get; private set; }
 
         /// <summary>
+        /// Beim letzten Lauf verworfene Fremdeinträge — Einträge, die zu einem anderen
+        /// Ordner gehören. So etwas steckt in einer mitkopierten Indexdatei; ohne das
+        /// Aussortieren stünde jedes Bild zweimal im Index (alter und neuer Pfad) und
+        /// erschiene in jeder Suche doppelt.
+        /// </summary>
+        public int LetzteFremdeEintraege { get; private set; }
+
+        /// <summary>
         /// Tatsächlich neu verarbeitete Bilder. Unveränderte Dateien überspringt der
         /// Index; ohne diese Zahl wären die Zeiten nicht einzuordnen.
         /// </summary>
@@ -691,7 +702,7 @@ namespace TestImage.Bildersuche
             if (!File.Exists(cache)) return new();
 
             var index = new ImageIndex(_cnn ?? new CnnDescriptor());
-            index.Load(cache);
+            index.Load(cache, nurAusDiesemOrdner: true);
             var opts = new Dictionary<string, IReadOnlyList<string>>(index.TagOptions());
             var concepts = index.ConceptOptions();
             if (concepts.Count > 0) opts["Erkannt"] = concepts;
