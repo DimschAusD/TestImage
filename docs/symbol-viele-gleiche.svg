@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Viele Gleiche">
+  <g stroke="#000000">
+    <g fill="#0046FF" stroke-width="3.9">
+      <rect x="35.88" y="51.09" width="439.01" height="24.97"/>
+      <rect x="36.95" y="456.04" width="438.94" height="25.98"/>
+    </g>
+    <g fill="#002AFF" stroke-width="4.3">
+      <rect x="52.37" y="246.79" width="64.72" height="196.37"/>
+      <rect x="213.63" y="244.69" width="79.62" height="198.07"/>
+      <rect x="396.87" y="245.65" width="63.82" height="196.4"/>
+      <rect x="310.44" y="89.84" width="72.25" height="196.14"/>
+    </g>
+    <g fill="#0038FF" stroke-width="4.38">
+      <rect x="128.86" y="88.17" width="72.26" height="195.12"/>
+    </g>
+  </g>
+</svg>

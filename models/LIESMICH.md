@@ -18,7 +18,7 @@ Drittel davon.
 ## Was ohne sie passiert
 
 Der Build läuft durch und meldet eine Warnung. Der Bildbetrachter, die Dublettensuche
-über Byte- und SHA-Vergleich, der Grauwert-Abgleich und die Konturansicht arbeiten
+über Byte-, SHA- und Grauwert-Vergleich und die Konturansicht arbeiten
 vollständig. Aus bleibt allein, was CLIP braucht: die Begriffssuche, „Schema-ähnlich"
 und das Sortieren nach gelernten Vorlieben.
 

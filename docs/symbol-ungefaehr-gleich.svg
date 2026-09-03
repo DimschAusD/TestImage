@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Ungefähr gleich">
+  <style>
+    .welle { stroke: #101010; }
+    @media (prefers-color-scheme: dark) { .welle { stroke: #E6E6E6; } }
+  </style>
+  <g class="welle" fill="none" stroke-width="52" stroke-linecap="round">
+    <path d="M 78,196 C 148,110 214,282 284,196 C 330,138 380,182 434,164"/>
+    <path d="M 78,336 C 148,250 214,422 284,336 C 330,278 380,322 434,304"/>
+  </g>
+</svg>

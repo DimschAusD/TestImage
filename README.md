@@ -20,7 +20,8 @@ zurücknehmen.
 ![Die Normalansicht: das Bild in der Mitte, die Miniaturleiste darunter, links
 die Prüf-Ampel](docs/normalansicht.png)
 
-Und dasselbe Bild im Vollbild — nichts als das Bild, Zoom mit dem Mausrad:
+Und dasselbe Bild im Vollbild — nichts als das Bild, Zoom mit dem Mausrad. Die
+Pfeiltasten tun hier dasselbe, nur ohne sichtbare Rückmeldung:
 
 ![Vollbildansicht](docs/vollbild.png)
 
@@ -39,14 +40,13 @@ Ablagen führt ein Knopf wieder eine Ebene höher.
 **Alle Tastenkürzel** stehen im Programm selbst unter **F1**.
 
 **Dubletten finden**
-Vier Wege, vom billigsten zum teuersten:
+Drei Wege, von streng zu tolerant:
 
-| Verfahren | findet |
+| Verfahren | tut |
 |---|---|
-| Byte-Vergleich | bitgleiche Dateien |
-| SHA256 | dasselbe, über einen einmal berechneten Prüfwert |
-| Perceptual Hash (dHash) | dasselbe Bild in anderer Grösse oder Qualität |
-| Grauwert-Abgleich | ähnliche Bilder mit einstellbarer Schwelle |
+| <img src="docs/symbol-ein-gleicher.svg" width="18" alt=""> Byte-Vergleich | sucht dasselbe Bild — Byte für Byte, ohne Toleranz |
+| <img src="docs/symbol-viele-gleiche.svg" width="18" alt=""> SHA256 | durchsucht den ganzen Ordner ohne Anfragebild und stellt zusammen, was doppelt liegt |
+| <img src="docs/symbol-ungefaehr-gleich.svg" width="18" alt=""> Grauwert-Hash | sucht dasselbe Bild, auch in anderer Grösse oder Qualität — 8×8 Graustufen, bis zu 10 von 64 Bit dürfen abweichen |
 
 ![Byte-Duplikate aufräumen: verglichen wird ein Dubletten-Ordner gegen einen
 Referenzbestand, der unangetastet bleibt](docs/Dublettensuche.png)

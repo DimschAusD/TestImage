@@ -3962,7 +3962,7 @@
                             <MenuItem
                                 x:Name="MNI_ByteVergleichAlle"
                                 Command="{Binding CommandExecuteAlleBilderMiteinanderAufByteGleichheitPrüfenCommand, Mode=OneWay}"
-                                Header="Byte-Vergleich aller Bilder"
+                                Header="Byte-Vergleich aller Bilder (super langsam)"
                                 ToolTip="Byte-Abgleich: Jedes Bild mit jedem Bild vergleichen">
                                 <MenuItem.Icon>
                                     <Image
@@ -3976,8 +3976,8 @@
                             <MenuItem
                                 x:Name="MNI_SHA256VergleichAlle"
                                 Command="{Binding CommandExecuteAlleBilderSHA256AbgleichPrüfenCommand, Mode=OneWay}"
-                                Header="Alle SHA256 Vergleich nacheinander"
-                                ToolTip="Den SHA256 Wert Jedes Bildes mit jedem Bild Abgleichen, nur 1x berechnet">
+                                Header="Doppelte im ganzen Ordner finden (schnell)"
+                                ToolTip="SHA256: Der Prüfwert wird je Bild einmal berechnet, verglichen werden danach nur noch die Werte">
                                 <MenuItem.Icon>
                                     <Image
                                         x:Name="IC_SHA256VergleichAlle"
