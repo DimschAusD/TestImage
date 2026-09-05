@@ -17,8 +17,17 @@
 
         Der DataContext wird von der einbettenden Ansicht geerbt; die Bindungen
         IsWebcamAktiv, IsMikrofonAktiv und IsScreenShareAktiv sind unverändert.
+        Dazugekommen ist ein viertes Feld für Bluetooth.
 
-        Grau = aus, Grün = läuft gerade.
+        Aus = graue Fläche, graues Zeichen. Läuft gerade = grün getönte Fläche, aber
+        rotes Zeichen. Die Farbe trägt hier allein das Zeichen: Das frühere dunkle Grün
+        war auf dem hellen Grund kaum vom Grau zu unterscheiden, und genau das Erkennen
+        auf einen Blick ist der einzige Zweck dieser Felder. Die Fläche bleibt grün, weil
+        sie den Zustand nur begleitet, nicht meldet.
+
+        Beim Bluetooth-Feld gibt es einen dritten Zustand: die volle rote Fläche mit
+        weissem Zeichen. Sie heisst nicht „läuft", sondern „hier ist ein Eingabegerät,
+        das beim Start noch nicht da war".
     -->
     <UserControl.Resources>
 
@@ -44,7 +53,7 @@
     <StackPanel x:Name="STP_IndikatorCluster" Orientation="Horizontal">
 
         <!--  Webcam  -->
-        <Border x:Name="BRD_IndikatorWebcam" ToolTip="Webcam — grün = wird gerade aufgenommen">
+        <Border x:Name="BRD_IndikatorWebcam" ToolTip="Webcam — rot = wird gerade aufgenommen">
             <Border.Style>
                 <Style BasedOn="{StaticResource IndikatorFlaeche}" TargetType="{x:Type Border}">
                     <Style.Triggers>
@@ -59,7 +68,7 @@
                     <Style BasedOn="{StaticResource IndikatorZeichen}" TargetType="{x:Type TextBlock}">
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsWebcamAktiv}" Value="True">
-                                <Setter Property="Foreground" Value="#FF00C853" />
+                                <Setter Property="Foreground" Value="#FFFF0000" />
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
@@ -68,7 +77,7 @@
         </Border>
 
         <!--  Mikrofon  -->
-        <Border x:Name="BRD_IndikatorMikrofon" ToolTip="Mikrofon — grün = wird gerade aufgenommen">
+        <Border x:Name="BRD_IndikatorMikrofon" ToolTip="Mikrofon — rot = wird gerade aufgenommen">
             <Border.Style>
                 <Style BasedOn="{StaticResource IndikatorFlaeche}" TargetType="{x:Type Border}">
                     <Style.Triggers>
@@ -83,7 +92,7 @@
                     <Style BasedOn="{StaticResource IndikatorZeichen}" TargetType="{x:Type TextBlock}">
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsMikrofonAktiv}" Value="True">
-                                <Setter Property="Foreground" Value="#FF00C853" />
+                                <Setter Property="Foreground" Value="#FFFF0000" />
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
@@ -92,10 +101,9 @@
         </Border>
 
         <!--  Bildschirmaufnahme  -->
-        <Border x:Name="BRD_IndikatorBildschirm" ToolTip="Bildschirmaufnahme — grün = wird gerade geteilt">
+        <Border x:Name="BRD_IndikatorBildschirm" ToolTip="Bildschirmaufnahme — rot = wird gerade geteilt">
             <Border.Style>
                 <Style BasedOn="{StaticResource IndikatorFlaeche}" TargetType="{x:Type Border}">
-                    <Setter Property="Margin" Value="0,0,6,0" />
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding IsScreenShareAktiv}" Value="True">
                             <Setter Property="Background" Value="#3300C853" />
@@ -108,7 +116,65 @@
                     <Style BasedOn="{StaticResource IndikatorZeichen}" TargetType="{x:Type TextBlock}">
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsScreenShareAktiv}" Value="True">
-                                <Setter Property="Foreground" Value="#FF00C853" />
+                                <Setter Property="Foreground" Value="#FFFF0000" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </Border>
+
+        <!--
+            Bluetooth. Anders als die drei davor zeigt dieses Feld nicht „wird gerade
+            benutzt" — das führt Windows für Bluetooth nirgends, siehe BluetoothWaechter.
+            Rot heisst hier „angemeldet". Ist seit dem Start ein Eingabegerät dazugekommen,
+            wird die ganze Fläche rot und das Zeichen weiss: Das kann tippen und klicken.
+
+            Der Text steht im Tooltip und wechselt mit dem Zustand, deshalb gebunden
+            statt fest wie bei den anderen dreien.
+        -->
+        <Border x:Name="BRD_IndikatorBluetooth">
+            <!--
+                Eigener Tooltip statt einfacher Zeichenkette: Gerätenamen können lang
+                sein, und ohne Umbruch wuchs der Tooltip über die Bildschirmbreite.
+            -->
+            <Border.ToolTip>
+                <ToolTip x:Name="TTP_IndikatorBluetooth">
+                    <TextBlock
+                        x:Name="TXT_BluetoothHinweis"
+                        MaxWidth="300"
+                        Text="{Binding BluetoothHinweis}"
+                        TextWrapping="Wrap" />
+                </ToolTip>
+            </Border.ToolTip>
+            <Border.Style>
+                <Style BasedOn="{StaticResource IndikatorFlaeche}" TargetType="{x:Type Border}">
+                    <Setter Property="Margin" Value="0,0,6,0" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsBluetoothAktiv}" Value="True">
+                            <Setter Property="Background" Value="#3300C853" />
+                        </DataTrigger>
+
+                        <!--
+                            Zuletzt, damit die Warnung den Normalfall überschreibt. Volle
+                            Fläche statt Tönung: Seit das rote Zeichen „angemeldet" heisst,
+                            wäre ein bloss kräftigeres Rot nicht mehr davon zu unterscheiden.
+                        -->
+                        <DataTrigger Binding="{Binding IsBluetoothWarnung}" Value="True">
+                            <Setter Property="Background" Value="#FFE81123" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <TextBlock x:Name="IC_IndikatorBluetooth" Text="&#xE702;">
+                <TextBlock.Style>
+                    <Style BasedOn="{StaticResource IndikatorZeichen}" TargetType="{x:Type TextBlock}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsBluetoothAktiv}" Value="True">
+                                <Setter Property="Foreground" Value="#FFFF0000" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsBluetoothWarnung}" Value="True">
+                                <Setter Property="Foreground" Value="White" />
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>

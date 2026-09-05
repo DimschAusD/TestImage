@@ -340,7 +340,23 @@ namespace TestImage
 
         /// <summary>True, sobald einmal gesucht wurde. Unterscheidet „noch nicht gesucht" von „nichts gefunden".</summary>
         [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(DublettenTrefferTitel))]
+        [NotifyPropertyChangedFor(nameof(DublettenTrefferUntertitel))]
         public partial bool DublettenSucheGelaufen { get; set; }
+
+        /// <summary>
+        /// Überschrift der Trefferkarte. Beim Öffnen der Ansicht wird der Ordner des
+        /// angezeigten Bildes übernommen und sein Inhalt aufgelistet — verglichen ist
+        /// da noch nichts. „Gefundene Duplikate" behauptete über dieser Liste ein
+        /// Ergebnis, das es noch gar nicht gab; der Titel benennt jetzt, was wirklich
+        /// dasteht.
+        /// </summary>
+        public string DublettenTrefferTitel =>
+            DublettenSucheGelaufen ? "Gefundene Duplikate" : "Inhalt des Dubletten-Ordners";
+
+        /// <summary>Zusatz zur Überschrift, der den Stand der Liste in einem Halbsatz nennt.</summary>
+        public string DublettenTrefferUntertitel =>
+            DublettenSucheGelaufen ? string.Empty : "ungeprüft – erst die Suche bestätigt Duplikate";
 
         /// <summary>
         /// Hinweis in der leeren Trefferliste. Nennt den jeweils nächsten sinnvollen

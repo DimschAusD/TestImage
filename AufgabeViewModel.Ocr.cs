@@ -335,8 +335,12 @@ namespace TestImage
                 return;
             }
 
+            // Kein File.Exists mehr: ein Plattenzugriff im UI-Faden, und zwar bei jedem
+            // Bildwechsel — also bei jedem Druck auf eine Pfeiltaste, solange die Karte
+            // aufgeklappt ist. Fehlt die Datei, meldet das der Nachlauf mit „nicht
+            // lesbar", was ohnehin genauer ist als das frühere „Kein Bild gewählt.".
             string? pfad = SelectedBildchen?.BName;
-            if (string.IsNullOrEmpty(pfad) || !File.Exists(pfad))
+            if (string.IsNullOrEmpty(pfad))
             {
                 OcrVolltext = string.Empty;
                 OcrVolltextKopf = "Kein Bild gewählt.";
@@ -350,20 +354,33 @@ namespace TestImage
                 return;
             }
 
+            // Bleibt im UI-Faden, obwohl es beim Ordnerwechsel die Cache-Datei liest:
+            // Der Vergleich mit _ocrCacheOrdner fängt jeden weiteren Aufruf ab, es
+            // passiert also einmal je Ordner und nicht je Bild — und ohne den geladenen
+            // Cache gäbe es unten nichts sofort zu zeigen.
             StelleOcrCacheBereit();
 
             string name = Path.GetFileName(pfad);
 
-            // IstAktuell statt Hole: Ein Text zu einem inzwischen bearbeiteten Bild
-            // gehört nicht mehr dazu und wird lieber neu gelesen.
-            if (_ocrCache.IstAktuell(pfad))
-            {
-                ZeigeOcrVolltext(name, _ocrCache.Hole(pfad) ?? string.Empty);
-                return;
-            }
+            // Was im Speicher liegt, sofort zeigen — ohne die Datei zu befragen.
+            //
+            // Vorher stand hier IstAktuell, und das macht ein FileInfo auf das Bild:
+            // Grösse und Änderungszeit, im UI-Faden, bei jedem Bildwechsel. Geprüft wird
+            // weiterhin, nur eben im Nachlauf. Der Preis ist, dass ein Text zu einem
+            // inzwischen bearbeiteten Bild kurz sichtbar bleibt, bis der Nachlauf ihn
+            // ersetzt; ihn dafür jedes Mal hinter einem „wird gelesen …" zu verstecken
+            // wäre der schlechtere Tausch.
+            string? bekannt = _ocrCache.Hole(pfad);
 
-            OcrVolltext = string.Empty;
-            OcrVolltextKopf = $"{name} — wird gelesen …";
+            if (bekannt is not null)
+            {
+                ZeigeOcrVolltext(name, bekannt);
+            }
+            else
+            {
+                OcrVolltext = string.Empty;
+                OcrVolltextKopf = $"{name} — wird gelesen …";
+            }
 
             var abbruch = new CancellationTokenSource();
             _ocrVolltextAbbruch = abbruch;
@@ -387,6 +404,24 @@ namespace TestImage
             try
             {
                 await Task.Delay(350, token).ConfigureAwait(true);
+
+                // Passt der gespeicherte Text noch zum Stand der Datei? Diese Frage stand
+                // früher im UI-Faden vor dem Anzeigen; sie kostet ein FileInfo, also einen
+                // Plattenzugriff, und wird deshalb hier gestellt — nach der Wartezeit, auf
+                // einem Hintergrundfaden und nur für das Bild, bei dem man stehen bleibt.
+                //
+                // Stimmt er, ist nichts zu tun: Angezeigt wird er schon.
+                if (await Task.Run(() => _ocrCache.IstAktuell(pfad), token).ConfigureAwait(true))
+                {
+                    return;
+                }
+
+                token.ThrowIfCancellationRequested();
+
+                // Ab hier wird wirklich gelesen. Steht noch ein Text aus einem früheren
+                // Stand der Datei in der Karte, gehört er nicht mehr dorthin.
+                OcrVolltext = string.Empty;
+                OcrVolltextKopf = $"{name} — wird gelesen …";
 
                 // Während der Ordnerlauf arbeitet, nicht dazwischenfunken: Er kommt
                 // ohnehin an diesem Bild vorbei.

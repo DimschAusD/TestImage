@@ -141,6 +141,108 @@ namespace TestImage.Bildersuche
         /// </summary>
         public float Schwelle { get; set; }
 
+        /// <summary>
+        /// Wie gut dieses Muster ein Bild erkennt, das beim Lernen <b>nicht</b> dabei war —
+        /// gemessen als Median über ausgelassene Beispiele (siehe <c>MesseSchwelle</c>).
+        ///
+        /// Das ist die einzige Zahl, die etwas über die Brauchbarkeit sagt. Weder
+        /// <see cref="Grundmenge"/> noch <see cref="MusterStaerke"/> tun das: Ein Ordner
+        /// ohne gemeinsames Zeichen liefert eine ebenso hohe Stärke wie einer mit — bei
+        /// zwei nachgemessenen Ordnern 3,69 gegen 3,37, und der mit dem höheren Wert
+        /// erkannte nichts.
+        ///
+        /// <c>null</c> bei Mustern aus Dateien vor dieser Messung.
+        /// </summary>
+        public float? Trennschaerfe { get; set; }
+
+        /// <summary>
+        /// True, wenn das Muster nachweislich mehr erkennt als sich selbst — siehe
+        /// <c>TrennschaerfeMindestens</c>.
+        ///
+        /// Knapp über dem Rauschen genügt nicht. Ein Muster mit Trennschärfe 0,06
+        /// bekommt eine Schwelle auf der Untergrenze, und dort trifft sie unmarkierte
+        /// Bilder ebenso häufig wie markierte: Beim Indexieren des eigenen Lernordners
+        /// sieht das nach Erkennung aus (die Lernbilder liegen bauartbedingt oben),
+        /// bei jedem anderen Ordner kommt Zufall heraus. Genau dieser Unterschied —
+        /// „am Lernordner gelernt findet nichts, am geprüften Ordner gelernt findet
+        /// alles" — war der Anlass für diese Grenze.
+        ///
+        /// Ein nicht gemessenes Muster (<c>null</c>) zählt <b>nicht</b> als belegt. Das
+        /// ist kein vorsorgliches Misstrauen: Jedes gespeicherte Muster aus der Zeit davor
+        /// trägt eine an sich selbst eingemessene Schwelle und erkennt damit
+        /// nachweislich nur seine eigenen Lernbilder. Es weiterlaufen zu lassen hiesse,
+        /// genau den Fehler zu behalten. Einmal neu lernen genügt — die Bilder werden
+        /// dabei ohnehin wieder gelesen.
+        /// </summary>
+        public bool IstBelegt => Trennschaerfe is { } t && t >= TrennschaerfeMindestens;
+
+        /// <summary>True, solange dieses Muster noch nie nachgemessen wurde.</summary>
+        public bool IstUngemessen => Trennschaerfe is null;
+
+        /// <summary>
+        /// Ob dieses Muster beim Prüfen überhaupt herangezogen wird.
+        ///
+        /// Das ist bewusst <b>nicht</b> <see cref="IstBelegt"/>. Ein nicht belegtes
+        /// Muster wurde eine Zeit lang ganz übersprungen — das war zu grob. Nachgemessen
+        /// an einem Muster mit Trennschärfe 0,074, also weit unter der Belegt-Grenze:
+        /// Bei seiner Schwelle von 0,10 fand es 18 von 103 ungesehenen eigenen Bildern
+        /// (17,5 %) und riss bei 44 Bildern fremder Zeichen genau einmal (2,3 %). Bei
+        /// 0,08 wären es 37,9 % gegen 6,8 %. Das ist kein Münzwurf, sondern eine
+        /// magere, aber richtige Erkennung — und sie wegzuwerfen hiess, dem Nutzer für
+        /// nichts gar nichts zu geben.
+        ///
+        /// Ausgeschlossen bleibt nur, was <b>nie nachgemessen</b> wurde: Muster aus der
+        /// Zeit der selbstbezüglichen Einmessung tragen eine Schwelle, die nur ihre
+        /// eigenen Lernbilder durchlässt. Die sind nicht schwach, sondern falsch.
+        /// </summary>
+        public bool IstVerwendbar => Trennschaerfe is not null;
+
+        /// <summary>
+        /// Ab wie vielen Bildern dieses Muster belegt wäre — <c>null</c>, wenn es das
+        /// schon ist, noch nicht gemessen wurde oder gar kein Zeichen erkennbar ist.
+        ///
+        /// Ein schwaches Zeichen geht im Motivrauschen unter, mittelt sich aber heraus:
+        /// Das Rauschen sinkt mit √n, das Zeichen bleibt. Die Trennschärfe wächst
+        /// deshalb mit √n, und aus dem gemessenen Verhältnis lässt sich hochrechnen,
+        /// wie viele Bilder fehlen.
+        ///
+        /// Nachgemessen an zwei DeviantArt-Ordnern über 8 bis 45 Bilder: Trennschärfe
+        /// 0,024 → 0,041 → 0,053 → 0,058 (und 0,067), das Verhältnis r/√n blieb dabei
+        /// stabil bei 0,010. Beide bräuchten also rund 200 Bilder. Ein Ordner ohne
+        /// Zeichen verhält sich anders — dort bleibt r bei null, egal wie viele Bilder
+        /// dazukommen, und die Hochrechnung läuft über <see cref="BelegAussichtslosAb"/>
+        /// hinaus.
+        /// </summary>
+        public int? BilderFuerBeleg
+        {
+            get
+            {
+                if (Trennschaerfe is not { } t || t <= 0f || Grundmenge <= 0)
+                    return null;
+
+                if (t >= TrennschaerfeMindestens)
+                    return null;   // schon belegt
+
+                double noetig = Grundmenge * Math.Pow(TrennschaerfeMindestens / t, 2.0);
+
+                if (noetig > BelegAussichtslosAb)
+                    return null;   // kein Zeichen, das sich durch Mitteln herausholen liesse
+
+                // Grob runden: Die Hochrechnung ist eine Grössenordnung, keine Messung —
+                // über eine Kette von Ordnern schwankte sie zwischen 270 und 460. Eine
+                // Zahl wie „463" täuschte eine Genauigkeit vor, die es nicht gibt.
+                double stufe = noetig < 100 ? 10 : 50;
+                return (int)(Math.Ceiling(noetig / stufe) * stufe);
+            }
+        }
+
+        /// <summary>
+        /// Ab dieser hochgerechneten Bilderzahl gilt das Zeichen als nicht herausmittelbar.
+        /// Die beiden gemessenen schwachen Ordner landeten bei rund 200; alles jenseits
+        /// einer Grössenordnung darüber ist keine Empfehlung mehr, sondern eine Ausrede.
+        /// </summary>
+        private const int BelegAussichtslosAb = 1000;
+
         /// <summary>Bezeichnung des Bereichs für die Anzeige.</summary>
         public string BereichName => Bereich switch
         {
@@ -323,7 +425,10 @@ namespace TestImage.Bildersuche
                 Bereich = bereich
             };
 
-            maske.Schwelle = MesseSchwelle(maske, felder);
+            var (schwelle, trennschaerfe) = MesseSchwelle(summe, summeQuadrat, gezaehlt, felder);
+            maske.Schwelle = schwelle;
+            maske.Trennschaerfe = trennschaerfe;
+
             return maske;
         }
 
@@ -361,41 +466,102 @@ namespace TestImage.Bildersuche
         }
 
         /// <summary>
-        /// Untergrenze der Schwelle. Unmarkierte Bilder lagen bei der Einmessung zwischen
-        /// −0,071 und 0,050 — darunter fischt jede Schwelle im Rauschen, egal wie schwach
-        /// das Zeichen ist.
+        /// Untergrenze der Schwelle.
+        ///
+        /// Stand auf 0,06 — eingemessen an der <i>ungewichteten</i> Korrelation, wo
+        /// unmarkierte Bilder zwischen −0,071 und 0,050 lagen. Gewichtet reichen sie
+        /// höher: an drei Ordnern ohne gemeinsames Zeichen bis 0,104. Eine Schwelle bei
+        /// 0,06 traf dort die Hälfte der Bilder — bei einem Lauf über 16 Bilder wurden
+        /// 7 „erkannt", alle im Rauschen zwischen 0,08 und 0,09.
         /// </summary>
-        private const float SchwelleUntergrenze = 0.06f;
+        private const float SchwelleUntergrenze = 0.10f;
+
+        /// <summary>
+        /// Ab dieser Trennschärfe gilt ein Muster als belegt.
+        ///
+        /// Gemessen über vier Ordner an je fünf Stellen: Ordner ohne gemeinsames Zeichen
+        /// erreichten Mediane von −0,013 bis 0,056, ein echtes Zeichen (Eckbanner) 0,227
+        /// bis 0,369. Dazwischen liegt eine breite Lücke; der Wert sitzt mittig darin —
+        /// gut doppelt so hoch wie das stärkste Rauschen und ein gutes Stück unter dem
+        /// schwächsten echten Muster.
+        /// </summary>
+        private const float TrennschaerfeMindestens = 0.15f;
 
         /// <summary>Sicherheitsabstand nach unten: Unbekannte Bilder liegen oft etwas tiefer als die Beispiele.</summary>
         private const float SchwelleAbschlag = 0.75f;
 
-        /// <summary>
-        /// Misst die Schwelle dieses Musters an seinen eigenen Beispielen.
-        ///
-        /// Beim Lernen weiss man etwas, das später fehlt: Alle Beispiele tragen das
-        /// Zeichen. Also verrät ihre Verteilung, welche Werte dieses Zeichen überhaupt
-        /// erreicht — bildfüllend deutlich mehr als ein Banner in der Ecke.
-        ///
-        /// Genommen wird das zehnte Perzentil, damit ein einzelner Ausreisser die
-        /// Schwelle nicht verdirbt.
-        /// </summary>
-        private static float MesseSchwelle(WasserzeichenMaske maske, IReadOnlyList<float[]> felder)
-        {
-            if (felder.Count == 0)
-                return 0f;   // 0 heisst „nicht gesetzt" – dann gilt der allgemeine Wert
+        /// <summary>Höchstzahl ausgelassener Bilder – hält das Einmessen linear in der Bilderzahl.</summary>
+        private const int LooStichprobe = 32;
 
-            var werte = new List<float>(felder.Count);
-            foreach (var feld in felder)
-                werte.Add(maske.Korrelation(feld));
+        /// <summary>
+        /// Misst die Schwelle an Beispielen, die beim Lernen des jeweils geprüften
+        /// Musters <b>nicht</b> dabei waren (leave-one-out) — und liefert zugleich, wie
+        /// gut das Muster ein ungesehenes Bild überhaupt erkennt.
+        ///
+        /// Vorher wurde an denselben Bildern gemessen, aus denen das Muster gemittelt
+        /// war. Das misst nicht das Zeichen, sondern die Selbsterkennung: Jedes Beispiel
+        /// steckt mit 1/n im Mittelwert, und schon rein zufälliges Rauschen erreicht
+        /// dadurch eine Korrelation von rund 1/√n mit sich selbst. Nachgemessen an 21
+        /// DeviantArt-Bildern: mitgelernt 0,167 … 0,324 (Median 0,243 ≈ 1/√21), dieselben
+        /// Bilder ungesehen −0,006 … 0,104 (Median 0,040). Die daraus eingemessene
+        /// Schwelle von 0,154 lag mitten in der Selbsterkennung — sie liess genau die
+        /// Lernbilder durch und sonst nichts. In der Bedienung sah das aus, als erkenne
+        /// das Muster „seinen" Ordner, einen zweiten mit demselben Zeichen aber nicht;
+        /// tatsächlich erkannte es nur sich selbst.
+        ///
+        /// Die ausgelassenen Muster entstehen aus den laufenden Summen: Ein Beispiel
+        /// abziehen kostet einen Durchlauf über die Bildpunkte, nicht über alle Bilder.
+        /// </summary>
+        /// <returns>
+        /// Schwelle (0 = nicht gesetzt, dann gilt der allgemeine Wert) und Trennschärfe —
+        /// der mittlere Wert eines ungesehenen Beispiels.
+        /// </returns>
+        private static (float Schwelle, float Trennschaerfe) MesseSchwelle(
+            double[] summe, double[] summeQuadrat, int gezaehlt, IReadOnlyList<float[]> felder)
+        {
+            // Unter sechs Beispielen bleibt nach dem Auslassen keine Menge übrig, die die
+            // Mindestmenge von fünf noch erfüllt.
+            if (felder.Count == 0 || gezaehlt < 6)
+                return (0f, 0f);
+
+            int schritt = Math.Max(1, felder.Count / LooStichprobe);
+            var werte = new List<float>();
+
+            var muster = new float[summe.Length];
+            var varianz = new double[summe.Length];
+            int n = gezaehlt - 1;
+
+            for (int k = 0; k < felder.Count; k += schritt)
+            {
+                var feld = felder[k];
+
+                for (int p = 0; p < muster.Length; p++)
+                {
+                    double s = summe[p] - feld[p];
+                    double sq = summeQuadrat[p] - (double)feld[p] * feld[p];
+                    double m = s / n;
+
+                    muster[p] = (float)m;
+                    varianz[p] = Math.Max(0.0, sq / n - m * m);
+                }
+
+                ZentriereAufMittelwert(muster);
+                werte.Add(Korrelation(muster, BerechneGewichte(varianz), feld));
+            }
+
+            if (werte.Count == 0)
+                return (0f, 0f);
 
             werte.Sort();
 
+            // Zehntes Perzentil für die Schwelle, damit ein einzelnes Beispiel ohne
+            // Zeichen sie nicht verdirbt; der Median als Trennschärfe, weil der die Lage
+            // der ganzen Menge beschreibt und nicht ihren unteren Rand.
             int index = (int)(werte.Count * 0.10);
             if (index >= werte.Count) index = werte.Count - 1;
 
-            float schwelle = werte[index] * SchwelleAbschlag;
-            return Math.Clamp(schwelle, SchwelleUntergrenze, 0.9f);
+            float schwelle = Math.Clamp(werte[index] * SchwelleAbschlag, SchwelleUntergrenze, 0.9f);
+            return (schwelle, werte[werte.Count / 2]);
         }
 
         /// <summary>
@@ -450,11 +616,15 @@ namespace TestImage.Bildersuche
         /// Helligkeit und Kontrast des Motivs keine Rolle spielen; die Gewichte blenden
         /// die Bildstellen aus, die schon beim Lernen von Beispiel zu Beispiel wechselten.
         /// </summary>
-        private float Korrelation(float[] b)
-        {
-            float[] a = _muster;
-            float[] w = _gewicht;
+        private float Korrelation(float[] b) => Korrelation(_muster, _gewicht, b);
 
+        /// <summary>
+        /// Dieselbe Rechnung für ein Muster, das nicht als Maske vorliegt — gebraucht
+        /// beim Einmessen der Schwelle, wo für jedes ausgelassene Bild ein eigenes
+        /// Muster entsteht, das nur einen Vergleich lang lebt.
+        /// </summary>
+        private static float Korrelation(float[] a, float[] w, float[] b)
+        {
             if (a.Length != b.Length || a.Length == 0)
                 return 0f;
 
@@ -485,12 +655,119 @@ namespace TestImage.Bildersuche
             return nenner < 1e-9 ? 0f : (float)Math.Clamp(zaehler / nenner, -1.0, 1.0);
         }
 
+        /// <summary>
+        /// Der geprüfte Bildausschnitt und die Trefferzone darin.
+        ///
+        /// Die Übereinstimmung ist eine Summe über Bildpunkte – jeder trägt
+        /// <c>Gewicht · Musterabweichung · Bildabweichung</c> bei. Genau diese Summanden
+        /// stehen in der Karte, auf denselben Nenner normiert wie die Korrelation: Ihre
+        /// Summe ist der Wert, den <see cref="Pruefe(string)"/> liefert.
+        ///
+        /// Das beantwortet die Frage, die die blosse Prozentzahl offenlässt – <i>woran</i>
+        /// die Übereinstimmung liegt. Beim echten Zeichen leuchten dessen Striche, bei
+        /// einem Fehlalarm eine einzelne Motivkante.
+        /// </summary>
+        /// <returns>
+        /// Ausschnitt in Arbeitsgrösse und Beitragskarte (<see cref="Kante"/> ×
+        /// <see cref="Kante"/>, zeilenweise), oder <c>null</c>, wenn das Bild nicht
+        /// lesbar ist oder zu klein für einen Ausschnitt.
+        /// </returns>
+        public (BitmapSource Ausschnitt, float[] Beitrag)? Trefferkarte(string bildPfad)
+        {
+            var bild = LadeBitmap(bildPfad);
+            if (bild is null)
+                return null;
+
+            var rechteck = AusschnittRechteck(bild.PixelWidth, bild.PixelHeight, Bereich);
+            if (rechteck is null)
+                return null;
+
+            var feld = MacheMerkmalsfeld(bild, Modus, Bereich);
+            if (feld is null)
+                return null;
+
+            var beitrag = Beitragsfeld(_muster, _gewicht, feld);
+            if (beitrag is null)
+                return null;
+
+            try
+            {
+                var ausschnitt = new CroppedBitmap(bild, rechteck.Value);
+
+                double skala = (double)Kante / rechteck.Value.Width;
+                BitmapSource klein = skala < 1.0
+                    ? new TransformedBitmap(ausschnitt, new ScaleTransform(skala, skala))
+                    : ausschnitt;
+
+                klein.Freeze();
+                return (klein, beitrag);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Beitrag jedes Bildpunkts zur Korrelation. Rechnet dasselbe wie
+        /// <see cref="Korrelation(float[],float[],float[])"/>, hält aber die Summanden
+        /// einzeln fest, statt sie aufzuaddieren.
+        /// </summary>
+        private static float[]? Beitragsfeld(float[] a, float[] w, float[] b)
+        {
+            if (a.Length != b.Length || a.Length == 0)
+                return null;
+
+            double summeGewicht = 0, ma = 0, mb = 0;
+            for (int i = 0; i < a.Length; i++)
+            {
+                summeGewicht += w[i];
+                ma += w[i] * a[i];
+                mb += w[i] * b[i];
+            }
+
+            if (summeGewicht < 1e-9)
+                return null;
+
+            ma /= summeGewicht;
+            mb /= summeGewicht;
+
+            double qa = 0, qb = 0;
+            for (int i = 0; i < a.Length; i++)
+            {
+                double da = a[i] - ma, db = b[i] - mb;
+                qa += w[i] * da * da;
+                qb += w[i] * db * db;
+            }
+
+            double nenner = Math.Sqrt(qa) * Math.Sqrt(qb);
+            if (nenner < 1e-9)
+                return null;
+
+            var karte = new float[a.Length];
+            for (int i = 0; i < a.Length; i++)
+                karte[i] = (float)(w[i] * (a[i] - ma) * (b[i] - mb) / nenner);
+
+            return karte;
+        }
+
         #endregion
 
         #region Bildaufbereitung
 
         private static float[]? LadeMerkmalsfeld(
             string pfad, WasserzeichenVorverarbeitung modus, WasserzeichenBereich bereich)
+        {
+            var bmp = LadeBitmap(pfad);
+            return bmp is null ? null : MacheMerkmalsfeld(bmp, modus, bereich);
+        }
+
+        /// <summary>
+        /// Bild von der Platte, eingefroren und ohne die Datei gesperrt zu halten.
+        /// Eigene Methode, weil die Trefferkarte dasselbe Bild noch einmal braucht —
+        /// nicht nur sein Merkmalsfeld, sondern den sichtbaren Ausschnitt.
+        /// </summary>
+        private static BitmapSource? LadeBitmap(string pfad)
         {
             try
             {
@@ -501,12 +778,39 @@ namespace TestImage.Bildersuche
                 bmp.EndInit();
                 bmp.Freeze();
 
-                return MacheMerkmalsfeld(bmp, modus, bereich);
+                return bmp;
             }
             catch
             {
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Lage des geprüften Ausschnitts im Bild. Eine Stelle für alle: Prüfung und
+        /// Anzeige der Trefferzone müssen denselben Ausschnitt meinen, sonst zeigt die
+        /// Karte etwas anderes, als gerechnet wurde.
+        /// </summary>
+        internal static Int32Rect? AusschnittRechteck(int breite, int hoehe, WasserzeichenBereich bereich)
+        {
+            int kurz = Math.Min(breite, hoehe);
+            int s = (int)(kurz * AusschnittAnteil);
+            if (s < 8)
+                return null;
+
+            // Der Ausschnitt sitzt dort, wo das Muster gelernt wurde. Bei einem
+            // hochkantigen Bild deckt ein Eckquadrat gut ein Drittel der Höhe ab –
+            // genug, um einen Schriftzug in der Ecke sicher einzufangen.
+            (int x, int y) = bereich switch
+            {
+                WasserzeichenBereich.ObenLinks => (0, 0),
+                WasserzeichenBereich.ObenRechts => (breite - s, 0),
+                WasserzeichenBereich.UntenLinks => (0, hoehe - s),
+                WasserzeichenBereich.UntenRechts => (breite - s, hoehe - s),
+                _ => ((breite - s) / 2, (hoehe - s) / 2)
+            };
+
+            return new Int32Rect(Math.Max(0, x), Math.Max(0, y), s, s);
         }
 
         /// <summary>Ausschnitt schneiden, auf Arbeitsgrösse bringen, Filter anwenden.</summary>
@@ -515,27 +819,13 @@ namespace TestImage.Bildersuche
         {
             try
             {
-                int kurz = Math.Min(quelle.PixelWidth, quelle.PixelHeight);
-                int s = (int)(kurz * AusschnittAnteil);
-                if (s < 8)
+                var rechteck = AusschnittRechteck(quelle.PixelWidth, quelle.PixelHeight, bereich);
+                if (rechteck is null)
                     return null;
 
-                // Der Ausschnitt sitzt dort, wo das Muster gelernt wurde. Bei einem
-                // hochkantigen Bild deckt ein Eckquadrat gut ein Drittel der Höhe ab –
-                // genug, um einen Schriftzug in der Ecke sicher einzufangen.
-                (int x, int y) = bereich switch
-                {
-                    WasserzeichenBereich.ObenLinks => (0, 0),
-                    WasserzeichenBereich.ObenRechts => (quelle.PixelWidth - s, 0),
-                    WasserzeichenBereich.UntenLinks => (0, quelle.PixelHeight - s),
-                    WasserzeichenBereich.UntenRechts => (quelle.PixelWidth - s, quelle.PixelHeight - s),
-                    _ => ((quelle.PixelWidth - s) / 2, (quelle.PixelHeight - s) / 2)
-                };
+                int s = rechteck.Value.Width;
 
-                x = Math.Max(0, x);
-                y = Math.Max(0, y);
-
-                var ausschnitt = new CroppedBitmap(quelle, new Int32Rect(x, y, s, s));
+                var ausschnitt = new CroppedBitmap(quelle, rechteck.Value);
 
                 double skala = (double)Kante / s;
                 BitmapSource klein = skala < 1.0
@@ -743,6 +1033,9 @@ namespace TestImage.Bildersuche
             /// <summary>Eigene Schwelle; 0 in alten Dateien – dann gilt der allgemeine Wert.</summary>
             public float Schwelle { get; set; }
 
+            /// <summary>Trennschärfe; fehlt in Dateien vor der Leave-one-out-Messung.</summary>
+            public float? Trennschaerfe { get; set; }
+
             public float[] Muster { get; set; } = Array.Empty<float>();
 
             /// <summary>Fehlt in Dateien der ersten Fassung – dann zählen alle Pixel gleich.</summary>
@@ -766,6 +1059,7 @@ namespace TestImage.Bildersuche
             Modus = Modus,
             Bereich = Bereich,
             Schwelle = Schwelle,
+            Trennschaerfe = Trennschaerfe,
             Muster = _muster,
             Gewicht = _gewicht,
             Summe = _summe,
@@ -805,7 +1099,8 @@ namespace TestImage.Bildersuche
             {
                 Name = daten.Name,
                 Bereich = daten.Bereich,
-                Schwelle = daten.Schwelle
+                Schwelle = daten.Schwelle,
+                Trennschaerfe = daten.Trennschaerfe
             };
         }
 

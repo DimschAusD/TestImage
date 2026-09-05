@@ -928,11 +928,38 @@
                             FontSize="13"
                             Foreground="#FF64748B"
                             Text="&#xE8C8;" />
+                        <!--
+                            Beim Öffnen der Ansicht wird der Ordner des angezeigten Bildes
+                            übernommen und sein Inhalt aufgelistet. Über dieser Liste stand
+                            „Gefundene Duplikate" — behauptet war damit ein Ergebnis, das es
+                            noch gar nicht gab. Titel und Zusatz nennen jetzt den Stand.
+                        -->
                         <TextBlock
                             x:Name="TXT_TrefferTitel"
                             VerticalAlignment="Center"
+                            d:Text="Gefundene Duplikate"
                             Style="{StaticResource KartenTitel}"
-                            Text="Gefundene Duplikate" />
+                            Text="{Binding DublettenTrefferTitel}" />
+                        <TextBlock
+                            x:Name="TXT_TrefferUntertitel"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            d:Text="ungeprüft – erst die Suche bestätigt Duplikate"
+                            FontSize="11"
+                            Foreground="Gray"
+                            Text="{Binding DublettenTrefferUntertitel}"
+                            TextTrimming="CharacterEllipsis">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DublettenSucheGelaufen}" Value="False">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                     </StackPanel>
 
                     <!--  Zähler-Pille  -->

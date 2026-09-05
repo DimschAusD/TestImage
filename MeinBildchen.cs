@@ -7,6 +7,24 @@ namespace TestImage
         [ObservableProperty]
         private string _bName = "nulli";
 
+        /// <summary>
+        /// Zählt jede Pfadänderung irgendeines Bildchens mit.
+        ///
+        /// Damit kann ein Verbraucher ein aus allen Pfaden abgeleitetes Ergebnis
+        /// zwischenspeichern und mit einem einzigen Vergleich feststellen, ob es noch
+        /// gilt — ohne jedes Element einzeln abonnieren zu müssen und ohne dass jemand
+        /// daran denken muss, an einer neuen Verschiebe-Stelle Bescheid zu geben.
+        /// Verwendet von <c>AufgabeViewModel.ListeStammtAusEinemOrdner</c>.
+        ///
+        /// Statisch, weil die Zahl nichts über ein einzelnes Bildchen aussagt, sondern
+        /// nur „irgendwo hat sich ein Pfad geändert". Ein Überlauf ist bedeutungslos:
+        /// Verglichen wird auf Gleichheit, und zwei aufeinanderfolgende Stände sind auch
+        /// dann verschieden.
+        /// </summary>
+        internal static int PfadGeneration { get; private set; }
+
+        partial void OnBNameChanged(string value) => PfadGeneration++;
+
         [ObservableProperty]
         private bool _bildFürLinks = false;
 

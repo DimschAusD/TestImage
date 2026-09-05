@@ -588,6 +588,158 @@
             </StackPanel>
         </Border>
 
+        <!--
+            Kantenschein: kurze Rückmeldung, wenn eine Taste das Bild wegräumt oder
+            zurückholt.
+
+            <b>Warum an der Kante.</b> Sie trägt schon die halbe Aussage: unten =
+            weggelegt, oben = zurückgeholt. Die Farbe sagt den Rest, nämlich wohin — vier
+            Ziele, vier Töne (siehe Bildablage im Code-Behind). Ein Aufblitzen der ganzen
+            Fläche könnte das nicht und verdeckte dabei das Bild.
+
+            <b>Warum nicht das Bild selbst bewegt wird.</b> Beim Verschieben steht in
+            imgVollbild im selben Augenblick schon das nächste Bild — eine
+            Wegflieg-Bewegung würde also das falsche wegwerfen. Der Schein liegt darüber
+            und lässt das Bild in Ruhe.
+
+            <b>Warum kein senkrechter Ruck.</b> Den gibt es bereits, und er heisst etwas
+            anderes: ShakeImageSenkrecht meldet „geht gerade nicht".
+
+            Beide Kanten sind für die Maus taub und stehen in Ruhe auf Deckkraft null;
+            sichtbar werden sie nur für die 200 ms der Animation. Der Verlauf endet in
+            derselben Farbe mit Alpha null — nicht in Transparent: Sonst liefe er über
+            Weiss und legte einen milchigen Rand über das Bild.
+        -->
+        <Border
+            x:Name="BRD_KantenscheinUnten"
+            Height="130"
+            VerticalAlignment="Bottom"
+            Panel.ZIndex="235"
+            IsHitTestVisible="False"
+            Opacity="0"
+            d:Opacity="0.55">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,1" EndPoint="0,0">
+                    <GradientStop x:Name="GRS_KantenscheinUntenVoll" Offset="0" Color="#FFB33A2B" />
+                    <GradientStop x:Name="GRS_KantenscheinUntenLeer" Offset="1" Color="#00B33A2B" />
+                </LinearGradientBrush>
+            </Border.Background>
+        </Border>
+
+        <Border
+            x:Name="BRD_KantenscheinOben"
+            Height="130"
+            VerticalAlignment="Top"
+            Panel.ZIndex="235"
+            IsHitTestVisible="False"
+            Opacity="0">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop x:Name="GRS_KantenscheinObenVoll" Offset="0" Color="#FFDDE3EA" />
+                    <GradientStop x:Name="GRS_KantenscheinObenLeer" Offset="1" Color="#00DDE3EA" />
+                </LinearGradientBrush>
+            </Border.Background>
+        </Border>
+
+        <!--
+            Warte-Indikator: ein Ring, der sich in der Bildmitte dreht, solange etwas
+            lädt oder rechnet.
+
+            <b>Warum mittig.</b> Diese Ansicht hat keine Kopfleiste — weder den
+            Fortschrittsstreifen noch PGB_BildLadenStufen der Normalansicht. Wer blättert,
+            sieht auf das Bild; eine Anzeige am Rand müsste man suchen, und gesucht wird
+            genau dann nicht, wenn man auf etwas wartet. Verdeckt wird dabei nichts, was
+            man gerade betrachtet: Solange der Ring läuft, ist das nächste Bild noch nicht
+            da.
+
+            <b>Warum verzögert.</b> Er blendet mit 100 ms Verzug ein — gerade genug, dass
+            ein Bild aus dem Vorrat kein Flackern hinterlässt, aber kurz genug, um ihn
+            beim Blättern tatsächlich zu sehen. Die Drehung läuft ausschliesslich in
+            dieser Zeit; StopStoryboard setzt am Ende auch die Deckkraft auf ihren
+            Ruhewert null zurück.
+
+            <b>Verhältnis zum Wackeln.</b> Das Wackeln des Bildes heisst „hier ist
+            Schluss" und meint das Ende der Liste. Dass es auch mitten in der Liste
+            auftrat, lag daran, dass ein noch laufender Ladevorgang die Pfeile sperrt —
+            siehe MainWindow.DarfWackeln. Die beiden Meldungen sind jetzt getrennt: Ende
+            der Liste wackelt, Warten dreht sich.
+
+            <b>Warum ein Control mit Vorlage</b> und kein Border mit Style: Ein Storyboard
+            in einem Style-Trigger darf kein Storyboard.TargetName nennen, und ohne das
+            käme man an den RotateTransform im Inneren nicht heran.
+
+            <b>Im Entwurf sichtbar.</b> Der Ruhewert der Deckkraft ist null, und im
+            Entwurfsfenster läuft weder der Auslöser noch die Animation — der Ring wäre
+            dort also nie zu sehen und liesse sich nicht einordnen. d:Opacity zeigt ihn
+            im Entwurf und wird beim Übersetzen entfernt; zur Laufzeit gilt weiter die
+            null. Gedreht wird im Entwurf nicht, der Ring steht still.
+        -->
+        <Control
+            x:Name="CTL_WarteIndikator"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Panel.ZIndex="240"
+            Focusable="False"
+            IsHitTestVisible="False">
+            <Control.Template>
+                <ControlTemplate TargetType="{x:Type Control}">
+                    <Border
+                        x:Name="BRD_WarteFläche"
+                        Width="46"
+                        Height="46"
+                        Background="#99000000"
+                        BorderBrush="#33FFFFFF"
+                        BorderThickness="1"
+                        CornerRadius="23"
+                        Opacity="0"
+                        d:Opacity="1">
+                        <Path
+                            x:Name="PTH_WarteRing"
+                            Width="26"
+                            Height="26"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Data="M 13,2 A 11,11 0 1 1 2,13"
+                            RenderTransformOrigin="0.5,0.5"
+                            Stroke="#FFFFC46B"
+                            StrokeEndLineCap="Round"
+                            StrokeStartLineCap="Round"
+                            StrokeThickness="2.5">
+                            <Path.RenderTransform>
+                                <RotateTransform x:Name="RTF_WarteRing" />
+                            </Path.RenderTransform>
+                        </Path>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <DataTrigger Binding="{Binding WartenLäuft}" Value="True">
+                            <DataTrigger.EnterActions>
+                                <BeginStoryboard x:Name="SBD_Warten">
+                                    <Storyboard>
+                                        <DoubleAnimation
+                                            BeginTime="0:0:0.1"
+                                            Storyboard.TargetName="BRD_WarteFläche"
+                                            Storyboard.TargetProperty="Opacity"
+                                            To="1"
+                                            Duration="0:0:0.15" />
+                                        <DoubleAnimation
+                                            RepeatBehavior="Forever"
+                                            Storyboard.TargetName="RTF_WarteRing"
+                                            Storyboard.TargetProperty="Angle"
+                                            From="0"
+                                            To="360"
+                                            Duration="0:0:0.9" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.EnterActions>
+                            <DataTrigger.ExitActions>
+                                <StopStoryboard BeginStoryboardName="SBD_Warten" />
+                            </DataTrigger.ExitActions>
+                        </DataTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Control.Template>
+        </Control>
+
         <!--  Drop-Overlay: sichtbar wenn Datei über das Bild gezogen wird  -->
         <Border
             x:Name="BRD_DropOverlay"

@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
+using TestImage.Ansichten;
 
 namespace TestImage
 {
@@ -62,7 +63,7 @@ namespace TestImage
             {
                 if (vm?.CommandExecuteBildLinksCommand.CanExecute(null) == true)
                     vm.CommandExecuteBildLinksCommand.Execute(null);
-                else if (vm?.IsImageMaximiert == true)
+                else if (vm?.IsImageMaximiert == true && DarfWackeln(vm))
                     VIEW_Vollbild.ShakeImage(nachRechts: false);
                 e.Handled = true;
             }
@@ -70,14 +71,17 @@ namespace TestImage
             {
                 if (vm?.CommandExecuteBildNachRechtsCommand.CanExecute(null) == true)
                     vm.CommandExecuteBildNachRechtsCommand.Execute(null);
-                else if (vm?.IsImageMaximiert == true)
+                else if (vm?.IsImageMaximiert == true && DarfWackeln(vm))
                     VIEW_Vollbild.ShakeImage(nachRechts: true);
                 e.Handled = true;
             }
             else if (e.Key == Key.Down && Keyboard.Modifiers == ModifierKeys.None)
             {
                 if (vm?.CommandExecuteBildInsKeinFavVerzeichnisVerschiebenCommand.CanExecute(null) == true)
+                {
                     vm.CommandExecuteBildInsKeinFavVerzeichnisVerschiebenCommand.Execute(null);
+                    ZeigeKantenschein(vm, VollbildAnsicht.Bildablage.KeinFav);
+                }
                 else
                     WackleNachUnten(vm);   // geht gerade nicht – kurz wackeln statt stumm bleiben
                 e.Handled = true;
@@ -88,16 +92,25 @@ namespace TestImage
             else if (e.Key == Key.Down && Keyboard.Modifiers == ModifierKeys.Shift && !IstTextEingabeAktiv())
             {
                 if (vm?.CommandExecuteBildInsBesondersVerschiebenCommand.CanExecute(null) == true)
+                {
                     vm.CommandExecuteBildInsBesondersVerschiebenCommand.Execute(null);
+                    ZeigeKantenschein(vm, VollbildAnsicht.Bildablage.Besonders);
+                }
                 e.Handled = true;
             }
             else if (e.Key == Key.Up && Keyboard.Modifiers == ModifierKeys.None)
             {
                 // Aktuelles Bild zurück → sonst letzte Verschiebung rückgängig
                 if (vm?.CommandExecuteBildInsHauptVerzeichnisZuruckVerschiebenCommand.CanExecute(null) == true)
+                {
                     vm.CommandExecuteBildInsHauptVerzeichnisZuruckVerschiebenCommand.Execute(null);
+                    ZeigeKantenschein(vm, VollbildAnsicht.Bildablage.Zurückgeholt);
+                }
                 else if (vm?.CommandExecuteVerschiebenZurückCommand.CanExecute(null) == true)
+                {
                     vm.CommandExecuteVerschiebenZurückCommand.Execute(null);
+                    ZeigeKantenschein(vm, VollbildAnsicht.Bildablage.Zurückgeholt);
+                }
                 e.Handled = true;
             }
 
@@ -120,7 +133,10 @@ namespace TestImage
             else if (e.Key == Key.K && Keyboard.Modifiers == ModifierKeys.None && !IstTextEingabeAktiv())
             {
                 if (vm?.CommandExecuteBildInsKIFehlerVerschiebenCommand.CanExecute(null) == true)
+                {
                     vm.CommandExecuteBildInsKIFehlerVerschiebenCommand.Execute(null);
+                    ZeigeKantenschein(vm, VollbildAnsicht.Bildablage.KIFehler);
+                }
                 e.Handled = true;
             }
 
@@ -170,8 +186,44 @@ namespace TestImage
         /// Bild zu sehen ist – nach unten wird aber in beiden Ansichten verschoben,
         /// also muss die Rückmeldung auch in beiden ankommen.
         /// </summary>
+        /// <summary>
+        /// Darf die Ansicht jetzt wackeln?
+        ///
+        /// Das Wackeln heisst „hier ist Schluss" — Anfang oder Ende der Liste. Es lief
+        /// aber auch dann, wenn der Weg nur für einen Augenblick versperrt ist, weil das
+        /// nächste Bild noch lädt: Die Pfeile hängen an <c>PrüfungLäuft</c> und melden
+        /// solange <c>CanExecute == false</c>, ganz gleich, wo in der Liste man steht.
+        /// Damit stand dieselbe Bewegung für zwei ganz verschiedene Sachverhalte, und der
+        /// häufigere von beiden war der falsche: Mitten in der Liste zu wackeln sieht aus,
+        /// als wäre die Liste dort zu Ende. Auf einer langsamen Platte war das der
+        /// Normalfall.
+        ///
+        /// Solange gewartet wird, bleibt die Ansicht deshalb ruhig; was los ist, sagt der
+        /// Ring in der Bildmitte (CTL_WarteIndikator). Am wirklichen Listenende wackelt es
+        /// unverändert.
+        /// </summary>
+        private static bool DarfWackeln(AufgabeViewModel? vm) => vm is not null && !vm.WartenLäuft;
+
+        /// <summary>
+        /// Lässt die Vollbildansicht kurz an der Kante aufleuchten, in die das Bild
+        /// gegangen ist — die Gegenmeldung zum Wackeln: Dort ist etwas <i>nicht</i>
+        /// gegangen, hier ist etwas gegangen.
+        ///
+        /// Nur im Bildmodus. Die Normalansicht sagt dasselbe schon auf ihre Art: Dort
+        /// trägt der Hintergrund über CLconverterColorBoolianMasterHintergrund die Farbe
+        /// des Zustands, und man sieht die Kachel aus der Liste wandern.
+        /// </summary>
+        private void ZeigeKantenschein(AufgabeViewModel? vm, VollbildAnsicht.Bildablage ablage)
+        {
+            if (vm?.IsImageMaximiert == true)
+                VIEW_Vollbild.ZeigeKantenschein(ablage);
+        }
+
         private void WackleNachUnten(AufgabeViewModel? vm)
         {
+            if (!DarfWackeln(vm))
+                return;
+
             if (vm?.IsImageMaximiert == true)
                 VIEW_Vollbild.ShakeImageSenkrecht(nachUnten: true);
             else

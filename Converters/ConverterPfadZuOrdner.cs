@@ -15,7 +15,7 @@ namespace TestImage.Converters
     /// <b>Ohne Parameter:</b> der vollständige Ordnerpfad, für den Tooltip.
     ///
     /// <b>Mit <c>ConverterParameter="Kurz"</c>:</b> die letzten beiden Stufen mit
-    /// vorangestelltem Auslassungszeichen, also etwa <c>…\Künzler_Bilder\khellendros74</c>.
+    /// vorangestelltem Auslassungszeichen, also etwa <c>…\Künzler_Bilder\Künzler1</c>.
     ///
     /// <b>Warum von vorn gekürzt wird und nicht hinten:</b> WPF kann mit
     /// <c>TextTrimming</c> nur am Ende kürzen — dort steht aber der Ordnername, also

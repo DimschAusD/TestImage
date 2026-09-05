@@ -537,6 +537,83 @@ namespace TestImage.Ansichten
         public void ShakeImageSenkrecht(bool nachUnten)
             => Wackeln(TranslateTransform.YProperty, nachUnten ? 1 : -1);
 
+        /// <summary>
+        /// Wohin ein Bild gerade gegangen ist. Bestimmt Kante und Farbe des Scheins.
+        ///
+        /// Die Zuordnung steht bewusst hier und nicht beim Aufrufer: Welche Farbe ein
+        /// Ziel trägt, ist eine Frage der Ansicht, nicht der Tastenbehandlung.
+        /// </summary>
+        public enum Bildablage
+        {
+            /// <summary>Pfeil nach unten — aussortiert.</summary>
+            KeinFav,
+
+            /// <summary>Umschalt + Pfeil nach unten — in den Ordner „Besonders".</summary>
+            Besonders,
+
+            /// <summary>K — in den KI-Fehler-Ordner.</summary>
+            KIFehler,
+
+            /// <summary>Pfeil nach oben — wieder zurückgeholt.</summary>
+            Zurückgeholt,
+        }
+
+        /// <summary>
+        /// Deckkraft im Scheitel. Darüber wird der Schein zum Farbschleier über dem Bild,
+        /// darunter geht er im Motiv unter.
+        /// </summary>
+        private const double KantenscheinStaerke = 0.55;
+
+        /// <summary>
+        /// Lässt den Kantenschein einmal aufleuchten. Wird vom Host (MainWindow)
+        /// gerufen, sobald eine Taste das Bild tatsächlich verschoben hat.
+        ///
+        /// Erneutes Aufrufen setzt die laufende Bewegung zurück und beginnt von vorn —
+        /// beim schnellen Sortieren blinkt es also im Takt der Tasten, statt sich zu
+        /// stapeln.
+        /// </summary>
+        public void ZeigeKantenschein(Bildablage ablage)
+        {
+            // Zurückgeholt kommt oben heraus, alles andere geht unten hinaus.
+            if (ablage == Bildablage.Zurückgeholt)
+            {
+                Aufleuchten(BRD_KantenscheinOben);
+                return;
+            }
+
+            var farbe = ablage switch
+            {
+                // Gedecktes Ziegelrot: aussortiert, aber kein Alarm.
+                Bildablage.KeinFav => Color.FromRgb(0xB3, 0x3A, 0x2B),
+
+                // Dasselbe warme Gold wie Zoomanzeige und Warte-Ring — in dieser Ansicht
+                // die Farbe für „hervorgehoben".
+                Bildablage.Besonders => Color.FromRgb(0xFF, 0xC4, 0x6B),
+
+                // Violett: der einzige Ton, der weder für gut noch für schlecht steht.
+                _ => Color.FromRgb(0x8E, 0x5A, 0xA8),
+            };
+
+            GRS_KantenscheinUntenVoll.Color = farbe;
+            GRS_KantenscheinUntenLeer.Color = Color.FromArgb(0, farbe.R, farbe.G, farbe.B);
+
+            Aufleuchten(BRD_KantenscheinUnten);
+        }
+
+        /// <summary>
+        /// Auf und wieder ab in 200 ms. Schneller Anstieg, längeres Abklingen: Der
+        /// Einsatz soll auf die Taste fallen, das Nachleuchten darf das Auge einholen.
+        /// </summary>
+        private static void Aufleuchten(Border kante)
+        {
+            var anim = new DoubleAnimationUsingKeyFrames();
+            anim.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+            anim.KeyFrames.Add(new EasingDoubleKeyFrame(KantenscheinStaerke, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(60))));
+            anim.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(200))));
+
+            kante.BeginAnimation(OpacityProperty, anim);
+        }
+
         private void Wackeln(DependencyProperty achse, double richtung)
         {
             double d = richtung;

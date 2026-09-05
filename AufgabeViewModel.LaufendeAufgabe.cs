@@ -44,6 +44,40 @@ namespace TestImage
         /// <summary>True, solange irgendein langlaufender Vorgang arbeitet.</summary>
         public bool AufgabeLäuft => IndexLaeuft || PruefungOhneBildladen || WasserzeichenAufgabeLäuft;
 
+        /// <summary>
+        /// Es wird auf etwas gewartet — anders als bei <see cref="AufgabeLäuft"/> zählt
+        /// hier das Laden des Bildes mit.
+        ///
+        /// Dass die beiden sich unterscheiden, ist Absicht. Der Fortschrittsstreifen der
+        /// Kopfleiste zeigt nur, was dauert und was man abbrechen kann; nähme er das
+        /// Bildladen dazu, blitzte er bei jedem Pfeildruck auf (Begründung bei
+        /// <see cref="PruefungOhneBildladen"/>). Die Vollbildansicht hat aber weder diesen
+        /// Streifen noch <c>PGB_BildLadenStufen</c> — dort steht das Bild auf einer
+        /// langsamen Platte kommentarlos still, und genau dafür ist der Warte-Indikator da.
+        /// </summary>
+        public bool WartenLäuft =>
+            AufgabeLäuft || CommandExecuteKleinesBildGrossesBildLadenCommand.IsRunning;
+
+        /// <summary>
+        /// Hängt <see cref="WartenLäuft"/> an das Bildladen. Aufruf aus dem Konstruktor.
+        ///
+        /// <c>IsRunning</c> meldet sich am Befehl selbst, nicht am ViewModel — ohne dieses
+        /// Weiterreichen erführe die Oberfläche nie, dass ein Ladevorgang begonnen oder
+        /// geendet hat.
+        /// </summary>
+        private void WarteAnzeigeAnkoppeln()
+        {
+            CommandExecuteKleinesBildGrossesBildLadenCommand.PropertyChanged += (_, e) =>
+            {
+                // Leerer Name heisst „alles hat sich geändert" – dann gilt es auch hier.
+                if (string.IsNullOrEmpty(e.PropertyName)
+                    || e.PropertyName == nameof(IAsyncRelayCommand.IsRunning))
+                {
+                    OnPropertyChanged(nameof(WartenLäuft));
+                }
+            };
+        }
+
         /// <summary>Fortschritt des laufenden Vorgangs in Prozent, 0 … 100.</summary>
         public double AufgabeFortschritt
         {
@@ -175,6 +209,7 @@ namespace TestImage
         private void MeldeAufgabeGeaendert()
         {
             OnPropertyChanged(nameof(AufgabeLäuft));
+            OnPropertyChanged(nameof(WartenLäuft));
             OnPropertyChanged(nameof(AufgabeFortschritt));
             OnPropertyChanged(nameof(AufgabeUnbestimmt));
             OnPropertyChanged(nameof(AufgabeText));

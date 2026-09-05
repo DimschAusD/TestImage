@@ -96,6 +96,27 @@ namespace TestImage.Bildersuche
         /// <summary>Mindestens ein Muster vorhanden?</summary>
         internal static bool MaskeVorhanden => HoleMasken().Count > 0;
 
+        /// <summary>
+        /// Mindestens ein Muster, das beim Prüfen herangezogen wird. Ohne das wird zwar
+        /// geprüft, aber jedes Bild fällt durch.
+        /// </summary>
+        internal static bool VerwendbaresMusterVorhanden => HoleMasken().Any(m => m.IstVerwendbar);
+
+        /// <summary>Mindestens ein Muster, das die Belegt-Grenze erreicht.</summary>
+        internal static bool BelegtesMusterVorhanden => HoleMasken().Any(m => m.IstBelegt);
+
+        /// <summary>Namen der Muster, die beim Prüfen übersprungen werden — nur die nie nachgemessenen.</summary>
+        internal static IReadOnlyList<string> UebersprungeneMuster =>
+            HoleMasken().Where(m => !m.IstVerwendbar).Select(m => m.Name).ToList();
+
+        /// <summary>
+        /// Namen der Muster, die zwar mitprüfen, aber die Belegt-Grenze noch nicht
+        /// erreichen. Sie finden weniger und gelegentlich daneben — das gehört gesagt,
+        /// ohne sie deshalb abzuschalten.
+        /// </summary>
+        internal static IReadOnlyList<string> SchwacheMuster =>
+            HoleMasken().Where(m => m.IstVerwendbar && !m.IstBelegt).Select(m => m.Name).ToList();
+
         /// <summary>Summe der Bilder, aus denen die Muster gelernt wurden.</summary>
         internal static int MaskenGrundmenge => HoleMasken().Sum(m => m.Grundmenge);
 
@@ -214,22 +235,34 @@ namespace TestImage.Bildersuche
         /// entstünde ein Muster, das keines davon mehr erkennt.
         /// </summary>
         /// <returns>
-        /// Name des betroffenen Musters, seine neue Grundmenge, und ob es neu angelegt
-        /// wurde. Name leer und Anzahl 0 heisst: zu wenige oder unlesbare Bilder.
+        /// Name des betroffenen Musters, seine neue Grundmenge, ob es neu angelegt wurde,
+        /// sowie der Stand <b>davor</b> — Bilderzahl und Trennschärfe des ergänzten
+        /// Musters. Beim neuen Muster sind die beiden 0 und <c>null</c>. Name leer und
+        /// Anzahl 0 heisst: zu wenige oder unlesbare Bilder.
         /// </returns>
-        internal static async Task<(string Name, int Bilder, bool IstNeu)> ErgaenzeOderLerneAsync(
-            string ordner,
-            string name,
-            WasserzeichenBereich bereich,
-            IProgress<(int Erledigt, int Gesamt)>? fortschritt,
-            CancellationToken token)
+        internal static async Task<(string Name, int Bilder, bool IstNeu,
+                                    int VorherBilder, float? VorherTrennschaerfe)>
+            ErgaenzeOderLerneAsync(
+                string ordner,
+                string name,
+                WasserzeichenBereich bereich,
+                IProgress<(int Erledigt, int Gesamt)>? fortschritt,
+                CancellationToken token)
         {
+            // Zurücksetzen, sonst hinge der Hinweis eines früheren Fehlversuchs auch an
+            // einem Lauf, der gar nichts zu speichern hatte.
+            LetzterSpeicherFehler = string.Empty;
+
             if (string.IsNullOrWhiteSpace(ordner) || !Directory.Exists(ordner))
-                return (string.Empty, 0, false);
+                return (string.Empty, 0, false, 0, null);
 
             var dateien = SammleBilder(ordner);
             if (dateien.Count < 5)
-                return (string.Empty, 0, false);
+                return (string.Empty, 0, false, 0, null);
+
+            // Grund, falls eine mögliche Ergänzung abgelehnt wurde. Wird der Meldung
+            // angehängt — sonst taucht unerklärt ein zweites Muster auf.
+            string abgelehnt = string.Empty;
 
             // Muster aus Dateien vor dieser Erweiterung tragen keine Summen und können
             // nicht fortgeschrieben werden. Sie stehen hier gar nicht erst zur Wahl.
@@ -244,7 +277,12 @@ namespace TestImage.Bildersuche
                 if (beste is not null && felder is not null)
                 {
                     var erweitert = beste.Erweitere(felder);
-                    if (erweitert is not null)
+
+                    // Die Nutzenprüfung sitzt hier, unmittelbar vor dem Speichern, und
+                    // damit im gemeinsamen Weg beider Zweige. Lohnt es nicht, entsteht
+                    // unten ein eigenes Muster — der Ordner geht also nicht verloren, er
+                    // reisst nur kein anderes mit herunter.
+                    if (erweitert is not null && ErgaenzungLohnt(beste, erweitert, out abgelehnt))
                     {
                         var alle = HoleMasken();
                         int platz = alle.IndexOf(beste);
@@ -256,7 +294,9 @@ namespace TestImage.Bildersuche
                         SpeichereMasken(alle);
 
                         LetzteLernMeldung = string.Empty;
-                        return (erweitert.Name, erweitert.Grundmenge, false);
+
+                        return (erweitert.Name, erweitert.Grundmenge, false,
+                                beste.Grundmenge, beste.Trennschaerfe);
                     }
                 }
             }
@@ -264,7 +304,13 @@ namespace TestImage.Bildersuche
             int anzahl = await LerneMaskeAsync(ordner, name, bereich, fortschritt, token)
                 .ConfigureAwait(false);
 
-            return anzahl > 0 ? (name, anzahl, true) : (string.Empty, 0, false);
+            // Nach LerneMaskeAsync anhängen, nicht davor: Die Methode setzt die Meldung
+            // selbst (Aufteilung in zwei Muster) und würde einen früheren Text überschreiben.
+            if (abgelehnt.Length > 0)
+                LetzteLernMeldung = (" " + abgelehnt + " Deshalb ein eigenes Muster."
+                                     + LetzteLernMeldung).TrimEnd();
+
+            return anzahl > 0 ? (name, anzahl, true, 0, null) : (string.Empty, 0, false, 0, null);
         }
 
         /// <summary>
@@ -285,6 +331,17 @@ namespace TestImage.Bildersuche
             WasserzeichenMaske? beste = null;
             List<float[]>? besteFelder = null;
             double besterAnteil = 0;
+
+            // Zweite Wahl: ein noch nicht belegtes Muster, das durch diesen Ordner
+            // messbar besser wird. Es braucht einen eigenen Weg, weil seine Schwelle
+            // nichts taugt — sie liegt auf der Untergrenze, und ob 60 % des Ordners sie
+            // reissen, ist dort Zufall. Ohne das entstünde bei jedem Ordner ein neues
+            // schwaches Muster, und genau die Bilder, die zusammengehören, kämen nie
+            // zusammen — obwohl das Sammeln bei einem schwachen Zeichen der einzige Weg
+            // ist (die Trennschärfe wächst mit √n).
+            WasserzeichenMaske? kandidat = null;
+            List<float[]>? kandidatFelder = null;
+            double besterZuwachs = 0;
 
             foreach (var gruppe in masken.GroupBy(m => (m.Modus, m.Bereich)))
             {
@@ -308,21 +365,132 @@ namespace TestImage.Bildersuche
 
                 foreach (var maske in gruppe)
                 {
-                    float schwelle = maske.Schwelle > 0f ? maske.Schwelle : Schwelle;
-                    int passend = felder.Count(f => maske.Pruefe(f) >= schwelle);
-                    double anteil = (double)passend / felder.Count;
-
-                    if (anteil >= ZuordnungsAnteil && anteil > besterAnteil)
+                    if (maske.IstBelegt)
                     {
-                        besterAnteil = anteil;
-                        beste = maske;
-                        besteFelder = felder;
+                        float schwelle = maske.Schwelle > 0f ? maske.Schwelle : Schwelle;
+                        int passend = felder.Count(f => maske.Pruefe(f) >= schwelle);
+                        double anteil = (double)passend / felder.Count;
+
+                        if (anteil >= ZuordnungsAnteil && anteil > besterAnteil)
+                        {
+                            besterAnteil = anteil;
+                            beste = maske;
+                            besteFelder = felder;
+                        }
+
+                        continue;
+                    }
+
+                    double erreicht = BewerteErgaenzung(maske, felder);
+
+                    if (erreicht > besterZuwachs)
+                    {
+                        besterZuwachs = erreicht;
+                        kandidat = maske;
+                        kandidatFelder = felder;
                     }
                 }
             }
 
-            return (beste, besteFelder);
+            // Ein belegtes Muster hat Vorrang: Dort ist bewiesen, dass der Ordner
+            // dasselbe Zeichen trägt, nicht nur, dass er dem Muster guttut.
+            return beste is not null ? (beste, besteFelder) : (kandidat, kandidatFelder);
         }
+
+        /// <summary>
+        /// Trennschärfe, die ein noch schwaches Muster mit diesem Ordner erreicht —
+        /// 0, wenn sich gar kein Muster bilden lässt. <b>Nur zur Auswahl</b>, ob dieser
+        /// Ordner zu diesem Muster gehört; ob die Ergänzung sich lohnt, entscheidet
+        /// danach <see cref="ErgaenzungLohnt"/> für alle Wege gleich.
+        /// </summary>
+        private static double BewerteErgaenzung(WasserzeichenMaske maske, List<float[]> felder)
+        {
+            if (!maske.KannErweitertWerden || maske.Trennschaerfe is not { } alt || alt <= 0f)
+                return 0;
+
+            var probe = maske.Erweitere(felder);
+            return probe?.Trennschaerfe ?? 0;
+        }
+
+        /// <summary>
+        /// Lohnt sich die Ergänzung, oder verwässert sie das Muster?
+        ///
+        /// Diese Prüfung gilt für <b>jede</b> Ergänzung. Sie stand vorher nur im Zweig
+        /// der schwachen Muster, und damit war ausgerechnet dort keine, wo am meisten zu
+        /// verlieren ist: Belegte Muster wurden allein über die 60-%-Regel zugeordnet und
+        /// anschliessend ungeprüft gespeichert. Die 60-%-Regel beantwortet aber „gehört
+        /// der Ordner zu diesem Zeichen?" — nicht „wird das Muster dadurch besser?". Ein
+        /// zugehöriger Ordner kann trotzdem überwiegend Rauschen mitbringen. Genau so ist
+        /// ein Muster von 0,288 (n=38) über mehrere je einzeln unauffällige Schritte auf
+        /// 0,155 (n=212) heruntergewandert.
+        ///
+        /// Verlangt wird nur, dass die Signalrate nicht deutlich <b>fällt</b>. Das klingt
+        /// milde, trennt aber sauber, und ein strengeres Mass wäre nachweislich falsch:
+        ///
+        /// Ein Ordner desselben Künstlers bringt den vollen Zuwachs (16 + 19 Bilder:
+        /// 0,041 → 0,058 bei 0,061 Erwartung). Ein Ordner eines <i>anderen</i> Künstlers
+        /// mit demselben Zeichen bringt zunächst fast nichts (35 + 29 Bilder:
+        /// 0,058 → 0,059), weil der Künstlerschriftzug des ersten dabei wegmittelt,
+        /// während erst das gemeinsame Logo übrig bleibt. Es lohnt sich trotzdem:
+        /// Über sechs Ordner von vier Künstlern hinweg wuchs ein gemeinsames Muster
+        /// durchgehend weiter, 0,037 bei 16 Bildern auf 0,077 bei 118 — nur mit
+        /// r/√n ≈ 0,0071 statt 0,010. Eine Regel, die den vollen Zuwachs verlangt, würde
+        /// genau diesen Weg abschneiden — und er ist der einzige, wenn je Künstler nur
+        /// rund 20 Bilder vorliegen.
+        ///
+        /// Ein fremdes Zeichen fällt dagegen klar durch: derselbe Versuch mit dem
+        /// Eckbanner-Ordner ergab 0,041 → 0,012, also ein Fünftel. Zwischen einem
+        /// Fünftel und „bleibt ungefähr stehen" liegt genug Platz.
+        /// </summary>
+        private static bool ErgaenzungLohnt(
+            WasserzeichenMaske alt, WasserzeichenMaske erweitert, out string begruendung)
+        {
+            begruendung = string.Empty;
+
+            // Nie nachgemessen: Es gibt nichts zu vergleichen, also auch nichts zu
+            // verhindern. Solche Muster müssen ohnehin einmal neu gelernt werden.
+            if (alt.Trennschaerfe is not { } vorher || vorher <= 0f
+                || erweitert.Trennschaerfe is not { } nachher)
+                return true;
+
+            // Ratsche: Ein belegtes Muster darf durch eine Ergänzung nicht unbelegt
+            // werden. Sonst kostet ein einziger Ordner die Erkennung, die vorher
+            // nachweislich da war.
+            //
+            // Diese Bedingung stand schon einmal hier, aber innerhalb der Bewertung, die
+            // nur für nicht belegte Muster lief — sie konnte also nie zutreffen.
+            if (alt.IstBelegt && !erweitert.IstBelegt)
+            {
+                begruendung = $"Das Muster wäre dadurch unter die Belegt-Grenze gefallen "
+                            + $"({vorher * 100f:0.0} % → {nachher * 100f:0.0} %).";
+                return false;
+            }
+
+            // Verglichen wird die Signalrate r/√n, nicht der rohe Wert. Der Wert muss bei
+            // gleichem Zeichen ohnehin mit √n wachsen; ein Ordner, der die Bilderzahl
+            // verdreifacht und den Wert nur hält, hat nichts beigetragen, sondern
+            // verdünnt. Die Rate ist gegen die Bilderzahl unempfindlich und trennt
+            // sauber: gemessen an sieben Ergänzungen lag sie bei gleichem Zeichen
+            // zwischen 0,76 und 1,16 der bisherigen, bei fremdem Zeichen bei 0,48 und 0,51.
+            double rateAlt = vorher / Math.Sqrt(alt.Grundmenge);
+            double rateNeu = nachher / Math.Sqrt(erweitert.Grundmenge);
+
+            if (rateNeu >= rateAlt * ErgaenzungMindestanteil)
+                return true;
+
+            begruendung = $"Der Ordner hätte das Muster verwässert – Signalrate {rateNeu / rateAlt:0.00}× "
+                        + $"(nötig {ErgaenzungMindestanteil:0.00}×), Trennschärfe "
+                        + $"{vorher * 100f:0.0} % → {nachher * 100f:0.0} % bei "
+                        + $"{alt.Grundmenge} → {erweitert.Grundmenge} Bildern.";
+            return false;
+        }
+
+        /// <summary>
+        /// Anteil der bisherigen Signalrate, den ein ergänzter Ordner mindestens halten
+        /// muss. Gemessen: gleiches Zeichen 0,76 … 1,16, fremdes Zeichen 0,48 … 0,51 —
+        /// dazwischen ist reichlich Platz.
+        /// </summary>
+        private const double ErgaenzungMindestanteil = 0.75;
 
         /// <summary>
         /// Mindestabstand zwischen eigener und fremder Übereinstimmung, damit eine
@@ -605,16 +773,53 @@ namespace TestImage.Bildersuche
             return liste;
         }
 
-        private static void SpeichereMasken(List<WasserzeichenMaske> masken)
+        /// <summary>
+        /// Fehlermeldung des letzten Speicherversuchs; leer, wenn es geklappt hat.
+        ///
+        /// Vorher wurde der Fehler nur verschluckt. Die Ansicht meldete dann „Muster
+        /// gelernt", und beim nächsten Start war es weg — ohne dass irgendwo gestanden
+        /// hätte, warum. Ein Lernlauf über hunderte Bilder ist zu teuer, um so zu enden.
+        /// </summary>
+        internal static string LetzterSpeicherFehler { get; private set; } = string.Empty;
+
+        /// <summary>
+        /// Schreibt die Sammlung. <c>false</c>, wenn das nicht gelang — dann gelten die
+        /// Muster nur noch für diese Sitzung.
+        ///
+        /// Geschrieben wird über eine Nebendatei, die erst zum Schluss an die Stelle der
+        /// alten tritt. Direkt in die Zieldatei zu schreiben hiess: Wer den Vorgang
+        /// unterbricht — Absturz, Stromausfall, volle Platte —, hat eine halbe Datei, und
+        /// die zählt beim Laden als „nichts gelernt". Bei rund 2 MB je Muster ist das
+        /// Fenster nicht theoretisch, und verloren wäre die Arbeit aller Lernläufe.
+        /// </summary>
+        private static bool SpeichereMasken(List<WasserzeichenMaske> masken)
         {
+            string neben = MaskenPfad + ".neu";
+
             try
             {
-                using var fs = File.Create(MaskenPfad);
-                JsonSerializer.Serialize(fs, masken.Select(m => m.AlsDatensatz()).ToList());
+                using (var fs = File.Create(neben))
+                {
+                    JsonSerializer.Serialize(fs, masken.Select(m => m.AlsDatensatz()).ToList());
+                    fs.Flush(true);   // auf die Platte, nicht nur in den Zwischenspeicher
+                }
+
+                if (File.Exists(MaskenPfad))
+                    File.Replace(neben, MaskenPfad, null);
+                else
+                    File.Move(neben, MaskenPfad);
+
+                LetzterSpeicherFehler = string.Empty;
+                return true;
             }
-            catch
+            catch (Exception ex)
             {
-                // schreibgeschützter Programmordner – dann bleibt es bei dieser Sitzung
+                LetzterSpeicherFehler = ex.Message;
+
+                try { if (File.Exists(neben)) File.Delete(neben); }
+                catch { /* Rest der Nebendatei stört nicht, sie wird überschrieben */ }
+
+                return false;
             }
         }
 
@@ -640,7 +845,11 @@ namespace TestImage.Bildersuche
             if (dateien.Count == 0)
                 return ergebnis;
 
-            var masken = HoleMasken();
+            // Alle verwendbaren Muster gehen in den Lauf — auch die schwachen. Sind es
+            // keine, bleibt die Liste leer und PruefeDatei lädt gar kein Bild erst; sonst
+            // liefe ein vollständiger Dekodierdurchlauf über den Ordner, dessen Ergebnis
+            // ohnehin verworfen würde.
+            var masken = HoleMasken().Where(m => m.IstVerwendbar).ToList();
 
             // Wie beim Indexieren mehrere Bilder gleichzeitig: Jedes Bild wird für sich
             // geladen und gerechnet, es gibt keine gemeinsamen Zwischenstände. Der Aufwand
@@ -713,6 +922,13 @@ namespace TestImage.Bildersuche
                 {
                     foreach (var maske in masken)
                     {
+                        // Aussen vor bleiben nur nie nachgemessene Muster: Deren Schwelle
+                        // stammt aus der selbstbezüglichen Einmessung und lässt allein
+                        // ihre eigenen Lernbilder durch. Schwache, aber gemessene Muster
+                        // prüfen mit — siehe WasserzeichenMaske.IstVerwendbar.
+                        if (!maske.IstVerwendbar)
+                            continue;
+
                         float wert = maske.Pruefe(bild);
 
                         // Muster ohne eigene Schwelle (aus der Zeit davor) nutzen die allgemeine.

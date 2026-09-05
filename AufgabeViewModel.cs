@@ -30,7 +30,8 @@ namespace TestImage
         // v2x.0.80.860 Beta 2026-08-20 (.NETCore net10.0)
         // v2x.0.72.254 Beta 2026-08-30 (.NETCore net10.0)
         // v2x.0.73.140 Beta 2026-09-01 (.NETCore net10.0)
-        // v2x.0.70.881 Beta 2026-09-02 (.NETCore net10.0)
+        // v2x.0.70.881 Beta 2026-09-02 (.NETCore net10.0)   
+        // v2x.0.70.751 Beta 2026-09-03 (.NETCore net10.0)
         [ObservableProperty]
         public partial string Version { get; set; } = "v2x.0.70.751 Beta 2026-09-03 (.NETCore net10.0)";
 
@@ -206,6 +207,22 @@ namespace TestImage
         [ObservableProperty]
         public partial bool IsScreenShareAktiv { get; set; }
 
+        /// <summary>Mindestens ein Gerät hängt über Bluetooth am Rechner.</summary>
+        [ObservableProperty]
+        public partial bool IsBluetoothAktiv { get; set; }
+
+        /// <summary>
+        /// Ein Eingabegerät ist seit dem Start neu dazugekommen. Eigene Anzeige neben
+        /// <see cref="IsBluetoothAktiv"/>: Ein Kopfhörer, der sich anmeldet, ist Alltag;
+        /// eine Tastatur, die sich anmeldet, kann tippen.
+        /// </summary>
+        [ObservableProperty]
+        public partial bool IsBluetoothWarnung { get; set; }
+
+        /// <summary>Was genau hängt dran – steht im Tooltip des Feldes.</summary>
+        [ObservableProperty]
+        public partial string BluetoothHinweis { get; set; } = "Bluetooth";
+
         private readonly System.Windows.Threading.DispatcherTimer _geraeteTimer;
 
         private void GeraeteTimerTick(object? sender, EventArgs e)
@@ -213,6 +230,76 @@ namespace TestImage
             IsWebcamAktiv = GeraeteWaechter.IstAktiv("webcam");
             IsMikrofonAktiv = GeraeteWaechter.IstAktiv("microphone");
             IsScreenShareAktiv = GeraeteWaechter.IstAktiv("screenCapture");
+
+            AktualisiereBluetooth();
+        }
+
+        /// <summary>
+        /// Fragt den Bluetooth-Stand ab und formuliert den Tooltip.
+        ///
+        /// Anders als Kamera und Mikrofon lässt sich bei Bluetooth nicht sagen, ob gerade
+        /// etwas übertragen wird – Windows führt dazu nichts. Angezeigt wird deshalb, was
+        /// angemeldet ist, und hervorgehoben, was tippen könnte.
+        /// </summary>
+        private void AktualisiereBluetooth()
+        {
+            var stand = BluetoothWaechter.HoleStand();
+
+            IsBluetoothAktiv = stand.HatGeraete;
+            IsBluetoothWarnung = stand.HatWarnung;
+
+            if (stand.HatWarnung)
+            {
+                BluetoothHinweis =
+                    "Achtung: seit dem Start neu angemeldetes Eingabegerät\n"
+                    + Aufzaehlung(stand.NeueEingabegeraete)
+                    + "\nEin solches Gerät kann tippen und klicken. War das nicht du, "
+                    + "Bluetooth abschalten und die Kopplungen durchsehen.";
+                return;
+            }
+
+            if (!stand.AdapterVorhanden)
+            {
+                BluetoothHinweis = "Bluetooth — aus oder kein Adapter vorhanden";
+                return;
+            }
+
+            if (!stand.HatGeraete)
+            {
+                BluetoothHinweis = "Bluetooth — an, kein Gerät angemeldet";
+                return;
+            }
+
+            BluetoothHinweis = $"Bluetooth — {stand.Geraete.Count} angemeldet\n"
+                               + Aufzaehlung(stand.Geraete);
+
+            if (stand.Eingabegeraete.Count > 0)
+            {
+                BluetoothHinweis += "\nEingabegerät darunter (kann tippen und klicken): "
+                                    + string.Join(", ", stand.Eingabegeraete);
+            }
+        }
+
+        /// <summary>
+        /// Geräteliste für den Tooltip: je Zeile eines, höchstens sechs.
+        ///
+        /// Vorher standen alle Namen durch Kommas getrennt in einer Zeile — mit ein paar
+        /// angemeldeten Geräten lief der Tooltip quer über den Bildschirm. Untereinander
+        /// bleibt er schmal, und die Obergrenze hält ihn auch dann kurz, wenn jemand seine
+        /// halbe Wohnung gekoppelt hat.
+        /// </summary>
+        private static string Aufzaehlung(System.Collections.Generic.IReadOnlyList<string> namen)
+        {
+            const int hoechstens = 6;
+
+            var zeilen = namen.Take(hoechstens).Select(n => "· " + n).ToList();
+
+            if (namen.Count > hoechstens)
+            {
+                zeilen.Add($"· … und {namen.Count - hoechstens} weitere");
+            }
+
+            return string.Join("\n", zeilen);
         }
 
         #region UI_Output
@@ -240,7 +327,23 @@ namespace TestImage
             ocAufgabens = new ObservableCollection<MeinBildchen>();
 
             // Ändert sich die Bilderliste, ist der Schnell-Listen-Cache veraltet.
-            ocAufgabens.CollectionChanged += (_, _) => _bildListeVeraltet = true;
+            ocAufgabens.CollectionChanged += (_, e) =>
+            {
+                _bildListeVeraltet = true;
+                _ordnerEinheitVeraltet = true;
+
+                // Nur beim kompletten Neuaufbau — anderer Ordner — den Vorrat wegwerfen.
+                //
+                // Beim Verschieben einzelner Bilder bleibt er gültig: Er ist nach Pfad
+                // geschlüsselt, ein verschobenes Bild hat einen neuen, und sein alter
+                // Eintrag wird nie mehr getroffen und fällt von selbst hinten heraus. Ihn
+                // hier zu leeren hiesse, ausgerechnet im Sortierlauf jedes folgende Bild
+                // wieder von der Platte zu holen.
+                if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset)
+                {
+                    VorratLeeren();
+                }
+            };
 
             AufgabenView = CollectionViewSource.GetDefaultView(ocAufgabens) as ListCollectionView;
             AufgabenView.SortDescriptions.Clear();
@@ -255,6 +358,9 @@ namespace TestImage
             // die gehen alle über die Ansicht, nicht über die Eigenschaft. CurrentChanged
             // ist die eine Stelle, an der jeder dieser Wege vorbeikommt.
             AufgabenView.CurrentChanged += (s, e) => OcrVolltextAnfordern();
+
+            // Warte-Indikator der Vollbildansicht an das Bildladen hängen.
+            WarteAnzeigeAnkoppeln();
 
         }
 
@@ -281,16 +387,11 @@ namespace TestImage
                 return;
             }
 
-            // Falls das aktuell selektierte Bild physisch nicht mehr existiert → entfernen
-            var current = SelectedBildchen;
-            if (current != null && !File.Exists(current.BName))
-            {
-                if (RemoveMissingFilesBulk())
-                {
-                    // Zustand wurde repariert → nächste Aktion bewusst im nächsten Klick
-                    // return;
-                }
-            }
+            // Hier stand eine Existenzprüfung des aktuellen Bildes, die bei jedem
+            // Blätterschritt auf die Platte ging — im UI-Faden. Schlief die Platte, kostete
+            // allein das die ganze Anlaufzeit, und zwar auch dann, wenn alle Dateien da
+            // waren. Verschwundene Dateien fallen jetzt dort auf, wo sie ohnehin auffallen:
+            // beim Laden des Bildes, siehe EntferneVerschwundenesBild.
 
             // Kein aktuelles Element → nichts zu tun
             if (AufgabenView.CurrentPosition <= 0 || AufgabenView.Count == 0)
@@ -300,6 +401,9 @@ namespace TestImage
 
             // Eine eindeutige Ausgangsposition
             int startIndex = AufgabenView.CurrentPosition;
+
+            // Der Vorauslauf soll dorthin arbeiten, wo man gerade hingeht.
+            _blätterRichtung = -1;
 
             // Nach links suchen: startIndex - 1 → 0
             for (int i = startIndex - 1; i >= 0; i--)
@@ -347,16 +451,7 @@ namespace TestImage
             // Copilot Code
 
 
-            // Falls das aktuell selektierte Bild physisch nicht mehr existiert → entfernen
-            var current = SelectedBildchen;
-            if (current != null && !File.Exists(current.BName))
-            {
-                if (RemoveMissingFilesBulk())
-                {
-                    // Zustand wurde repariert → nächste Aktion bewusst im nächsten Klick
-                    // return;
-                }
-            }
+            // Existenzprüfung entfernt — Begründung siehe CommandExecuteBildLinks.
 
             if (AufgabenView.Count == 0)
             {
@@ -375,6 +470,9 @@ namespace TestImage
 
             // Ausgangsposition festhalten (eine einzige Index-Wahrheit)
             int startIndex = AufgabenView.CurrentPosition;
+
+            // Der Vorauslauf soll dorthin arbeiten, wo man gerade hingeht.
+            _blätterRichtung = 1;
 
             // Nächstes Bild suchen, das noch nicht "für Links" markiert ist
             for (int i = startIndex + 1; i < AufgabenView.Count; i++)
@@ -396,66 +494,202 @@ namespace TestImage
 
 
         /// <summary>
-        /// Wirft Einträge weg, deren Datei es nicht mehr gibt — etwa weil sie im Explorer
-        /// gelöscht wurde, während die Anwendung lief.
+        /// Wie oft hintereinander schon zum nächsten Bild weitergesprungen wurde, weil die
+        /// Datei fehlte. Zurückgesetzt, sobald ein Bild wieder lädt.
         /// </summary>
-        /// <returns>True, wenn etwas entfernt wurde.</returns>
-        /// <remarks>
-        /// <b>Warum die Position danach wiederhergestellt wird — das war ein Hänger:</b>
-        ///
-        /// <c>Clear()</c> setzt die Position der Ansicht auf <c>-1</c>, und das
-        /// Wiederfüllen holt sie nicht zurück; sie bleibt bei -1 (nachgemessen). Die
-        /// Blätterbefehle prüfen aber
-        /// <c>CurrentPosition &gt;= 0</c> beziehungsweise <c>&gt; 0</c> — bei -1 sind
-        /// <b>beide</b> gesperrt.
-        ///
-        /// Und da diese Aufräumung nur <i>innerhalb</i> der Blätterbefehle läuft, konnte
-        /// sich der Zustand nicht mehr lösen: Der Kommentar „nächste Aktion bewusst im
-        /// nächsten Klick" ging von einem nächsten Klick aus, den die gesperrten Knöpfe
-        /// nie zugelassen hätten. Wer eine Datei im Explorer löschte und dann blätterte,
-        /// stand fest.
-        /// </remarks>
-        private bool RemoveMissingFilesBulk()
-        {
-            var neueListe = OcAufgabens
-                   .Where(b => File.Exists(b.BName))
-                   .ToList();
+        private int _verschwundenHintereinander;
 
-            if (neueListe.Count == OcAufgabens.Count)
+        /// <summary>Ab hier nicht mehr weiterspringen — der Hintergrundlauf räumt ohnehin auf.</summary>
+        private const int MaxVerschwundenHintereinander = 3;
+
+        /// <summary>
+        /// Nimmt das eine Bild aus der Liste, dessen Datei beim Laden nicht mehr da war,
+        /// und geht zum nächsten. Stösst zugleich den Hintergrundlauf an, der den Rest der
+        /// Liste nachsieht.
+        ///
+        /// Hier fällt eine verschwundene Datei ohne zusätzlichen Plattenzugriff auf: Der
+        /// Ladeweg musste sie ohnehin öffnen. Vorher fragte stattdessen jeder
+        /// Blätterschritt vorsorglich nach — auch wenn alles da war.
+        ///
+        /// Die Sprungbremse ist für den Fall, dass jemand den ganzen Ordner gelöscht hat:
+        /// Ohne sie ginge das Weiterspringen durch die komplette Liste, jedes Mal mit einem
+        /// neuen Ladeversuch. Nach ein paar Fehlgriffen wird nur noch entfernt und der
+        /// Aufräumlauf abgewartet.
+        /// </summary>
+        private void EntferneVerschwundenesBild(string pfad)
+        {
+            var bildchen = OcAufgabens.FirstOrDefault(
+                b => string.Equals(b.BName, pfad, StringComparison.OrdinalIgnoreCase));
+
+            bool weiterspringen = _verschwundenHintereinander < MaxVerschwundenHintereinander;
+            _verschwundenHintereinander++;
+
+            if (bildchen is not null)
             {
-                return false; // nichts geändert
+                // Einzeln entfernen, nicht Liste leeren und neu füllen: Die Ansicht rückt
+                // dabei von selbst auf den Nachbarn und behält ihre Position.
+                OcAufgabens.Remove(bildchen);
+            }
+            else if (weiterspringen)
+            {
+                AufgabenView?.MoveCurrentToNext();
             }
 
-            // Position merken, bevor Clear() sie auf -1 setzt.
-            int alterIndex = AufgabenView?.CurrentPosition ?? -1;
+            // Am Ende der Liste bleibt die Ansicht sonst hinter dem letzten Eintrag stehen.
+            if (AufgabenView is { IsCurrentAfterLast: true } view && OcAufgabens.Count > 0)
+            {
+                view.MoveCurrentToLast();
+            }
 
-            PrüfungLäuft = true;
+            if (weiterspringen)
+            {
+                _ = PruefeListeAufVerschwundeneDateienAsync();
+                LadeAktuellesBildNach();
+                return;
+            }
+
+            // Sprungbremse erreicht: nicht länger Bild für Bild weitertasten, sondern die
+            // Liste in einem Zug durchsehen — und erst danach nachladen.
+            //
+            // Das Nachladen fehlte hier. Der Eintrag war entfernt, die Ansicht auf den
+            // Nachbarn gerückt, das grosse Bild aber blieb beim vorigen stehen. Sichtbar
+            // wurde das, sobald im Explorer mehrere verstreute Bilder gelöscht wurden: Ab
+            // dem vierten Fehlgriff zeigten Miniaturleiste und grosses Bild zwei
+            // verschiedene Dateien.
+            _ = SaeubereListeUndLadeNachAsync();
+        }
+
+        /// <summary>
+        /// Erst die ganze Liste säubern, dann einmal nachladen. Nach dem Durchlauf steht
+        /// die Ansicht auf einem Eintrag, den es wirklich gibt — der Ladeversuch trifft
+        /// also, statt die nächste Runde des Weitertastens auszulösen.
+        /// </summary>
+        private async Task SaeubereListeUndLadeNachAsync()
+        {
+            await PruefeListeAufVerschwundeneDateienAsync(sofort: true);
+            LadeAktuellesBildNach();
+        }
+
+        /// <summary>
+        /// Stösst das Laden des gerade gewählten Bildes von Hand an.
+        ///
+        /// Nötig, weil der Auswahlwechsel beim Entfernen eines Eintrags auf ein CanExecute
+        /// trifft, das gerade false ist: Der Ladebefehl lässt keinen zweiten Lauf zu,
+        /// solange der erste arbeitet, und die Meldung geht ins Leere. Sichtbar war das als
+        /// „Eintrag verschwindet, Anzeige bleibt beim alten Bild stehen".
+        ///
+        /// Deshalb über den Dispatcher mit niedriger Priorität: Bis dahin ist der laufende
+        /// Befehl beendet und lässt den nächsten zu.
+        /// </summary>
+        private void LadeAktuellesBildNach()
+        {
+            Application.Current?.Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    if (CommandExecuteKleinesBildGrossesBildLadenCommand.CanExecute(null))
+                    {
+                        CommandExecuteKleinesBildGrossesBildLadenCommand.Execute(null);
+                    }
+                }),
+                System.Windows.Threading.DispatcherPriority.Background);
+        }
+
+        private bool _pruefeVerschwundeneLaeuft;
+        private DateTime _letztePruefungVerschwundene = DateTime.MinValue;
+
+        /// <summary>
+        /// Wartezeit zwischen zwei Aufräumläufen. Ohne sie liefe bei einem geleerten Ordner
+        /// mit jedem Fehlgriff ein neuer Durchlauf über die ganze Liste.
+        /// </summary>
+        private static readonly TimeSpan PauseZwischenAufraeumlaeufen = TimeSpan.FromSeconds(10);
+
+        /// <summary>
+        /// Sieht die ganze Liste durch und entfernt Einträge, deren Datei es nicht mehr
+        /// gibt — etwa weil sie im Explorer gelöscht wurde, während die Anwendung lief.
+        ///
+        /// <b>Was sich gegenüber der früheren Fassung ändert:</b> Geprüft wird im
+        /// Hintergrund statt im UI-Faden, und entfernt wird einzeln statt über
+        /// <c>Clear()</c> mit anschliessendem Neubefüllen. Damit entfällt zugleich die
+        /// Positionsreparatur, die dort nötig war: <c>Clear()</c> setzte die Ansicht auf
+        /// −1, und bei −1 sperrten beide Blätterbefehle — wer eine Datei im Explorer
+        /// löschte und dann blätterte, stand fest.
+        /// </summary>
+        /// <param name="sofort">
+        /// Übergeht die Wartezeit zwischen zwei Läufen. Gesetzt, wenn das Weitertasten
+        /// aufgegeben hat: Dann ist dieser Durchlauf die einzige Stelle, die den Zustand
+        /// noch klärt, und zehn Sekunden zu warten hiesse zehn Sekunden lang ein Bild zu
+        /// zeigen, das nicht zur Auswahl gehört.
+        /// </param>
+        private async Task PruefeListeAufVerschwundeneDateienAsync(bool sofort = false)
+        {
+            if (_pruefeVerschwundeneLaeuft
+                || (!sofort && DateTime.UtcNow - _letztePruefungVerschwundene < PauseZwischenAufraeumlaeufen))
+            {
+                return;
+            }
+
+            _pruefeVerschwundeneLaeuft = true;
+
             try
             {
-                OcAufgabens.Clear();
+                // Momentaufnahme der Pfade: Die Liste darf sich während der Prüfung ändern,
+                // und die Sammlung selbst gehört dem UI-Faden.
+                var pfade = OcAufgabens.Select(b => b.BName).ToList();
 
-                foreach (var item in neueListe)
+                var fehlende = await Task.Run(() =>
                 {
-                    OcAufgabens.Add(item);
+                    var weg = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                    foreach (var p in pfade)
+                    {
+                        if (!string.IsNullOrEmpty(p) && !File.Exists(p))
+                        {
+                            weg.Add(p);
+                        }
+                    }
+
+                    return weg;
+                });
+
+                if (fehlende.Count == 0)
+                {
+                    return;
                 }
+
+                // Womit die Ansicht in den Durchlauf geht. Danach der Vergleich: Nur wenn
+                // sich das aktuelle Element geändert hat, muss das grosse Bild nachziehen.
+                object? vorherAktuell = AufgabenView?.CurrentItem;
+
+                foreach (var bildchen in OcAufgabens.Where(b => fehlende.Contains(b.BName)).ToList())
+                {
+                    OcAufgabens.Remove(bildchen);
+                }
+
+                // Steht die Ansicht danach hinter dem Ende, zurück auf das letzte Bild.
+                if (AufgabenView is { IsCurrentAfterLast: true } view && OcAufgabens.Count > 0)
+                {
+                    view.MoveCurrentToLast();
+                }
+
+                // War das angezeigte Bild unter den entfernten, steht die Auswahl jetzt auf
+                // einem anderen Eintrag — das grosse Bild aber noch beim alten. Von selbst
+                // holt es das nicht nach: Der Auswahlwechsel kommt aus dem Entfernen, nicht
+                // aus einem Klick, und trifft je nach Zeitpunkt auf einen belegten
+                // Ladebefehl.
+                if (!ReferenceEquals(vorherAktuell, AufgabenView?.CurrentItem))
+                {
+                    LadeAktuellesBildNach();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
             }
             finally
             {
-                // Im finally, weil ein hängengebliebenes PrüfungLäuft alle schweren
-                // Befehle sperrt — nicht nur das Blättern.
-                PrüfungLäuft = false;
+                _letztePruefungVerschwundene = DateTime.UtcNow;
+                _pruefeVerschwundeneLaeuft = false;
             }
-
-            // Wieder auf eine gültige Stelle setzen: dieselbe wie vorher, oder das letzte
-            // Bild, wenn die Liste jetzt kürzer ist als der alte Index.
-            if (AufgabenView != null && OcAufgabens.Count > 0)
-            {
-                int ziel = Math.Clamp(alterIndex, 0, OcAufgabens.Count - 1);
-                AufgabenView.MoveCurrentToPosition(ziel);
-            }
-
-            return true;
-
         }
 
 
@@ -1103,7 +1337,14 @@ namespace TestImage
             {
                 // !IndexLaeuft: siehe die übrigen Verschiebe-Befehle – während des
                 // Indexierens darf keine Datei wegwandern. Das Blättern bleibt frei.
-                return (OcAufgabens.Count > 0) & File.Exists(SelectedBildchen.BName)
+                //
+                // Kein File.Exists: ein Plattenzugriff im UI-Faden, bei jeder Auswertung.
+                // Ausführlich steht das bei CanExecuteKleinesBildGrossesBildLaden. Hier
+                // wog es schwerer als dort, weil die Verknüpfung & nicht kurzschliesst —
+                // die Platte wurde also selbst dann gefragt, wenn schon PrüfungLäuft die
+                // Antwort war. Ob die Datei noch da ist, prüft der Befehl selbst,
+                // unmittelbar vor dem File.Move.
+                return (OcAufgabens.Count > 0)
                      & (AufgabenView.CurrentPosition <= AufgabenView.Count
                     & (!SelectedBildchen.BName.Contains("kein_Fav")) & !PrüfungLäuft & !IndexLaeuft);
             }
@@ -1255,7 +1496,12 @@ namespace TestImage
             // !IndexLaeuft aus demselben Grund wie beim Verschieben aller Bilder: Der
             // Index verweist auf Pfade, und was während des Laufs wegwandert, steht
             // hinterher falsch darin.
-            if (PrüfungLäuft || IndexLaeuft || !File.Exists(SelectedBildchen.BName))
+            //
+            // Kein File.Exists: Plattenzugriff im UI-Faden bei jeder Auswertung, siehe
+            // CanExecuteKleinesBildGrossesBildLaden. Der Befehl selbst prüft die Datei
+            // und meldet sich, wenn sie fehlt — der Kommentar dort sagt es sogar schon:
+            // Zwischen Prüfung und Druck kann sie ohnehin verschwinden.
+            if (PrüfungLäuft || IndexLaeuft)
             {
                 return false;
             }
@@ -1445,8 +1691,11 @@ namespace TestImage
         private bool CanExecuteVerschiebenZurück()
         {
             // !IndexLaeuft: Rückgängig verschiebt ebenfalls eine Datei.
+            //
+            // Kein File.Exists: Plattenzugriff im UI-Faden bei jeder Auswertung, siehe
+            // CanExecuteKleinesBildGrossesBildLaden. Der Befehl prüft die Datei selbst,
+            // bevor er sie bewegt.
             return !string.IsNullOrEmpty(BildchenVorher)
-                & File.Exists(BildchenVorher)
                 & !IndexLaeuft;
         }
         [RelayCommand(CanExecute = nameof(CanExecuteVerschiebenZurück))]
@@ -1683,10 +1932,20 @@ namespace TestImage
 
         #region Command Kleines Bild grosses Bild Laden mit Infos
 
+        /// <summary>
+        /// Nur noch: Ist überhaupt ein Bild gewählt?
+        ///
+        /// Vorher stand hier <c>File.Exists</c> — ein Plattenzugriff im UI-Faden, und zwar
+        /// bei jeder Auswertung. Ausgelöst wird sie von beiden Miniaturleisten, die über
+        /// <c>IsSynchronizedWithCurrentItem</c> an derselben Ansicht hängen. Auf einer
+        /// schlafenden Platte kostet ein einziger solcher Zugriff die ganze Anlaufzeit,
+        /// und solange steht die Oberfläche.
+        ///
+        /// Ob die Datei wirklich da ist, prüft der Befehl selbst — im Hintergrund und
+        /// gebündelt mit dem Lesen der Bildmasse.
+        /// </summary>
         private bool CanExecuteKleinesBildGrossesBildLaden()
-        {
-            return File.Exists(SelectedBildchen?.BName);
-        }
+            => !string.IsNullOrEmpty(SelectedBildchen?.BName);
 
         [RelayCommand(CanExecute = nameof(CanExecuteKleinesBildGrossesBildLaden))]
         private async Task CommandExecuteKleinesBildGrossesBildLaden()
@@ -1698,7 +1957,7 @@ namespace TestImage
             // Zweig mischte dann Vorschau, grosses Bild und Prüfergebnis aus zwei
             // Bildern und rechnete die Dekodiergrösse aus einem dritten.
             var path = SelectedBildchen?.BName;
-            if (string.IsNullOrEmpty(path) || !File.Exists(path))
+            if (string.IsNullOrEmpty(path))
             {
                 return;
             }
@@ -1716,30 +1975,77 @@ namespace TestImage
             int decodeWidth = 0;
             int decodeHeight = 0;
 
-            // Image pixel abfragen
-            (OriginalImageWidth, OriginalImageHeight) = MieneServices.ReadOriginalSize(path);
+            // Image pixel abfragen — im Hintergrund, zusammen mit der Frage, ob es die
+            // Datei noch gibt.
+            //
+            // Beides öffnet die Datei. Genau hier stand die Oberfläche, wenn die Platte
+            // erst anlaufen musste: ReadOriginalSize lief als einziger Schritt dieses
+            // Befehls im UI-Faden, alles darunter war längst ausgelagert. Ein Klick, der
+            // währenddessen kam — etwa auf den Bildmodus-Umschalter —, wurde erst danach
+            // bearbeitet und sah aus, als reagiere die Anwendung nicht.
+            // Vorher noch billiger: Hat der Vorauslauf dieses Bild schon geholt, sind die
+            // Masse längst bekannt und die Platte bleibt ganz aussen vor. Siehe
+            // AufgabeViewModel.Bildvorrat.cs.
+            var vorrat = VorratNachschlagen(path);
+
+            bool dateiDa;
+            int breite, hoehe;
+
+            if (vorrat is not null)
+            {
+                // Ohne Nachfrage bei der Platte als vorhanden geführt. Der Vorauslauf hat
+                // die Datei vor wenigen Sekunden geöffnet; verschwindet sie in diesem
+                // Fenster von aussen, fällt das eine Bild später auf — beim
+                // Hintergrundlauf, der die Liste ohnehin nachsieht. Erneut nachzusehen
+                // wäre genau der Zugriff, den der Vorrat einspart.
+                dateiDa = true;
+                breite = vorrat.OriginalBreite;
+                hoehe = vorrat.OriginalHöhe;
+            }
+            else
+            {
+                (dateiDa, breite, hoehe) = await Task.Run(() =>
+                {
+                    if (!File.Exists(path))
+                    {
+                        return (false, 0, 0);
+                    }
+
+                    var (w, h) = MieneServices.ReadOriginalSize(path);
+                    return (true, w, h);
+                });
+            }
+
+            // Datei ist weg: Eintrag heraus, zum nächsten Bild, Rest im Hintergrund
+            // nachsehen. Der Ladeweg ist die einzige Stelle, an der das ohne zusätzlichen
+            // Plattenzugriff auffällt — er musste die Datei ohnehin öffnen.
+            if (!dateiDa)
+            {
+                EntferneVerschwundenesBild(path);
+                return;
+            }
+
+            // Es lädt wieder – die Sprungbremse darf von vorn zählen.
+            _verschwundenHintereinander = 0;
+
+            OriginalImageWidth = breite;
+            OriginalImageHeight = hoehe;
 
             // Monitor‑Decode‑Größe
             (int monitorWidth, int monitorHeight) = MieneServices.GetMonitorDecodeSize();
 
-            // Sicherheitsprüfung VOR Berechnung
-            if (OriginalImageWidth <= 0 || OriginalImageHeight <= 0)
-            {
-                decodeWidth = monitorWidth;
-                decodeHeight = monitorHeight;
-            }
-            else
-            {
-                double scale = Math.Min(
-                    (double)monitorWidth / OriginalImageWidth,
-                    (double)monitorHeight / OriginalImageHeight);
+            // Dieselbe Rechnung wie im Vorauslauf — sie steht deshalb nur einmal, in
+            // AufgabeViewModel.Bildvorrat.cs. Träfe der Vorauslauf eine andere Grösse,
+            // hätte er umsonst gelesen.
+            (decodeWidth, decodeHeight) = DekodierGrösseRechnen(
+                OriginalImageWidth, OriginalImageHeight, monitorWidth, monitorHeight);
 
-                // Nie hochskalieren
-                scale = Math.Min(scale, 1.0);
-
-                decodeWidth = (int)Math.Round(OriginalImageWidth * scale);
-                decodeHeight = (int)Math.Round(OriginalImageHeight * scale);
-            }
+            // Passt die Dekodiergrösse nicht zum Vorrat — anderer Bildschirm, Fenster auf
+            // einen zweiten Monitor gezogen —, taugt das vorgeladene grosse Bild nicht
+            // mehr. Vorschau und Masse bleiben brauchbar.
+            bool grossAusVorrat = vorrat is not null
+                && vorrat.DekodierBreite == decodeWidth
+                && vorrat.DekodierHöhe == decodeHeight;
 
 
 
@@ -1762,7 +2068,7 @@ namespace TestImage
                 IsDisplayImageLoading = true;
 
                 // 1. Stufe: Kleines Vorschaubild laden (сто Pixel)
-                var kl = await Task.Run(() => MieneServices.CreateBitmap(path, 100));
+                var kl = vorrat?.Klein ?? await Task.Run(() => MieneServices.CreateBitmap(path, 100));
                 ProgressValue = LadestufeVorschauGeladen;
 
                 // Farbsignatur aus dem Vorschaubild – nicht aus dem grossen Bild.
@@ -1770,10 +2076,16 @@ namespace TestImage
 
                 SWkleinesBild = stopwatch.Elapsed.TotalMilliseconds.ToString("F3") + " ms";
 
-                await Application.Current.Dispatcher.InvokeAsync(() =>
+                // Die Zwischenstufe nur zeigen, solange das grosse Bild fehlt. Liegt es im
+                // Vorrat bereit, blitzte hier sonst das 100-Pixel-Bild auf, obwohl das
+                // scharfe im selben Augenblick folgen kann.
+                if (!grossAusVorrat)
                 {
-                    DisplayImage = kl;
-                });
+                    await Application.Current.Dispatcher.InvokeAsync(() =>
+                    {
+                        DisplayImage = kl;
+                    });
+                }
 
                 ProgressValue = LadestufeVorschauSichtbar;
 
@@ -1793,13 +2105,18 @@ namespace TestImage
                     return;
                 }
 
-                // 2. Stufe: Volles Bild laden
-                var gr = await Task.Run(() => MieneServices.CreateBitmap(path, decodeWidth, decodeHeight));
+                // 2. Stufe: Volles Bild laden – oder aus dem Vorrat nehmen.
+                var gr = grossAusVorrat
+                    ? vorrat!.Gross
+                    : await Task.Run(() => MieneServices.CreateBitmap(path, decodeWidth, decodeHeight));
 
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
                     DisplayImage = gr;
                 });
+
+                // Jetzt steht das Bild – erst ab hier darf der Vorauslauf an die Platte.
+                VorratNachfüllen(path, breite, hoehe, decodeWidth, decodeHeight, kl, gr);
 
                 // SWgrossesBild
                 SWgrossesBild = stopwatch.Elapsed.TotalMilliseconds.ToString("F3") + " ms";
@@ -1865,16 +2182,20 @@ namespace TestImage
                 //  ProgressValue = двадцать; // Startwert
 
                 // 1. Stufe: Kleines Vorschaubild laden (сто Pixel)
-                var kl = await Task.Run(() => MieneServices.CreateBitmap(path, 100));
+                var kl = vorrat?.Klein ?? await Task.Run(() => MieneServices.CreateBitmap(path, 100));
                 ProgressValue = LadestufeVorschauGeladen;
 
                 // Farbsignatur aus dem Vorschaubild – nicht aus dem grossen Bild.
                 BildFarbsignatur = await Task.Run(() => Bildersuche.Farbsignatur.Erstelle(kl));
 
-                await Application.Current.Dispatcher.InvokeAsync(() =>
+                // Zwischenstufe nur ohne Vorrat – Begründung im Zweig darüber.
+                if (!grossAusVorrat)
                 {
-                    DisplayImage = kl;
-                });
+                    await Application.Current.Dispatcher.InvokeAsync(() =>
+                    {
+                        DisplayImage = kl;
+                    });
+                }
 
                 ProgressValue = LadestufeVorschauSichtbar;
 
@@ -1884,13 +2205,20 @@ namespace TestImage
                 // Künstliche Verzögerung, damit man den Fortschritt sieht
                 //await Task.Delay(20);
 
-                // 2. Stufe: Volles Bild laden
-                var gr = await Task.Run(() => MieneServices.CreateBitmap(path, decodeWidth, decodeHeight));
+                // 2. Stufe: Volles Bild laden – oder aus dem Vorrat nehmen.
+                var gr = grossAusVorrat
+                    ? vorrat!.Gross
+                    : await Task.Run(() => MieneServices.CreateBitmap(path, decodeWidth, decodeHeight));
 
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
                     DisplayImage = gr;
                 });
+
+                // Erst ab hier darf der Vorauslauf an die Platte. Die Dateiprüfung
+                // weiter unten liest ebenfalls von ihr — beide zusammen sind immer noch
+                // billiger als ein Bild, das erst mit dem Klick beginnt.
+                VorratNachfüllen(path, breite, hoehe, decodeWidth, decodeHeight, kl, gr);
 
                 ProgressValue = LadestufeGrossSichtbar;
 
@@ -2096,9 +2424,17 @@ namespace TestImage
 
         #region Command Bild Stretch anpassen
 
+        /// <summary>
+        /// Ist überhaupt ein Bild gewählt?
+        ///
+        /// Hier stand File.Exists — ein Plattenzugriff im UI-Faden bei jeder Auswertung,
+        /// und dieser hier für nichts: Der Befehl schaltet nur zwischen zwei Werten von
+        /// ImageStretch um und fasst keine Datei an. Gemeint war „es gibt ein Bild", und
+        /// das steht schon im Pfad.
+        /// </summary>
         private bool CanExecuteBildStretchAnpassen()
         {
-            return File.Exists(SelectedBildchen?.BName) && (!PrüfungLäuft);
+            return !string.IsNullOrEmpty(SelectedBildchen?.BName) && (!PrüfungLäuft);
         }
 
         [RelayCommand(CanExecute = nameof(CanExecuteBildStretchAnpassen))]
@@ -2129,11 +2465,15 @@ namespace TestImage
             // !IndexLaeuft: Während des Indexierens dürfen keine Dateien wegwandern.
             // Der Index wird gerade geschrieben und verweist auf Pfade — verschobene
             // Bilder machen ihn stellenweise unbrauchbar, ohne dass man es ihm ansieht.
-            return OcAufgabens.Any(b => b.BildFürLinks == false)
-                && (!PrüfungLäuft)
+            // Reihenfolge nach Kosten: erst die Schalter, dann die Frage am gewählten
+            // Bild, zuletzt die beiden Durchläufe durch die Liste. && schliesst kurz,
+            // also bleibt der teure Teil aus, sobald ein billiger schon nein sagt —
+            // und ausgewertet wird das hier bei jedem Tastendruck.
+            return (!PrüfungLäuft)
                 && (!IndexLaeuft)
-                && ListeStammtAusEinemOrdner
-                && (SelectedBildchen != null && !SelectedBildchen.BName.Contains("kein_Fav"));
+                && (SelectedBildchen != null && !SelectedBildchen.BName.Contains("kein_Fav"))
+                && OcAufgabens.Any(b => b.BildFürLinks == false)
+                && ListeStammtAusEinemOrdner;
         }
 
         /// <summary>
@@ -2154,7 +2494,22 @@ namespace TestImage
         {
             get
             {
+                // Zwischenstand, solange sich weder die Liste noch ein Pfad geändert hat.
+                //
+                // Diese Eigenschaft hängt in einem CanExecute, und CanExecute wird über
+                // CommandManager.RequerySuggested bei jedem Tastendruck neu ausgewertet.
+                // Ohne den Zwischenstand lief bei jedem Druck auf eine Pfeiltaste ein
+                // Durchlauf durch die ganze Liste — und zwar der volle: Der Ausstieg
+                // greift erst beim ersten abweichenden Ordner, im Normalfall stammt aber
+                // alles aus einem. Jedes Element kostete dabei ein Path.GetDirectoryName,
+                // also eine Zeichenkette, die gleich wieder weggeworfen wird.
+                if (!_ordnerEinheitVeraltet && _ordnerEinheitGeneration == MeinBildchen.PfadGeneration)
+                {
+                    return _ordnerEinheitStand;
+                }
+
                 string? ersterOrdner = null;
+                bool einheitlich = true;
 
                 foreach (var bild in OcAufgabens)
                 {
@@ -2171,13 +2526,32 @@ namespace TestImage
                     }
                     else if (!string.Equals(ersterOrdner, ordner, StringComparison.OrdinalIgnoreCase))
                     {
-                        return false;
+                        einheitlich = false;
+                        break;
                     }
                 }
 
-                return true;
+                _ordnerEinheitStand = einheitlich;
+                _ordnerEinheitGeneration = MeinBildchen.PfadGeneration;
+                _ordnerEinheitVeraltet = false;
+
+                return einheitlich;
             }
         }
+
+        /// <summary>Zuletzt gerechnetes Ergebnis von <see cref="ListeStammtAusEinemOrdner"/>.</summary>
+        private bool _ordnerEinheitStand;
+
+        /// <summary>Stand von <see cref="MeinBildchen.PfadGeneration"/> bei dieser Rechnung.</summary>
+        private int _ordnerEinheitGeneration = -1;
+
+        /// <summary>
+        /// Die Bilderliste hat sich geändert — der Zwischenstand gilt nicht mehr. Die
+        /// Pfadgeneration allein genügt hier nicht: Ein Bild zu entfernen ändert keinen
+        /// einzigen Pfad, kann aber sehr wohl aus einer gemischten Liste eine
+        /// einheitliche machen.
+        /// </summary>
+        private bool _ordnerEinheitVeraltet = true;
         [RelayCommand(CanExecute = nameof(CanExecuteAlleBilderInsKeinFavVerschieben), IncludeCancelCommand = true)]
         private async Task CommandExecuteAlleBilderInsKeinFavVerschieben(CancellationToken token)
         {
@@ -4205,7 +4579,11 @@ namespace TestImage
             _letzteBegriffe = System.Array.Empty<(string, float)>();
             ErkannteBegriffe.Clear();
 
-            // Kleine Vorschau des analysierten Bildes laden.
+            // Kleine Vorschau des analysierten Bildes laden. Sie ist zugleich die Probe,
+            // ob die Datei überhaupt ein Bild ist: Findet der Decoder hier nichts, findet
+            // er in CLIP ebenso wenig — nur fliegt es dort erst nach dem Laden der
+            // Modelle und mit einer Meldung, die die Ursache nicht verrät.
+            bool bildLesbar = true;
             try
             {
                 var bmp = new BitmapImage();
@@ -4217,10 +4595,16 @@ namespace TestImage
                 bmp.Freeze();
                 AnalyseBildVorschau = bmp;
             }
-            catch { AnalyseBildVorschau = null; }
+            catch { AnalyseBildVorschau = null; bildLesbar = false; }
 
             try
             {
+                if (!bildLesbar)
+                {
+                    AnalyseStatus = BildNichtLesbarText(pfad);
+                    return;
+                }
+
                 await StelleClipBereitAsync();
                 AnalyseStatus = "Analysiere…";
                 var treffer = await _bildAnalyse.ErkenneAsync(pfad, minRelevance: 0.10f, topN: 20);
@@ -4238,6 +4622,13 @@ namespace TestImage
                     ? "Nichts erkannt."
                     : $"{treffer.Count} Begriffe erkannt.";
             }
+            catch (System.NotSupportedException)
+            {
+                // Dieselbe Ursache wie oben, nur bei einer Datei, aus der die Vorschau
+                // noch etwas machen konnte — die Rohmeldung des Decoders („keine passende
+                // Imagingkomponente") sagt niemandem, dass die Datei kaputt ist.
+                AnalyseStatus = BildNichtLesbarText(pfad);
+            }
             catch (Exception ex)
             {
                 AnalyseStatus = "Fehler bei der Analyse: " + ex.Message;
@@ -4246,6 +4637,30 @@ namespace TestImage
             {
                 AnalyseLaeuft = false;
             }
+        }
+
+        /// <summary>
+        /// Meldung für eine Datei, die eine Bildendung trägt, aber kein Bild ist.
+        ///
+        /// Häufigster Fall sind abgebrochene Downloads: In der Datei stehen dann ein paar
+        /// Byte Fehlertext des Servers. Die Grösse gehört deshalb in die Meldung — sie
+        /// verrät den Fall sofort, ohne dass jemand die Datei öffnen muss.
+        /// </summary>
+        private static string BildNichtLesbarText(string pfad)
+        {
+            long groesse = -1;
+            try
+            { groesse = new FileInfo(pfad).Length; }
+            catch { }
+
+            string menge = groesse < 0
+                ? string.Empty
+                : groesse < 1024
+                    ? $" ({groesse} Byte)"
+                    : $" ({groesse / 1024} KB)";
+
+            return $"„{Path.GetFileName(pfad)}“ lässt sich nicht als Bild lesen{menge} – "
+                   + "vermutlich ein abgebrochener Download. Die Analyse wurde übersprungen.";
         }
 
         /// <summary>
@@ -4343,8 +4758,8 @@ namespace TestImage
 
                     string restText = FormatiereRestzeit(restSek);
                     IndexFortschrittText = restText.Length > 0
-                        ? $"Prüfe Wasserzeichen {p.Erledigt}/{p.Gesamt} – noch ~{restText}"
-                        : $"Prüfe Wasserzeichen {p.Erledigt}/{p.Gesamt}…";
+                        ? $"Prüfe auf bekannte Wasserzeichen {p.Erledigt}/{p.Gesamt} – noch ~{restText}"
+                        : $"Prüfe auf bekannte Wasserzeichen {p.Erledigt}/{p.Gesamt}…";
                 });
 
                 await PruefeWasserzeichenAsync(ordner, wzFortschritt, token);

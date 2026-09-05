@@ -2124,6 +2124,44 @@
                                     Source="{Binding WasserzeichenBefundBild}"
                                     Stretch="Uniform" />
                             </Border>
+
+                            <!--
+                                Metadaten-Markierung: Blatt mit Eckknick und zwei Textzeilen.
+                                Der Tropfen links steht für das sichtbare Zeichen im Bild —
+                                dieses hier für den Text im Dateikopf. Zwei Formen, damit
+                                auch bei 14 Punkten klar ist, welcher Fund gemeint ist.
+
+                                Wie das Musterkästchen nur zugeklappt: Aufgeklappt stehen
+                                die Markierungen ausgeschrieben in der Karte darunter.
+                            -->
+                            <Path
+                                x:Name="PTH_WasserzeichenMetadatenIcon"
+                                Width="10"
+                                Height="14"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"
+                                d:Visibility="Visible"
+                                Data="M5.5,2.5 L14,2.5 L18.5,7 L18.5,21.5 L5.5,21.5 Z M14,2.5 L14,7 L18.5,7 M8.5,12 L15.5,12 M8.5,16 L13,16"
+                                Stretch="Uniform"
+                                Stroke="#FF374151"
+                                StrokeLineJoin="Round"
+                                StrokeThickness="1.3"
+                                ToolTip="{Binding WasserzeichenBefundMetadaten}">
+                                <Path.Style>
+                                    <Style TargetType="Path">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding IsWasserzeichenOffen}" Value="False" />
+                                                    <Condition Binding="{Binding WasserzeichenBefundHatMetadaten}" Value="True" />
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Path.Style>
+                            </Path>
                         </StackPanel>
 
                         <!--  Dreht sich beim Umschalten, gleiche Mechanik wie TXT_OcrChevron.  -->
@@ -2210,6 +2248,7 @@
                         <Grid x:Name="GRD_WasserzeichenBefund">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition x:Name="COL_BefundBild" Width="Auto" />
+                                <ColumnDefinition x:Name="COL_BefundZone" Width="Auto" />
                                 <ColumnDefinition x:Name="COL_BefundText" Width="*" />
                                 <ColumnDefinition x:Name="COL_BefundHilfe" Width="Auto" />
                             </Grid.ColumnDefinitions>
@@ -2238,9 +2277,42 @@
                                     Stretch="Uniform" />
                             </Border>
 
+                            <!--
+                                Trefferzone: der Ausschnitt, in dem gesucht wurde, darüber
+                                rot die Punkte, die die Übereinstimmung tragen. Steht neben
+                                dem Muster, weil erst der Vergleich beider etwas sagt —
+                                dieselben Striche zweimal heisst Treffer, eine einzelne
+                                Motivkante heisst Fehlalarm. Erscheint erst auf Klick.
+                            -->
+                            <Border
+                                x:Name="BRD_BefundTrefferzone"
+                                Grid.Column="1"
+                                Width="96"
+                                Height="96"
+                                Margin="0,0,10,0"
+                                VerticalAlignment="Top"
+                                BorderBrush="#FFCBD5E1"
+                                BorderThickness="1"
+                                ClipToBounds="True"
+                                ToolTip="Geprüfter Bildausschnitt mit der Trefferzone. Rot liegt dort, wo die Übereinstimmung herkommt — je kräftiger, desto mehr trägt die Stelle bei."
+                                Visibility="{Binding WasserzeichenTrefferzoneVorhanden, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                                <Grid x:Name="GRD_BefundTrefferzone">
+                                    <Image
+                                        x:Name="IMG_BefundZoneAusschnitt"
+                                        RenderOptions.BitmapScalingMode="HighQuality"
+                                        Source="{Binding WasserzeichenTrefferzoneBild}"
+                                        Stretch="Uniform" />
+                                    <Image
+                                        x:Name="IMG_BefundZoneKarte"
+                                        Opacity="0.7"
+                                        Source="{Binding WasserzeichenTrefferzoneKarte}"
+                                        Stretch="Uniform" />
+                                </Grid>
+                            </Border>
+
                             <StackPanel
                                 x:Name="STP_WasserzeichenBefund"
-                                Grid.Column="1"
+                                Grid.Column="2"
                                 Orientation="Vertical">
 
                                 <TextBlock
@@ -2272,7 +2344,7 @@
                                 <TextBlock
                                     x:Name="TXT_WasserzeichenBefundMuster"
                                     Margin="0,3,0,0"
-                                    d:Text="anilvlai · oben rechts"
+                                    d:Text="Künzler1 · oben rechts"
                                     FontFamily="Segoe UI"
                                     FontSize="11"
                                     Text="{Binding WasserzeichenBefundMuster}"
@@ -2303,18 +2375,48 @@
                                 <TextBlock
                                     x:Name="TXT_WasserzeichenBefundMetadaten"
                                     Margin="0,3,0,0"
-                                    d:Text="Autor: AnilvlAi"
+                                    d:Text="Autor: Künzler1"
                                     FontFamily="Segoe UI"
                                     FontSize="10"
                                     Foreground="#FF6B7280"
                                     Text="{Binding WasserzeichenBefundMetadaten}"
                                     TextWrapping="Wrap" />
+
+                                <!--
+                                    Auf Klick, nicht von selbst: Die Karte kostet ein
+                                    Bild von der Platte, und beim Durchblättern will
+                                    man die Zahl, nicht die Begründung.
+                                -->
+                                <Button
+                                    x:Name="BTN_WasserzeichenTrefferzone"
+                                    Margin="0,6,0,0"
+                                    Padding="6,1"
+                                    HorizontalAlignment="Left"
+                                    Command="{Binding CommandExecuteWasserzeichenTrefferzoneCommand}"
+                                    Cursor="Hand"
+                                    FontSize="10"
+                                    Style="{StaticResource OutlineButtonStyle}"
+                                    ToolTip="Zeigt den geprüften Ausschnitt und darin rot die Punkte, die die Übereinstimmung tragen. Damit ist zu sehen, ob wirklich das Zeichen gefunden wurde oder nur eine Motivkante zufällig zum Muster passte."
+                                    Visibility="{Binding WasserzeichenBefundHatBild, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                                    <TextBlock x:Name="TXT_WzTrefferzoneLabel">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Text" Value="Trefferzone zeigen" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding WasserzeichenTrefferzoneVorhanden}" Value="True">
+                                                        <Setter Property="Text" Value="Trefferzone ausblenden" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Button>
                             </StackPanel>
 
                             <!--  Erklärung rechts: die Zahlen sind ohne Einordnung wenig wert  -->
                             <Border
                                 x:Name="BRD_BefundHilfe"
-                                Grid.Column="2"
+                                Grid.Column="3"
                                 Width="18"
                                 Height="18"
                                 Margin="8,0,0,0"
@@ -2349,6 +2451,13 @@
                                                 TextWrapping="Wrap" />
 
                                             <TextBlock
+                                                x:Name="TXT_WzHilfeTrefferzone"
+                                                Margin="0,6,0,0"
+                                                FontSize="11"
+                                                Text="„Trefferzone zeigen“ setzt den geprüften Ausschnitt daneben und färbt rot ein, woher die Übereinstimmung kommt: Jeder Bildpunkt trägt einen Teil zur Zahl bei, und die Summe aller eingefärbten Stellen ist genau der Prozentwert darüber. Zeigen sich dieselben Striche wie im Muster links, wurde das Zeichen gefunden; leuchtet nur eine einzelne Kante des Motivs, hat etwas anderes zufällig gepasst."
+                                                TextWrapping="Wrap" />
+
+                                            <TextBlock
                                                 x:Name="TXT_WzHilfeStelle"
                                                 Margin="0,6,0,0"
                                                 FontSize="11"
@@ -2366,7 +2475,7 @@
                                                 x:Name="TXT_WzHilfeLernen"
                                                 Margin="0,6,0,0"
                                                 FontSize="11"
-                                                Text="Zum Lernen genügen rund 20 Bilder – sie müssen aber alle dasselbe Zeichen an derselben Stelle tragen, und keines darf ohne Zeichen dabei sein. Mehr Bilder machen das Muster nicht besser: Es ist ein Mittelwert, und ein Ordner mit tausenden Bildern verschiedener Zeichentypen mittelt sich zu einer leeren Fläche. Unter 5 Bildern wird nichts gelernt; ab 12 wird zusätzlich geprüft, ob zweierlei Zeichen im Ordner stecken."
+                                                Text="Gelernt wird aus einem Ordner, in dem alle Bilder dasselbe Zeichen an derselben Stelle tragen; keines darf ohne Zeichen dabei sein, unter 5 Bildern entsteht kein Muster. Viele Bilder sind dabei kein Nachteil, sondern der Weg: Die Trennschärfe wächst mit der Wurzel der Bilderzahl. Ein kräftiges Zeichen ist mit 16 Bildern sicher erkannt, ein blasses braucht rund 200 – jeder weitere Ordner wird dem Muster zugerechnet, zu dem er passt. Was das Muster verdirbt, sind gemischte Zeichen in einem Ordner: Sie mitteln sich zu einer leeren Fläche. Ab 12 Bildern wird deshalb geprüft, ob zweierlei Zeichen darin stecken."
                                                 TextWrapping="Wrap" />
 
                                             <TextBlock
@@ -2416,6 +2525,70 @@
                         Text="Noch kein Muster gelernt – es wird nur nach Metadaten gesucht."
                         TextWrapping="Wrap"
                         Visibility="{Binding WasserzeichenMaskeVorhanden, Converter={StaticResource ConverterVisiblityBoolianInvertiert}}" />
+
+                    <!--
+                        Zweiter Fall, andere Lösung: Muster sind da, aber keines davon
+                        wurde je nachgemessen — die tragen eine Schwelle aus der
+                        selbstbezüglichen Einmessung und lassen nur ihre eigenen
+                        Lernbilder durch. Der Hinweis oben blieb hier weg, weil er nur
+                        zählt, ob überhaupt ein Muster existiert.
+
+                        Schwache Muster gehören ausdrücklich nicht hierher: Die prüfen
+                        mit und finden einen Teil; ihr Stand steht in ihrer Zeile.
+
+                        Beide Zeilen schliessen sich gegenseitig aus: Ohne Muster ist
+                        auch keines verwendbar, dann greift die erste.
+                    -->
+                    <TextBlock
+                        x:Name="TXT_WasserzeichenKeinBelegtesMuster"
+                        Margin="0,10,0,0"
+                        d:Visibility="Collapsed"
+                        FontFamily="Segoe UI"
+                        FontSize="11"
+                        Foreground="#FFB45309"
+                        Text="Kein verwendbares Muster – die vorhandenen stammen aus der Zeit vor der Nachmessung und lassen nur ihre eigenen Lernbilder durch. Bitte einmal neu lernen."
+                        TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding WasserzeichenMaskeVorhanden}" Value="True" />
+                                            <Condition Binding="{Binding WasserzeichenVerwendbaresMusterVorhanden}" Value="False" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <!--
+                        Statuszeile — bewusst hier oben, ausserhalb der Untergliederung.
+
+                        Sie trägt zweierlei: das Ergebnis des Lernens und das Ergebnis der
+                        Wasserzeichen-Prüfung, die beim Indexieren mitläuft. Sie stand
+                        aber unten bei den Lernknöpfen, also in „Muster lernen und
+                        verwalten" — und die ist als Vorgabe zugeklappt. Wer auf Index
+                        klickte, bekam sein Prüfergebnis damit in einen Bereich
+                        geschrieben, den er nicht sieht.
+
+                        Ausserdem über die volle Breite und umbrechend: Vorher stand sie
+                        einzeilig im Restplatz neben dem Knopf und schnitt in diesem
+                        schmalen Panel nach rund vierzig Zeichen ab. Gerade die langen
+                        Meldungen sagen das Nötige — warum ein Muster übersprungen wurde,
+                        wie viele Bilder noch fehlen.
+                    -->
+                    <TextBlock
+                        x:Name="TXT_WasserzeichenStatus"
+                        Margin="0,10,0,0"
+                        d:Text="23 Bild(er) geprüft: 23 mit sichtbarem Zeichen, 0 mit Metadaten-Markierung."
+                        FontFamily="Segoe UI"
+                        FontSize="11"
+                        Foreground="Gray"
+                        Text="{Binding WasserzeichenStatus}"
+                        TextWrapping="Wrap" />
 
                     <!--
                         Untergliederung „Muster lernen und verwalten".
@@ -2516,7 +2689,7 @@
                         FontFamily="Segoe UI"
                         FontSize="11"
                         Foreground="Gray"
-                        Text="Muster einmalig aus einem Beispielordner lernen – danach prüft jedes Indexieren mit."
+                        Text="Muster aus Beispielordnern lernen – danach prüft jedes Indexieren mit. Je mehr Bilder desselben Zeichens, desto sicherer die Erkennung."
                         TextWrapping="Wrap" />
 
                     <!--
@@ -2573,7 +2746,7 @@
                             Command="{Binding CommandExecuteWasserzeichenMaskeLernenCommand}"
                             Cursor="Hand"
                             Style="{StaticResource OutlineButtonStyle}"
-                            ToolTip="Muster aus einem Beispielordner lernen – rund 20 Bilder aus diesem einen Ordner genügen, mindestens 5 werden gebraucht, und alle sollen dasselbe Zeichen tragen.&#x0a;&#x0a;Für ein besseres Muster nicht einen grösseren Ordner nehmen, sondern denselben Knopf für den nächsten Ordner noch einmal aufrufen: Die Bilder werden dem Muster zugerechnet, zu dem sie passen, und ein Muster darf über viele Ordner beliebig gross werden. Genau das macht es allgemeiner – der immer gleiche Teil des Zeichens bleibt, der je Ordner wechselnde verliert an Gewicht.&#x0a;&#x0a;Passt der Ordner zu keinem vorhandenen Muster, entsteht ein neues. Ab 12 Bildern wird ausserdem geprüft, ob der Ordner selbst zweierlei Zeichen enthält; bestätigt sich das, werden zwei Muster daraus.">
+                            ToolTip="Muster aus einem Beispielordner lernen – ohne Haken bei „Ordner wählen“ ist das der Ordner des angezeigten Bildes. Mindestens 5 Bilder, und alle müssen dasselbe Zeichen an derselben Stelle tragen.&#x0a;&#x0a;Je mehr Bilder, desto besser: Die Erkennung wächst mit der Wurzel der Bilderzahl. Ein kräftiges Zeichen – etwa ein Rahmen – ist mit 16 Bildern sicher erkannt; ein blasses, wie das DeviantArt-Zeichen in der Bildmitte, braucht rund 200.&#x0a;&#x0a;Der Knopf lässt sich beliebig oft aufrufen. Jeder weitere Ordner wird dem Muster zugerechnet, zu dem er passt, sonst entsteht ein neues. Ordner desselben Künstlers bringen dabei am meisten; über verschiedene Künstler hinweg wächst es weiter, nur langsamer – dort bleibt am Ende nur der gemeinsame Teil des Zeichens übrig.&#x0a;&#x0a;Ab 12 Bildern wird ausserdem geprüft, ob der Ordner selbst zweierlei Zeichen enthält; bestätigt sich das, werden zwei Muster daraus.">
                             <StackPanel x:Name="STP_WzLernenInhalt" Orientation="Horizontal">
                                 <TextBlock
                                     x:Name="IC_WzLernen"
@@ -2602,18 +2775,26 @@
                             ToolTip="Lernen abbrechen"
                             Visibility="{Binding CommandExecuteWasserzeichenMaskeLernenCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}}" />
 
-                        <TextBlock
-                            x:Name="TXT_WasserzeichenStatus"
+                        <!--
+                            Ohne Haken kein Dialog: gelernt wird der Ordner des angezeigten
+                            Bildes. Der Dialog kam bisher bei jedem Lauf und begann ohnehin
+                            genau dort.
+                        -->
+                        <CheckBox
+                            x:Name="CHK_WasserzeichenLernOrdnerWaehlen"
                             Grid.Column="2"
                             Margin="10,0,0,0"
                             VerticalAlignment="Center"
-                            d:Text="Muster aus 32 Bildern gelernt."
+                            VerticalContentAlignment="Center"
+                            Content="Ordner wählen"
                             FontFamily="Segoe UI"
                             FontSize="11"
-                            Foreground="Gray"
-                            Text="{Binding WasserzeichenStatus}"
-                            TextTrimming="CharacterEllipsis" />
+                            Foreground="#FF555555"
+                            IsChecked="{Binding WasserzeichenLernOrdnerWaehlen, Mode=TwoWay}"
+                            ToolTip="Ohne Haken wird der Ordner des angezeigten Bildes gelernt, ohne Rückfrage. Mit Haken fragt ein Dialog nach dem Ordner – für Beispiele, die woanders liegen.&#x0a;&#x0a;Ist gar kein Bildordner bekannt, kommt der Dialog auch ohne Haken." />
+
                     </Grid>
+
 
                     <!--
                         Gelernte Muster. Mehrere sind der Normalfall — ein Anbieter
