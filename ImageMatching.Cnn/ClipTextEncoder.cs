@@ -20,6 +20,12 @@ public sealed class ClipTextEncoder : IDisposable
         _tokenizer = new ClipTokenizer(vocabJsonPath, mergesTxtPath);
     }
 
+    /// <summary>
+    /// Steht das Wort als Ganzes im CLIP-Vokabular? Durchgereicht an den Tokenizer,
+    /// damit der Aufrufer dessen Innenleben nicht kennen muss.
+    /// </summary>
+    public bool KenntGanzesWort(string? wort) => _tokenizer.KenntGanzesWort(wort);
+
     /// <summary>Berechnet das L2-normierte Text-Embedding.</summary>
     public float[] Embed(string text)
     {

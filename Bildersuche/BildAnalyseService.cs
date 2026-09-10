@@ -20,11 +20,18 @@ namespace TestImage.Bildersuche
         private readonly GermanQueryTranslator _uebersetzer = new();
 
         /// <summary>
-        /// Wörter der letzten Suchanfrage, für die es keine Übersetzung gab.
+        /// Wörter der letzten Suchanfrage, für die es keine Übersetzung gab <b>und</b> die
+        /// der Text-Encoder auch nicht selbst kennt.
         ///
         /// Sie gehen unübersetzt in den englischen Text-Encoder und tragen dort nichts
         /// bei. Die Oberfläche nennt sie in der Statuszeile — sonst sieht ein leeres
         /// Ergebnis aus wie „das Bild gibt es nicht", obwohl in Wahrheit das Wort fehlte.
+        ///
+        /// Wer gleich englisch tippt, wird hier nicht mehr gemeldet: „flower" fehlt im
+        /// Übersetzer, ist aber genau das, was CLIP erwartet. Gemessen an einer Stichprobe
+        /// deutscher Begriffe geht dabei nichts verloren — die deutschen Wörter, die es
+        /// ins CLIP-Vokabular geschafft haben, deckt der Übersetzer ohnehin ab und sie
+        /// kommen hier gar nicht erst an.
         /// </summary>
         public IReadOnlyList<string> LetzteNichtUebersetzt { get; private set; } = Array.Empty<string>();
         private CnnDescriptor? _cnn;
@@ -157,7 +164,14 @@ namespace TestImage.Bildersuche
             return await Task.Run<IReadOnlyList<(string Path, float Score)>>(() =>
             {
                 string englisch = _uebersetzer.Translate(frageDeutsch, out var unbekannt);
-                LetzteNichtUebersetzt = unbekannt;
+
+                // Nur melden, was CLIP auch wirklich nichts sagt. Ein Wort mit eigenem
+                // Token im Vokabular geht unübersetzt durch und trifft trotzdem — das
+                // gilt für englische Eingaben ebenso wie für Wörter, die in beiden
+                // Sprachen gleich heissen (Sofa, Hotel, Taxi).
+                LetzteNichtUebersetzt = unbekannt
+                    .Where(w => !_text.KenntGanzesWort(w))
+                    .ToArray();
 
                 int wordCount = englisch.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
                 string clipQuery = wordCount == 1 ? $"a photo of a {englisch}"
@@ -319,6 +333,36 @@ namespace TestImage.Bildersuche
         /// (siehe <see cref="EmbeddingKalibrierung"/>). Die Ähnlichkeitsskala ist dann
         /// eine andere — <paramref name="minSim"/> muss dafür passend gewählt sein.
         /// </param>
+        /// <summary>
+        /// Der Index-Eintrag zum Anfragebild — erst über den Pfad, ersatzweise über den
+        /// Dateinamen.
+        ///
+        /// Der Index hält die Pfade vom Zeitpunkt des Indexierens fest. Diese Anwendung
+        /// verschiebt Bilder aber nach <c>kein_Fav</c> und Geschwisterordner, und genau ein
+        /// solches, bereits weggelegtes Bild nimmt man als Anfrage, um die übersehenen
+        /// Geschwister zu finden. Über den Pfad allein war es nicht auffindbar, der Lauf
+        /// endete ohne Treffer — ohne erkennbaren Grund, denn das Bild lag ja sichtbar in
+        /// der Miniaturleiste.
+        ///
+        /// Der Rückfall über den Dateinamen ist hier gefahrlos: Der Index ist mit
+        /// <c>nurAusDiesemOrdner</c> geladen, umfasst also einen einzigen Ordner, und
+        /// darin sind Dateinamen eindeutig.
+        /// </summary>
+        private static IndexEntry? FindeAnfrage(ImageIndex index, string bildPfad)
+        {
+            var treffer = index.Entries
+                .FirstOrDefault(e => string.Equals(e.Path, bildPfad, StringComparison.OrdinalIgnoreCase));
+
+            if (treffer is not null)
+            {
+                return treffer;
+            }
+
+            string name = Path.GetFileName(bildPfad);
+            return index.Entries.FirstOrDefault(
+                e => string.Equals(Path.GetFileName(e.Path), name, StringComparison.OrdinalIgnoreCase));
+        }
+
         public async Task<IReadOnlyList<(string Path, float Score)>> SucheNachSerieAsync(
             string ordner, string bildPfad, int topN = 80, float minSim = 0.85f,
             CancellationToken abbruch = default, int kalibrierKomponenten = -1)
@@ -336,8 +380,7 @@ namespace TestImage.Bildersuche
 
                 abbruch.ThrowIfCancellationRequested();
 
-                var entry = index.Entries
-                    .FirstOrDefault(e => string.Equals(e.Path, bildPfad, StringComparison.OrdinalIgnoreCase));
+                var entry = FindeAnfrage(index, bildPfad);
                 if (entry is null || entry.Descriptor.Length == 0)
                     return Array.Empty<(string, float)>();
 
@@ -418,6 +461,16 @@ namespace TestImage.Bildersuche
                 return Array.Empty<(string, float)>();
 
             string? heimatOrdner = Path.GetDirectoryName(bildPfad);
+
+            // Liegt das Anfragebild in einer Ablage — der Fall, wenn man ein bereits
+            // weggelegtes Bild als Anfrage nimmt —, hat sein Ordner keine Indexdatei. Dann
+            // gilt der erste Suchordner: Die Aufrufer stellen die Heimat dort an den Anfang.
+            if (string.IsNullOrEmpty(heimatOrdner)
+                || !File.Exists(Path.Combine(heimatOrdner, CacheDateiName)))
+            {
+                heimatOrdner = ordner[0];
+            }
+
             if (string.IsNullOrEmpty(heimatOrdner))
                 return Array.Empty<(string, float)>();
 
@@ -427,8 +480,8 @@ namespace TestImage.Bildersuche
                 var heimat = new ImageIndex(_cnn!);
                 heimat.Load(Path.Combine(heimatOrdner, CacheDateiName), nurAusDiesemOrdner: true);
 
-                var frage = heimat.Entries.FirstOrDefault(
-                    e => string.Equals(e.Path, bildPfad, StringComparison.OrdinalIgnoreCase));
+                // Über Pfad, ersatzweise über den Dateinamen — Begründung bei FindeAnfrage.
+                var frage = FindeAnfrage(heimat, bildPfad);
 
                 if (frage is null || frage.Descriptor.Length == 0)
                     return Array.Empty<(string, float)>();

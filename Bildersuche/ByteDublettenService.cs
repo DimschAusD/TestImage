@@ -32,6 +32,44 @@ namespace TestImage.Bildersuche
     /// </summary>
     internal static class ByteDublettenService
     {
+        /// <summary>
+        /// Was ein Suchlauf über sein eigenes Lesen berichtet: fertiger Satz für die
+        /// Statuszeile, dazu die Einzelwerte für den Fall, dass sie jemand anders braucht.
+        /// </summary>
+        internal sealed class Leseprotokoll
+        {
+            /// <summary>Tatsächlich von den Datenträgern geholte Bytes.</summary>
+            internal long GelesenBytes { get; set; }
+
+            /// <summary>Dauer der Lesephase.</summary>
+            internal TimeSpan Dauer { get; set; }
+
+            /// <summary>Fertiger Zusatz für die Statuszeile — leer bei zu kurzen Läufen.</summary>
+            internal string Text { get; set; } = string.Empty;
+
+            /// <summary>
+            /// Die ausführliche Fassung für den ToolTip: Leseplan mit Begründung, welcher
+            /// Vergleichsweg getragen hat, Menge und Rate. Leer bei zu kurzen Läufen.
+            /// </summary>
+            internal string Auskunft { get; set; } = string.Empty;
+
+            /// <summary>
+            /// Dateien im Dubletten-Ordner, die in den eingestellten Umfang fielen — die
+            /// linke Seite des Vergleichs.
+            ///
+            /// Zusammen mit <see cref="ReferenzDateien"/> die Grundlage für die Aussage,
+            /// ob zwei Ordner deckungsgleich sind: Die Trefferzahl allein sagt nur, wie
+            /// viel von der linken Seite drüben liegt, nicht ob drüben mehr liegt.
+            /// </summary>
+            internal int KandidatenDateien { get; set; }
+
+            /// <summary>
+            /// Dateien im Referenzbestand, die für den Vergleich in Frage kamen — ohne
+            /// alles, was unterhalb des Dubletten-Ordners liegt, und ohne Doppelungen.
+            /// </summary>
+            internal int ReferenzDateien { get; set; }
+        }
+
         private static readonly string[] Bildendungen =
             { ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp" };
 
@@ -57,16 +95,60 @@ namespace TestImage.Bildersuche
         /// Lesepuffer passend zur Datei: so gross wie nötig, höchstens <see cref="LeseBlock"/>.
         /// Eine 1,5-GB-Videodatei bekommt die vollen 4 MB, ein Vorschaubild 64 KB.
         /// </summary>
-        private static int BlockGroesse(long dateiGroesse)
-            => (int)Math.Clamp(dateiGroesse, KleinsterBlock, LeseBlock);
+        /// <summary>
+        /// Lesepuffer für den Direktvergleich auf einer drehenden Platte. Dort laufen
+        /// zwei Ströme gleichzeitig — Referenz und Kandidat —, und der eine Lesekopf muss
+        /// zwischen ihnen hin und her.
+        ///
+        /// Mit 4-MB-Blöcken kostet ein solcher Sprung (Positionieren plus eine halbe
+        /// Umdrehung, zusammen um die 10 ms) rund ein Viertel der Zeit, die der Block
+        /// selbst zum Übertragen braucht. Der Sprung bleibt gleich teuer, wenn der Block
+        /// wächst: Bei 16 MB fällt er kaum noch ins Gewicht.
+        /// </summary>
+        private const int GrosserLeseBlock = 16 * 1024 * 1024;
+
+        private static int BlockGroesse(long dateiGroesse, bool grosseBloecke = false)
+            => (int)Math.Clamp(
+                dateiGroesse, KleinsterBlock, grosseBloecke ? GrosserLeseBlock : LeseBlock);
+
+        /// <summary>
+        /// Eigener Vorrat für die grossen Blöcke.
+        ///
+        /// Der gemeinsame <see cref="ArrayPool{T}.Shared"/> hält nur Puffer bis 1 MB vor;
+        /// alles darüber legt er bei jedem Ausleihen neu an und wirft es beim Zurückgeben
+        /// weg. Bei 16-MB-Blöcken wären das je Vergleich zwei frische Brocken auf dem
+        /// Haufen für grosse Objekte — genau die Sorte Müll, die sich schlecht aufräumen
+        /// lässt. Vier Stück reichen: So viele Puffer sind nie gleichzeitig unterwegs,
+        /// denn grosse Blöcke gibt es nur bei einem einzigen Leser (zwei Puffer).
+        /// </summary>
+        private static readonly ArrayPool<byte> GrossPuffer =
+            ArrayPool<byte>.Create(GrosserLeseBlock, 4);
+
+        /// <summary>Passender Puffervorrat zur Blockgrösse.</summary>
+        private static ArrayPool<byte> PufferVorrat(int block)
+            => block > 1024 * 1024 ? GrossPuffer : ArrayPool<byte>.Shared;
 
         /// <summary>
         /// Gleichzeitige Leser auf Netzlaufwerken. Mehr bremsen dort, statt zu nützen:
         /// Die Bandbreite der Freigabe teilt sich auf alle Ströme auf, und die
         /// Gegenstelle beginnt bei vielen parallelen Grossleseaufträgen zu drosseln.
-        /// Lokal bleibt es bei einem Leser je Prozessorkern.
         /// </summary>
         private const int NetzParallel = 4;
+
+        /// <summary>
+        /// Gleichzeitige Leser auf einer drehenden Platte voller kleiner Dateien. Hier
+        /// entscheidet nicht die Übertragungsrate, sondern wie oft der Kopf positioniert;
+        /// mit mehreren offenen Aufträgen kann die Platte selbst sie in eine günstige
+        /// Reihenfolge bringen (NCQ). Bei grossen Dateien nützt das nichts mehr.
+        /// </summary>
+        private const int PlatteKleinParallel = 4;
+
+        /// <summary>
+        /// Ab dieser Grösse zählt eine Datei als gross: Ihr Lesen dauert lang genug, dass
+        /// Suchzeiten nicht mehr ins Gewicht fallen — und lang genug, dass jeder weitere
+        /// Leser auf derselben Platte nur noch stört.
+        /// </summary>
+        private const long GrosseDatei = 32L * 1024 * 1024;
 
         /// <summary>
         /// Mindestanteil, den eine Datei am Fortschritt hat. Öffnen, Suchen und Schliessen
@@ -80,6 +162,58 @@ namespace TestImage.Bildersuche
 
         /// <summary>Anteil einer Datei am Gesamtfortschritt (Bytes, mindestens der Sockel).</summary>
         private static long Gewicht(long groesse) => Math.Max(groesse, MindestGewicht);
+
+        /// <summary>
+        /// Wie viele Dateien gleichzeitig gelesen werden — und wie gross die Blöcke dabei
+        /// sein sollen.
+        ///
+        /// Bis hierher galt „ein Leser je Prozessorkern", sofern nichts im Netz lag. Das
+        /// ist die falsche Grösse: Gelesen wird nicht mit dem Prozessor, sondern mit dem,
+        /// was unter dem Ordner liegt.
+        ///
+        /// <list type="bullet">
+        /// <item><b>Netzfreigabe</b> – die Leitung teilt sich auf alle Ströme auf, und die
+        /// Gegenstelle drosselt bei zu vielen. Bleibt bei <see cref="NetzParallel"/>.</item>
+        /// <item><b>Drehende Platte, grosse Dateien</b> – ein einziger Lesekopf. Acht
+        /// gleichzeitige Videovergleiche sind sechzehn Ströme, zwischen denen er
+        /// unablässig springt; er überträgt dadurch keinen Deut mehr, verliert aber die
+        /// Sprünge. Genau ein Vergleich zur Zeit, dafür mit grossen Blöcken.</item>
+        /// <item><b>Drehende Platte, kleine Dateien</b> – hier zählt die Zahl der
+        /// Positionierungen, nicht die Datenmenge. Mehrere offene Aufträge lassen die
+        /// Platte selbst günstig umsortieren: <see cref="PlatteKleinParallel"/>.</item>
+        /// <item><b>SSD oder unbekannt</b> – kein Kopf, der springen könnte; Tiefe hilft.
+        /// Es bleibt bei einem Leser je Kern.</item>
+        /// </list>
+        ///
+        /// Die Dateigrösse ist dabei kein Ratewert: Grösse und Anzahl der Kandidaten
+        /// stehen zu diesem Zeitpunkt bereits fest.
+        /// </summary>
+        /// <param name="dateien">Zahl der Kandidaten.</param>
+        /// <param name="bytes">Datenmenge der Kandidaten.</param>
+        private static (int Leser, bool GrosseBloecke, string Grund) BestimmeLeseplan(
+            string dublettenOrdner, IReadOnlyList<string> referenzOrdner, int dateien, long bytes)
+        {
+            int kerne = Environment.ProcessorCount;
+
+            // Liegt eine der beiden Seiten im Netz, gilt die kleinere Leserzahl für den
+            // ganzen Lauf — die Netzseite ist ohnehin die Bremse.
+            if (IstNetzpfad(dublettenOrdner) || referenzOrdner.Any(IstNetzpfad))
+                return (Math.Min(NetzParallel, kerne), false, "Netzfreigabe");
+
+            bool drehendePlatte =
+                Laufwerkskunde.BestimmeGeraet(dublettenOrdner) is { Bekannt: true, DrehendePlatte: true }
+                || referenzOrdner.Any(o =>
+                    Laufwerkskunde.BestimmeGeraet(o) is { Bekannt: true, DrehendePlatte: true });
+
+            if (!drehendePlatte)
+                return (kerne, false, "keine Suchzeiten (SSD oder unbekannt)");
+
+            long schnitt = dateien > 0 ? bytes / dateien : 0;
+
+            return schnitt >= GrosseDatei
+                ? (1, true, "drehende Platte, grosse Dateien")
+                : (Math.Min(PlatteKleinParallel, kerne), false, "drehende Platte, kleine Dateien");
+        }
 
         /// <summary>
         /// Sucht im Dubletten-Ordner alle Dateien, die byte-identisch auch in einem
@@ -116,6 +250,11 @@ namespace TestImage.Bildersuche
         /// konnten. Diese sind <b>nicht</b> als „kein Duplikat" zu verstehen — sie wurden
         /// gar nicht erst verglichen.
         /// </param>
+        /// <param name="protokoll">
+        /// Nimmt auf, was der Lauf über sein eigenes Lesen sagen kann. Nötig, weil die
+        /// letzte Fortschrittsmeldung vom Aufrufer sofort durch seinen eigenen
+        /// Ergebnistext ersetzt wird und dort sonst verloren ginge.
+        /// </param>
         internal static async Task<List<ByteDublettenTreffer>> FindeByteDublettenAsync(
             string dublettenOrdner,
             IReadOnlyList<string> referenzOrdner,
@@ -125,7 +264,8 @@ namespace TestImage.Bildersuche
             bool tiefenpruefung,
             IProgress<(long Erledigt, long Gesamt, string Text)>? fortschritt,
             CancellationToken token,
-            List<string>? nichtLesbarAusgabe = null)
+            List<string>? nichtLesbarAusgabe = null,
+            Leseprotokoll? protokoll = null)
         {
             var treffer = new List<ByteDublettenTreffer>();
 
@@ -175,6 +315,11 @@ namespace TestImage.Bildersuche
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
+            // Vor allen Abkürzungen festhalten: Der Aufrufer braucht die Menge beider
+            // Seiten auch dann, wenn der Lauf gleich hier endet.
+            if (protokoll is not null)
+                protokoll.ReferenzDateien = referenzDateien.Count;
+
             if (referenzDateien.Count == 0)
             {
                 fortschritt?.Report((0, 0,
@@ -187,6 +332,9 @@ namespace TestImage.Bildersuche
                     () => SammleDateien(dublettenOrdner, suchTiefe, alleDateitypen), token))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
+
+            if (protokoll is not null)
+                protokoll.KandidatenDateien = kandidatenDateien.Count;
 
             if (kandidatenDateien.Count == 0)
             {
@@ -244,7 +392,7 @@ namespace TestImage.Bildersuche
 
             if (kandidaten.Count == 0)
             {
-                fortschritt?.Report((0, 0, "Keine Byte-Duplikate gefunden."));
+                fortschritt?.Report((0, 0, "Keine Duplikate gefunden."));
                 return treffer;
             }
 
@@ -273,13 +421,6 @@ namespace TestImage.Bildersuche
                     hashKandidaten.Add(kandidat);
             }
 
-            // Liegt eine der beiden Seiten im Netz, gilt die kleinere Leserzahl für den
-            // ganzen Lauf — die Netzseite ist ohnehin die Bremse.
-            int leserParallel =
-                IstNetzpfad(dublettenOrdner) || referenzOrdner.Any(IstNetzpfad)
-                    ? Math.Min(NetzParallel, Environment.ProcessorCount)
-                    : Environment.ProcessorCount;
-
             // --- Stufe 2: Hashes berechnen ---
             // Nur die Referenzdateien hashen, deren Schlüssel überhaupt bei Kandidaten vorkommt.
             var relevanteSchluessel = hashKandidaten.Select(k => k.Schluessel).ToHashSet();
@@ -297,15 +438,40 @@ namespace TestImage.Bildersuche
             //
             // Ein direkt verglichener Kandidat zählt doppelt: Bei ihm werden Referenz und
             // Kandidat in einem Zug gelesen, dafür entfällt das Hashen der Referenz.
+            //
+            // Dieses Gewicht steuert ausschliesslich Balken und Restzeit und wird NICHT
+            // angezeigt. Es enthält die Referenzseite, den Sockel je Datei und den
+            // doppelten Ansatz der Direktvergleiche und liegt deshalb weit über dem, was
+            // im Dubletten-Ordner liegt — bei 12 GB Dubletten standen als Menge 23 GB da.
             long gesamt = zuHashendeBasis.Sum(b => Gewicht(b.Groesse))
                           + hashKandidaten.Sum(k => Gewicht(k.Schluessel.Groesse))
                           + direktKandidaten.Sum(k => 2 * Gewicht(k.Schluessel.Groesse));
             long erledigt = 0;
 
-            // Die Stückzahl bleibt daneben stehen: Bei tausenden kleinen Dateien sagt
-            // „342 von 5000" mehr über den Stand als eine Megabyte-Angabe.
-            int dateienGesamt = zuHashendeBasis.Count + hashKandidaten.Count + direktKandidaten.Count;
+            // --- Angezeigte Menge: allein die Dubletten-Seite ---
+            //
+            // Genannt wird, wie viel vom Dubletten-Ordner abgeglichen ist — dieselben
+            // Dateien und dieselben Bytes, die die Karte darüber ausweist. Nur so lässt
+            // sich die Zeile mit dem eigenen Ordner vergleichen.
+            long dublettenGesamt = hashKandidaten.Sum(k => k.Schluessel.Groesse)
+                                   + direktKandidaten.Sum(k => k.Schluessel.Groesse);
+            long dublettenFertig = 0;
+
+            // Die Stückzahl daneben zählt aus demselben Grund nur die Kandidaten: Bei
+            // tausenden kleinen Dateien sagt „342 von 5000" mehr über den Stand als eine
+            // Megabyte-Angabe — aber nur, wenn sich die 5000 im Ordner wiederfinden.
+            int dateienGesamt = hashKandidaten.Count + direktKandidaten.Count;
             int dateienFertig = 0;
+
+            // Erst jetzt steht fest, womit man es zu tun hat — und erst damit lässt sich
+            // beantworten, wie viele Dateien gleichzeitig angefasst werden dürfen.
+            var plan = BestimmeLeseplan(dublettenOrdner, referenzOrdner, dateienGesamt, dublettenGesamt);
+            int leserParallel = plan.Leser;
+
+            // Tatsächlich von den Datenträgern geholte Bytes — ohne Sockel, ohne
+            // Doppelzählung. Nur damit lässt sich am Ende eine Leserate angeben, und nur
+            // eine gemessene Rate sagt, ob der Leseplan etwas taugt.
+            long echtGelesen = 0;
 
             // Wie viele Dateien gerade unter den Händen sind.
             //
@@ -316,14 +482,28 @@ namespace TestImage.Bildersuche
             // bearbeiteten Dateien daneben ist die Null erklärt, statt verdächtig zu sein.
             int dateienInArbeit = 0;
 
+            // Getrennt gezählt: Solange nur Referenzdateien gehasht werden, rührt sich
+            // an der Dubletten-Seite nichts — Stückzahl und Menge stünden ohne Erklärung
+            // still, während der Balken läuft.
+            int basisInArbeit = 0;
+
             var meldeUhr = Stopwatch.StartNew();
             long letzteMeldungMs = -MeldeAbstandMs;
 
             // Bucht gelesene Bytes und meldet den Stand — höchstens alle MeldeAbstandMs,
             // sonst überschütten die parallelen Leser die Oberfläche mit Meldungen.
-            Action<long> melde = bytes =>
+            //
+            // Drei Werte: das Fortschrittsgewicht für Balken und Restzeit, die Bytes der
+            // Dubletten-Seite für die angezeigte Menge, und die wirklich vom Datenträger
+            // geholten Bytes für die Leserate.
+            Action<long, long, long> melde = (bytes, dublettenBytes, echteBytes) =>
             {
                 long fertig = Interlocked.Add(ref erledigt, bytes);
+                long ordner = Interlocked.Add(ref dublettenFertig, dublettenBytes);
+
+                if (echteBytes != 0)
+                    Interlocked.Add(ref echtGelesen, echteBytes);
+
                 long jetzt = meldeUhr.ElapsedMilliseconds;
                 long letzte = Interlocked.Read(ref letzteMeldungMs);
 
@@ -337,11 +517,18 @@ namespace TestImage.Bildersuche
                 long ziel = gesamt;
                 int stueck = Volatile.Read(ref dateienFertig);
                 int laufend = Volatile.Read(ref dateienInArbeit);
+                int basisLaufend = Volatile.Read(ref basisInArbeit);
+
+                string zusatz =
+                    laufend > 0 ? $" ({laufend} in Arbeit)"
+                    : basisLaufend > 0 ? " (Referenzbestand wird gelesen)"
+                    : string.Empty;
 
                 fortschritt?.Report((Math.Min(fertig, ziel), ziel,
                     $"Wird geprüft … {stueck} von {dateienGesamt} Dateien"
-                    + (laufend > 0 ? $" ({laufend} in Arbeit)" : string.Empty)
-                    + $" – {GroesseText(fertig)} von {GroesseText(ziel)}"));
+                    + zusatz
+                    + $" – {GroesseText(Math.Min(ordner, dublettenGesamt))}"
+                    + $" von {GroesseText(dublettenGesamt)}"));
             };
 
             var basisHashes = new ConcurrentDictionary<string, List<string>>(StringComparer.Ordinal);
@@ -365,8 +552,8 @@ namespace TestImage.Bildersuche
                     try
                     {
                         if (await SindByteGleichAsync(
-                                basisDatei, kandidat.Datei, 2 * Gewicht(groesse),
-                                nichtLesbar, melde, ct))
+                                basisDatei, kandidat.Datei, 2 * Gewicht(groesse), groesse,
+                                plan.GrosseBloecke, nichtLesbar, melde, ct))
                         {
                             treffersammlung.Add(new ByteDublettenTreffer
                             {
@@ -394,11 +581,14 @@ namespace TestImage.Bildersuche
                 {
                     var datei = eintrag.Datei;
 
-                    Interlocked.Increment(ref dateienInArbeit);
+                    // Referenzdatei: zählt weder zur Stückzahl noch zur Menge — beides
+                    // benennt den Dubletten-Ordner. Nur der Balken kennt diese Arbeit.
+                    Interlocked.Increment(ref basisInArbeit);
                     try
                     {
                         var hash = await BerechneHashAsync(
-                            datei, Gewicht(eintrag.Groesse), nichtLesbar, melde, ct);
+                            datei, Gewicht(eintrag.Groesse), 0,
+                            plan.GrosseBloecke, nichtLesbar, melde, ct);
 
                         if (hash != null)
                         {
@@ -407,12 +597,10 @@ namespace TestImage.Bildersuche
                                 _ => new List<string> { datei },
                                 (_, liste) => { lock (liste) { liste.Add(datei); } return liste; });
                         }
-
-                        Interlocked.Increment(ref dateienFertig);
                     }
                     finally
                     {
-                        Interlocked.Decrement(ref dateienInArbeit);
+                        Interlocked.Decrement(ref basisInArbeit);
                     }
                 });
 
@@ -428,7 +616,8 @@ namespace TestImage.Bildersuche
                     try
                     {
                         var hash = await BerechneHashAsync(
-                            kandidat.Datei, Gewicht(groesse), nichtLesbar, melde, ct);
+                            kandidat.Datei, Gewicht(groesse), groesse,
+                            plan.GrosseBloecke, nichtLesbar, melde, ct);
 
                         // Zählt der Name mit, steckt er auch im Hash-Schlüssel: Sonst fänden
                         // sich über den reinen Inhalts-Hash wieder Dateien beliebigen Namens.
@@ -492,10 +681,26 @@ namespace TestImage.Bildersuche
                 : $" {uebergangen} Datei(en) waren gesperrt und konnten nicht geprüft werden – Suche später wiederholen.";
 
             long ziel = Interlocked.Read(ref gesamt);
+
+            long geholt = Interlocked.Read(ref echtGelesen);
+            TimeSpan lesedauer = meldeUhr.Elapsed;
+            var leistung = Leseleistung(
+                geholt, lesedauer, plan, direktKandidaten.Count, hashKandidaten.Count);
+
+            if (protokoll is not null)
+            {
+                protokoll.GelesenBytes = geholt;
+                protokoll.Dauer = lesedauer;
+                protokoll.Text = leistung.Zeile;
+                protokoll.Auskunft = leistung.Auskunft;
+            }
+
             fortschritt?.Report((ziel, ziel,
                 (treffer.Count == 0
-                    ? "Keine Byte-Duplikate gefunden."
-                    : $"{treffer.Count} Byte-Duplikate gefunden.") + zusatz));
+                    ? "Keine Duplikate gefunden."
+                    : $"{treffer.Count} Duplikate gefunden.")
+                + zusatz
+                + leistung.Zeile));
 
             return treffer;
         }
@@ -724,38 +929,66 @@ namespace TestImage.Bildersuche
         /// </summary>
         private sealed class FortschrittsKonto
         {
-            private readonly Action<long>? _melde;
+            private readonly Action<long, long, long>? _melde;
             private readonly long _budget;
+            private readonly long _dublettenBudget;
             private long _gebucht;
+            private long _dublettenGebucht;
 
-            internal FortschrittsKonto(Action<long>? melde, long budget)
+            /// <param name="budget">Fortschrittsgewicht dieser Datei (Balken, Restzeit).</param>
+            /// <param name="dublettenBudget">
+            /// Bytes, die auf der Dubletten-Seite liegen — 0 bei einer Referenzdatei.
+            /// Nur diese Menge wird angezeigt.
+            /// </param>
+            internal FortschrittsKonto(Action<long, long, long>? melde, long budget, long dublettenBudget)
             {
                 _melde = melde;
                 _budget = budget;
+                _dublettenBudget = dublettenBudget;
             }
 
-            internal void Bucht(long bytes)
+            /// <param name="echteBytes">
+            /// Vom Datenträger geholt — 0 beim blossen Auffüllen am Ende. Diese Zahl trägt
+            /// die Leserate und darf nichts enthalten, was nie gelesen wurde.
+            /// </param>
+            internal void Bucht(long bytes, long dublettenBytes, long echteBytes)
             {
                 _gebucht += bytes;
-                _melde?.Invoke(bytes);
+                _dublettenGebucht += dublettenBytes;
+                _melde?.Invoke(bytes, dublettenBytes, echteBytes);
             }
 
-            /// <summary>Nimmt alles Gebuchte zurück — vor einem erneuten Leseversuch.</summary>
+            /// <summary>
+            /// Nimmt alles Gebuchte zurück — vor einem erneuten Leseversuch.
+            ///
+            /// Die Leserate bleibt davon unberührt: Was vor dem Fehlschlag gelesen wurde,
+            /// hat die Platte tatsächlich geliefert und tatsächlich Zeit gekostet.
+            /// </summary>
             internal void Zurueck()
             {
-                if (_gebucht == 0)
+                if (_gebucht == 0 && _dublettenGebucht == 0)
                     return;
 
-                _melde?.Invoke(-_gebucht);
+                _melde?.Invoke(-_gebucht, -_dublettenGebucht, 0);
                 _gebucht = 0;
+                _dublettenGebucht = 0;
             }
 
-            /// <summary>Bucht den Rest bis zum Budget — am Ende, wie es auch ausgegangen ist.</summary>
+            /// <summary>
+            /// Bucht den Rest bis zum Budget — am Ende, wie es auch ausgegangen ist.
+            ///
+            /// Auch die Dubletten-Seite wird aufgefüllt: Ein Direktvergleich bricht an der
+            /// ersten abweichenden Stelle ab, die Datei ist damit aber abgeglichen. Ohne
+            /// das Auffüllen bliebe die angezeigte Menge unter dem Ordner stehen, während
+            /// die Stückzahl vollzählig ist.
+            /// </summary>
             internal void Abschluss()
             {
                 long rest = _budget - _gebucht;
-                if (rest > 0)
-                    Bucht(rest);
+                long restDubletten = _dublettenBudget - _dublettenGebucht;
+
+                if (rest > 0 || restDubletten > 0)
+                    Bucht(Math.Max(rest, 0), Math.Max(restDubletten, 0), 0);
             }
         }
 
@@ -844,10 +1077,14 @@ namespace TestImage.Bildersuche
         /// Trefferliste.
         /// </summary>
         private static async Task<string?> BerechneHashAsync(
-            string datei, long budget, ConcurrentBag<string>? nichtLesbar,
-            Action<long>? melde, CancellationToken token)
+            string datei, long budget, long dublettenBudget, bool grosseBloecke,
+            ConcurrentBag<string>? nichtLesbar,
+            Action<long, long, long>? melde, CancellationToken token)
         {
-            var konto = new FortschrittsKonto(melde, budget);
+            var konto = new FortschrittsKonto(melde, budget, dublettenBudget);
+
+            // Referenzdateien (Budget 0) gehen nicht in die angezeigte Menge ein.
+            bool zaehltZurDublettenSeite = dublettenBudget > 0;
 
             try
             {
@@ -861,20 +1098,21 @@ namespace TestImage.Bildersuche
 
                         using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
 
-                        int block = BlockGroesse(stream.Length);
-                        var puffer = ArrayPool<byte>.Shared.Rent(block);
+                        int block = BlockGroesse(stream.Length, grosseBloecke);
+                        var vorrat = PufferVorrat(block);
+                        var puffer = vorrat.Rent(block);
                         try
                         {
                             int gelesen;
                             while ((gelesen = await LiesBlockAsync(stream, puffer, block, token)) > 0)
                             {
                                 hasher.AppendData(puffer, 0, gelesen);
-                                konto.Bucht(gelesen);
+                                konto.Bucht(gelesen, zaehltZurDublettenSeite ? gelesen : 0, gelesen);
                             }
                         }
                         finally
                         {
-                            ArrayPool<byte>.Shared.Return(puffer);
+                            vorrat.Return(puffer);
                         }
 
                         return Convert.ToHexString(hasher.GetHashAndReset());
@@ -916,11 +1154,16 @@ namespace TestImage.Bildersuche
         /// Vergleich doppelt so viele Bytes wie eine Datei gross ist. Wie beim Hashen wird
         /// bei gesperrter Datei nachgefasst und ein endgültiger Fehlschlag vermerkt.
         /// </summary>
+        /// <param name="a">Referenzdatei (bleibt liegen).</param>
+        /// <param name="b">Datei aus dem Dubletten-Ordner — allein sie geht in die angezeigte Menge ein.</param>
+        /// <param name="budget">Fortschrittsgewicht beider Seiten zusammen.</param>
+        /// <param name="dublettenBudget">Grösse von <paramref name="b"/>, die angezeigte Menge.</param>
         private static async Task<bool> SindByteGleichAsync(
-            string a, string b, long budget, ConcurrentBag<string>? nichtLesbar,
-            Action<long>? melde, CancellationToken token)
+            string a, string b, long budget, long dublettenBudget, bool grosseBloecke,
+            ConcurrentBag<string>? nichtLesbar,
+            Action<long, long, long>? melde, CancellationToken token)
         {
-            var konto = new FortschrittsKonto(melde, budget);
+            var konto = new FortschrittsKonto(melde, budget, dublettenBudget);
 
             try
             {
@@ -936,9 +1179,10 @@ namespace TestImage.Bildersuche
                         if (stromA.Length != stromB.Length)
                             return false;
 
-                        int block = BlockGroesse(stromA.Length);
-                        var pufferA = ArrayPool<byte>.Shared.Rent(block);
-                        var pufferB = ArrayPool<byte>.Shared.Rent(block);
+                        int block = BlockGroesse(stromA.Length, grosseBloecke);
+                        var vorrat = PufferVorrat(block);
+                        var pufferA = vorrat.Rent(block);
+                        var pufferB = vorrat.Rent(block);
 
                         try
                         {
@@ -959,7 +1203,9 @@ namespace TestImage.Bildersuche
                                 int gelesenA = auftragA.Result;
                                 int gelesenB = auftragB.Result;
 
-                                konto.Bucht(gelesenA + gelesenB);
+                                // Gelesen werden beide Seiten, angezeigt wird nur der
+                                // Anteil der Dubletten-Datei.
+                                konto.Bucht(gelesenA + gelesenB, gelesenB, gelesenA + gelesenB);
 
                                 if (gelesenA != gelesenB)
                                     return false;
@@ -973,8 +1219,8 @@ namespace TestImage.Bildersuche
                         }
                         finally
                         {
-                            ArrayPool<byte>.Shared.Return(pufferA);
-                            ArrayPool<byte>.Shared.Return(pufferB);
+                            vorrat.Return(pufferA);
+                            vorrat.Return(pufferB);
                         }
                     }
                     catch (OperationCanceledException)
@@ -1006,6 +1252,44 @@ namespace TestImage.Bildersuche
                 konto.Abschluss();
             }
         }
+
+        /// <summary>
+        /// Was der Lauf von den Datenträgern geholt hat, wie schnell, und mit welchem
+        /// Leseplan. Ohne diese Zeile lässt sich nicht beurteilen, ob eine Suche lange
+        /// gedauert hat, weil viel zu lesen war, oder weil schlecht gelesen wurde.
+        /// </summary>
+        private static (string Zeile, string Auskunft) Leseleistung(
+            long gelesen, TimeSpan dauer, (int Leser, bool GrosseBloecke, string Grund) plan,
+            int direkt, int ueberHash)
+        {
+            // Unter einer Sekunde ist die Rate reines Rauschen.
+            if (gelesen <= 0 || dauer.TotalSeconds < 1)
+                return (string.Empty, string.Empty);
+
+            double mbProSekunde = gelesen / 1024.0 / 1024.0 / dauer.TotalSeconds;
+            int block = (plan.GrosseBloecke ? GrosserLeseBlock : LeseBlock) / (1024 * 1024);
+
+            string zeile = $" — {GroesseText(gelesen)} gelesen in {Zeitspanne(dauer)}"
+                           + $", {mbProSekunde:0} MB/s"
+                           + $" (par. {plan.Leser}, {direkt + ueberHash} ges.)";
+
+            // Der Grund gehört nicht in die Zeile, aber auch nicht weg: Welcher Weg den
+            // Lauf getragen hat, ordnet eine schwache Rate zu. Der Direktvergleich ist
+            // durch den Datenträger begrenzt, der Weg über die Prüfsumme durch den
+            // Prozessor — ohne diese Angabe rät man beim nächsten Mal wieder.
+            string auskunft =
+                $"Leseplan: {plan.Leser} gleichzeitig, {block}-MB-Blöcke — {plan.Grund}."
+                + $"\n{direkt} direkt verglichen, {ueberHash} über Prüfsumme."
+                + $"\n{GroesseText(gelesen)} gelesen in {Zeitspanne(dauer)}, {mbProSekunde:0} MB/s.";
+
+            return (zeile, auskunft);
+        }
+
+        /// <summary>Dauer als m:ss, bei kurzen Läufen in Sekunden.</summary>
+        private static string Zeitspanne(TimeSpan dauer)
+            => dauer.TotalMinutes >= 1
+                ? $"{(int)dauer.TotalMinutes}:{dauer.Seconds:00} min"
+                : $"{dauer.TotalSeconds:0} s";
 
         /// <summary>Bytes lesbar als MB oder GB.</summary>
         private static string GroesseText(long bytes)
@@ -1051,7 +1335,65 @@ namespace TestImage.Bildersuche
         /// bei „nur Bilder" zusätzlich sämtliche Nicht-Bilddateien.
         /// </summary>
         internal static int ZaehleVerbleibendeDateien(string? ordner)
-            => ListeVerbleibendeDateien(ordner, int.MaxValue)?.Count ?? -1;
+            => MisstVerbleibendeDateien(ordner).Anzahl;
+
+        /// <summary>
+        /// Zählt die verbliebenen Dateien und summiert dabei ihre Grösse.
+        /// Anzahl −1 und 0 Bytes, wenn der Ordner fehlt oder nicht lesbar ist.
+        ///
+        /// Gelaufen wird über <see cref="DirectoryInfo"/> statt über blosse Pfade: Die
+        /// Länge steht bereits in dem Verzeichniseintrag, den die Auflistung ohnehin
+        /// liest, und kostet deshalb keinen zusätzlichen Zugriff je Datei.
+        ///
+        /// Ordner für Ordner aus demselben Grund wie bei
+        /// <see cref="ListeVerbleibendeDateien"/>: Ein einziger unzugänglicher
+        /// Unterordner soll nicht den ganzen Durchlauf kosten.
+        /// </summary>
+        internal static (int Anzahl, long Bytes) MisstVerbleibendeDateien(string? ordner)
+        {
+            if (string.IsNullOrWhiteSpace(ordner) || !Directory.Exists(ordner))
+                return (-1, 0);
+
+            int anzahl = 0;
+            long bytes = 0;
+
+            var offen = new Stack<DirectoryInfo>();
+            offen.Push(new DirectoryInfo(ordner));
+
+            while (offen.Count > 0)
+            {
+                var aktuell = offen.Pop();
+
+                try
+                {
+                    foreach (var datei in aktuell.EnumerateFiles())
+                    {
+                        anzahl++;
+
+                        // Länge kann fehlschlagen, wenn die Datei zwischendurch
+                        // verschwindet – die Datei bleibt trotzdem gezählt.
+                        try { bytes += datei.Length; }
+                        catch { }
+                    }
+                }
+                catch
+                {
+                    // Dieser Ordner ist nicht lesbar – die übrigen trotzdem zählen.
+                }
+
+                try
+                {
+                    foreach (var unter in aktuell.EnumerateDirectories())
+                        offen.Push(unter);
+                }
+                catch
+                {
+                    // Unterordner nicht auflistbar – der Rest zählt weiter.
+                }
+            }
+
+            return (anzahl, bytes);
+        }
 
         /// <summary>
         /// Sammelt die verbliebenen Dateien, höchstens <paramref name="hoechstens"/> Stück.

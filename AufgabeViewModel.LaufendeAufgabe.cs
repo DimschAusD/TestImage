@@ -1,4 +1,5 @@
-﻿using CommunityToolkit.Mvvm.Input;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using System;
 
 namespace TestImage
@@ -56,7 +57,27 @@ namespace TestImage
         /// langsamen Platte kommentarlos still, und genau dafür ist der Warte-Indikator da.
         /// </summary>
         public bool WartenLäuft =>
-            AufgabeLäuft || CommandExecuteKleinesBildGrossesBildLadenCommand.IsRunning;
+            AufgabeLäuft
+            || CommandExecuteKleinesBildGrossesBildLadenCommand.IsRunning
+            || OrdnerEinlesenLäuft;
+
+        /// <summary>
+        /// True, solange ein abgelegter Ordner eingelesen wird (<c>OnFileDrop</c>).
+        ///
+        /// Der Vorgang hatte bis dahin keine Anzeige: Er setzt weder <c>PrüfungLäuft</c>
+        /// noch <c>IndexLaeuft</c>, läuft aber je nach Laufwerk ein bis zwei Sekunden.
+        /// Zu sehen war in dieser Zeit nichts als das alte Bild — auf einem Netz- oder
+        /// Wechsellaufwerk sah das aus, als sei die Ablage ins Leere gegangen.
+        ///
+        /// Bewusst nicht in <see cref="AufgabeLäuft"/>: Der Fortschrittsstreifen der
+        /// Kopfleiste zeigt nur, was man abbrechen kann, und das Einlesen kann man
+        /// nicht abbrechen. Es gehört zum Warten, nicht zu den Aufgaben.
+        /// </summary>
+        [ObservableProperty]
+        public partial bool OrdnerEinlesenLäuft { get; set; }
+
+        partial void OnOrdnerEinlesenLäuftChanged(bool value) =>
+            OnPropertyChanged(nameof(WartenLäuft));
 
         /// <summary>
         /// Hängt <see cref="WartenLäuft"/> an das Bildladen. Aufruf aus dem Konstruktor.
@@ -88,6 +109,11 @@ namespace TestImage
                     return IndexFortschritt;
                 }
 
+                if (WasserzeichenAufgabeLäuft)
+                {
+                    return WasserzeichenFortschritt;
+                }
+
                 // Eine Quelle für alle Prüfbefehle. Vorher gab es daneben noch
                 // ProzentAbgleich — einen fertig formatierten Anzeigetext, den diese
                 // Eigenschaft zurücklesen musste. Er ist entfallen; jede Prüfung meldet
@@ -97,13 +123,16 @@ namespace TestImage
         }
 
         /// <summary>
-        /// True, solange es keinen zählbaren Fortschritt gibt — beim Wasserzeichen-Lernen
-        /// und in der Anlaufphase des Indexierens, in der CLIP seine Modelle lädt. Der
-        /// Balken läuft dann als Schraffur durch, statt bei null zu stehen und wie ein
-        /// Hänger auszusehen.
+        /// True, solange es keinen zählbaren Fortschritt gibt — in der Anlaufphase des
+        /// Indexierens, in der CLIP seine Modelle lädt, und bis zur ersten Stückmeldung
+        /// der übrigen Vorgänge. Der Balken läuft dann als Schraffur durch, statt bei
+        /// null zu stehen und wie ein Hänger auszusehen.
+        ///
+        /// Das Wasserzeichen-Lernen stand hier früher fest drin, weil es nichts Zählbares
+        /// meldete. Es meldet jetzt (<see cref="WasserzeichenFortschritt"/>) und läuft
+        /// deshalb über dieselbe Regel wie alle anderen.
         /// </summary>
-        public bool AufgabeUnbestimmt =>
-            AufgabeLäuft && (WasserzeichenAufgabeLäuft || AufgabeFortschritt <= 0);
+        public bool AufgabeUnbestimmt => AufgabeLäuft && AufgabeFortschritt <= 0;
 
         /// <summary>Statustext des laufenden Vorgangs.</summary>
         public string AufgabeText
@@ -222,7 +251,11 @@ namespace TestImage
         partial void OnIndexFortschrittChanged(double value) => MeldeAufgabeGeaendert();
         partial void OnIndexFortschrittTextChanged(string value) => MeldeAufgabeGeaendert();
         partial void OnPercentageValueVerschiebenChanged(double value) => MeldeAufgabeGeaendert();
-        partial void OnWasserzeichenAufgabeLäuftChanged(bool value) => MeldeAufgabeGeaendert();
+        partial void OnWasserzeichenAufgabeLäuftChanged(bool value)
+        {
+            OnPropertyChanged(nameof(WasserzeichenUnbestimmt));
+            MeldeAufgabeGeaendert();
+        }
         partial void OnWasserzeichenStatusChanged(string value) => MeldeAufgabeGeaendert();
     }
 }

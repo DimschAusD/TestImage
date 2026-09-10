@@ -15,6 +15,39 @@
     d:DesignWidth="800"
     mc:Ignorable="d">
 
+    <UserControl.Resources>
+        <!--
+            Dunkle Pille für die schwebenden Knöpfe oben rechts: über einem Bild muss der
+            Knopf lesbar bleiben, ohne es zu beanspruchen. Entspricht dem, was
+            BTN_BildmodusVollbild seit jeher fest eingebaut hat.
+        -->
+        <Style x:Key="VollbildWerkzeugKnopf" TargetType="{x:Type Button}">
+            <Setter Property="Opacity" Value="0.6" />
+            <Setter Property="Background" Value="#88000000" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border
+                            x:Name="BRD_WerkzeugFläche"
+                            Padding="4"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Opacity" Value="0.9" />
+                    <Setter Property="Background" Value="#CC007ACC" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
     <!--
         Vollbildansicht (IsImageMaximiert = true): eigenes Bild, Klickzonen,
         Schwebe-Filmstrip, Hover-Zone, Drop-Overlay.
@@ -40,6 +73,22 @@
         PreviewMouseLeftButtonDown="Vollbild_ZiehenStart"
         PreviewMouseLeftButtonUp="Vollbild_ZiehenEnde"
         PreviewMouseMove="Vollbild_Ziehen">
+
+        <!--
+            Zwei Spalten: links das Bild samt aller Überlagerungen, rechts das
+            Eigenschaften-Feld.
+
+            Eine eigene Spalte statt einer Auflage über dem Bild — sonst verdeckte das
+            Feld ausgerechnet den Teil, den man gerade beurteilt. Ist es zu, misst die
+            Spalte 0 und das Bild hat wie bisher die ganze Fläche.
+
+            Alle bestehenden Elemente stehen ohne Grid.Column und liegen damit weiter in
+            Spalte 0 — auch die Klickzonen, die deshalb nicht unter das Feld reichen.
+        -->
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition x:Name="COL_VollbildBild" Width="*" />
+            <ColumnDefinition x:Name="COL_VollbildInfo" Width="Auto" />
+        </Grid.ColumnDefinitions>
 
         <!--
             Eigenes Vollbild-Image (Fit). Die Ablage hängt am Wurzel-Grid, nicht hier:
@@ -609,6 +658,13 @@
             sichtbar werden sie nur für die 200 ms der Animation. Der Verlauf endet in
             derselben Farbe mit Alpha null — nicht in Transparent: Sonst liefe er über
             Weiss und legte einen milchigen Rand über das Bild.
+
+            <b>d:IsLocked.</b> Der Entwurfsfläche ist IsHitTestVisible gleichgültig; sie
+            wählt immer das oberste Element. Da beide Kanten mit ZIndex 235 über der
+            Werkzeugleiste und der Miniaturleiste liegen, käme man dort mit der Maus an
+            keinen Knopf mehr heran. d:IsLocked nimmt sie nur im Entwurf aus der Auswahl
+            und wird beim Übersetzen entfernt; über das Dokumentgliederungs-Fenster sind
+            sie weiterhin erreichbar.
         -->
         <Border
             x:Name="BRD_KantenscheinUnten"
@@ -617,6 +673,7 @@
             Panel.ZIndex="235"
             IsHitTestVisible="False"
             Opacity="0"
+            d:IsLocked="True"
             d:Opacity="0.55">
             <Border.Background>
                 <LinearGradientBrush StartPoint="0,1" EndPoint="0,0">
@@ -632,7 +689,8 @@
             VerticalAlignment="Top"
             Panel.ZIndex="235"
             IsHitTestVisible="False"
-            Opacity="0">
+            Opacity="0"
+            d:IsLocked="True">
             <Border.Background>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                     <GradientStop x:Name="GRS_KantenscheinObenVoll" Offset="0" Color="#FFDDE3EA" />
@@ -692,7 +750,9 @@
                         BorderThickness="1"
                         CornerRadius="23"
                         Opacity="0"
-                        d:Opacity="1">
+                        Visibility="Collapsed"
+                        d:Opacity="1"
+                        d:Visibility="Visible">
                         <Path
                             x:Name="PTH_WarteRing"
                             Width="26"
@@ -712,6 +772,24 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <DataTrigger Binding="{Binding WartenLäuft}" Value="True">
+
+                            <!--
+                                Die Sichtbarkeit hängt an diesem Setter, nicht an der
+                                Deckkraft-Animation darunter. Ein Setter wird beim
+                                Verlassen der Bedingung immer zurückgenommen; eine
+                                Animation kann hängenbleiben, wenn das StopStoryboard
+                                daneben greift — und dann klebt ein Ring auf dem Bild,
+                                der sich nicht mehr dreht.
+
+                                Genau das trat auf, wenn die Bildinfo offen war und ein
+                                Bild verschoben wurde: Der Warte-Zustand wechselte
+                                dreimal in 90 ms, Ein- und Ausblenden überholten sich.
+                                Die Deckkraft-Animation bleibt — sie macht das
+                                verzögerte, weiche Erscheinen, das ein Aufblitzen bei
+                                kurzen Ladevorgängen verhindert.
+                            -->
+                            <Setter TargetName="BRD_WarteFläche" Property="Visibility" Value="Visible" />
+
                             <DataTrigger.EnterActions>
                                 <BeginStoryboard x:Name="SBD_Warten">
                                     <Storyboard>
@@ -798,6 +876,25 @@
 
             <ansichten:IndikatorLeiste x:Name="CTL_Indikatoren" VerticalAlignment="Center" Margin="0,0,20,0" />
 
+            <!--
+                Eigenschaften ein- und ausblenden. Gleiche dunkle Pille wie der Knopf
+                daneben, damit die beiden als eine Leiste lesbar bleiben.
+            -->
+            <Button
+                x:Name="BTN_BildinfoToggle"
+                Width="28"
+                Height="28"
+                Margin="0,0,6,0"
+                VerticalAlignment="Center"
+                Command="{Binding CommandExecuteBildinfoToggleCommand}"
+                Content="&#xE946;"
+                Cursor="Hand"
+                Focusable="False"
+                FontFamily="Segoe MDL2 Assets"
+                FontSize="14"
+                Style="{StaticResource VollbildWerkzeugKnopf}"
+                ToolTip="Eigenschaften des Bildes ein-/ausblenden" />
+
             <Button
                 x:Name="BTN_BildmodusVollbild"
                 Width="28"
@@ -838,5 +935,123 @@
                 </Button.Style>
             </Button>
         </StackPanel>
+
+        <!--
+            Eigenschaften-Feld, rechte Spalte. Klappt es zu, bleibt von der Spalte nichts
+            übrig — deshalb Visibility Collapsed statt bloss durchsichtig.
+
+            Eigener dunkler Grund statt Glas über dem Bild: Das Feld steht neben den
+            Pixeln, nicht darauf, und darf sie deshalb auch farblich nicht aufnehmen.
+
+            Die Spalte ist immer sofort da oder sofort weg — animiert wird nur, wie das
+            Feld hereingleitet (TTF_Bildinfo und Opacity). Eine animierte Breite hiesse
+            eine animierte Fensterbreite, und die läuft nicht im selben Takt wie das
+            Layout: Das Bild dazwischen zappelte um seine Sollbreite, die Titelleiste
+            zöge nach. Sichtbarkeit steuert deshalb SetzeBildinfoSpalte im Code-Behind
+            und kein DataTrigger — beim Zuklappen darf die Spalte erst verschwinden,
+            wenn das Feld draussen ist.
+        -->
+        <Border
+            x:Name="BRD_Bildinfo"
+            Grid.Column="1"
+            Width="300"
+            Background="#FF1B1B1B"
+            BorderBrush="#FF303030"
+            BorderThickness="1,0,0,0"
+            Visibility="Collapsed">
+            <Border.RenderTransform>
+                <TranslateTransform x:Name="TTF_Bildinfo" />
+            </Border.RenderTransform>
+
+            <Grid x:Name="GRD_Bildinfo" Margin="14,12,14,12">
+                <Grid.RowDefinitions>
+                    <RowDefinition x:Name="ROW_BildinfoKopf" Height="Auto" />
+                    <RowDefinition x:Name="ROW_BildinfoListe" Height="*" />
+                </Grid.RowDefinitions>
+
+                <StackPanel x:Name="STP_BildinfoKopf" Grid.Row="0">
+                    <TextBlock
+                        x:Name="TXT_BildinfoTitel"
+                        d:Text="Eigenschaften"
+                        FontSize="11"
+                        Foreground="#FF8A8A8A"
+                        Text="Eigenschaften" />
+
+                    <!--
+                        Umbruch statt Auslassungspunkte: Dateinamen aus Serienmitschnitten
+                        sind lang und unterscheiden sich erst am Ende (Folge, Zeitstempel).
+                        Gekürzt stand dort bei jedem Bild derselbe Anfang.
+
+                        Wrap bricht überlange Namen ohne Leerzeichen auch mitten im Wort um,
+                        sonst stünde die Zeile über die Feldbreite hinaus.
+                    -->
+                    <TextBlock
+                        x:Name="TXT_BildinfoDatei"
+                        Margin="0,6,0,0"
+                        d:Text="Beispielbild.jpg"
+                        FontSize="14"
+                        FontWeight="SemiBold"
+                        Foreground="White"
+                        Text="{Binding BildinfoDatei}"
+                        TextWrapping="Wrap" />
+
+                    <!--
+                        Der Ordner darf umbrechen: Bei tiefen Pfaden ist der interessante
+                        Teil das Ende, und abgeschnitten stünde dort nur der Anfang.
+                    -->
+                    <TextBlock
+                        x:Name="TXT_BildinfoOrdner"
+                        Margin="0,3,0,10"
+                        d:Text="C:\Bilder\Sammlung"
+                        FontSize="11"
+                        Foreground="#FF9A9A9A"
+                        Text="{Binding BildinfoOrdner}"
+                        TextWrapping="Wrap"
+                        ToolTip="{Binding BildinfoOrdner}" />
+                </StackPanel>
+
+                <ScrollViewer
+                    x:Name="SCV_Bildinfo"
+                    Grid.Row="1"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+                    <ItemsControl x:Name="IC_Bildinfo" ItemsSource="{Binding BildinfoZeilen}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <!--
+                                    Bezeichnung über den Wert statt daneben: Werte wie ein
+                                    Modellname oder ein Copyright-Vermerk sind länger als
+                                    jede Spalte, die neben der Bezeichnung noch bliebe.
+                                -->
+                                <StackPanel Margin="0,0,0,10">
+                                    <TextBlock
+                                        FontSize="10"
+                                        Foreground="#FF7A7A7A"
+                                        Text="{Binding Feld}"
+                                        TextWrapping="Wrap">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Feld}" Value="">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+
+                                    <TextBlock
+                                        FontSize="12"
+                                        Foreground="#FFE4E4E4"
+                                        Text="{Binding Wert}"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
+        </Border>
     </Grid>
 </UserControl>

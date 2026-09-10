@@ -120,6 +120,22 @@
             <Setter Property="SnapsToDevicePixels" Value="True" />
         </Style>
 
+        <!--
+            Optionsgruppe, die sich während eines Laufs sperrt.
+            
+            Die Haken darin sind über IsEnabled bereits gesperrt, aber ihre Symbole tragen
+            ausdrücklich gesetzte Farben — und die macht die Ausgrauung von WPF nicht mit.
+            Übrig bliebe ein halb blasses Bild: matte Beschriftung neben Symbolen in voller
+            Farbe. Die Gruppe wird deshalb als Ganzes zurückgenommen.
+        -->
+        <Style x:Key="Optionsgruppe" TargetType="StackPanel">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DublettenOptionenBedienbar}" Value="False">
+                    <Setter Property="Opacity" Value="0.45" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
     </UserControl.Resources>
 
     <!--  Byte-Dubletten-Ansicht: aus dem Dubletten-Ordner löschen, Referenzbestand behalten.  -->
@@ -194,6 +210,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition x:Name="ROW_OrdnerTitel" Height="Auto" />
                     <RowDefinition x:Name="ROW_Dubletten" Height="Auto" />
+                    <RowDefinition x:Name="ROW_Tauschen" Height="Auto" />
                     <RowDefinition x:Name="ROW_Referenz" Height="Auto" />
                     <RowDefinition x:Name="ROW_Optionen" Height="Auto" />
                 </Grid.RowDefinitions>
@@ -313,14 +330,42 @@
                 </Border>
 
                 <!--
+                    Der Tausch betrifft beide Zeilen, deshalb steht er zwischen ihnen –
+                    wie der Richtungspfeil zwischen Start und Ziel im Routenplaner.
+                    In der Knopfspalte des Referenzordners stand er zwar bei seiner
+                    Bedingung (Markierung in der Liste), sah dort aber aus wie eine
+                    weitere Aktion auf der Referenzseite allein.
+                -->
+                <Button
+                    x:Name="BTN_OrdnerseitenTauschen"
+                    Grid.Row="2"
+                    Margin="0,6,0,0"
+                    HorizontalAlignment="Right"
+                    Background="White"
+                    Command="{Binding CommandExecuteOrdnerseitenTauschenCommand}"
+                    Style="{StaticResource ButtonBasis}"
+                    ToolTip="Markierten Referenzordner und Dubletten-Ordner vertauschen – gelöscht wird danach im markierten Ordner">
+                    <StackPanel x:Name="STP_SeitenTauschenInhalt" Orientation="Horizontal">
+                        <TextBlock
+                            x:Name="IC_SeitenTauschen"
+                            Margin="0,0,6,0"
+                            VerticalAlignment="Center"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="12"
+                            Text="&#xE8AB;" />
+                        <TextBlock x:Name="TXT_SeitenTauschen" Text="Seiten tauschen" />
+                    </StackPanel>
+                </Button>
+
+                <!--
                     Referenzordner: der Bestand, der bleibt. Gleicher Rahmen wie die
                     Dubletten-Zeile, nur in Grün – die beiden Seiten sollen sich auf
                     einen Blick unterscheiden lassen.
                 -->
                 <Border
                     x:Name="BRD_ReferenzZeile"
-                    Grid.Row="2"
-                    Margin="0,10,0,0"
+                    Grid.Row="3"
+                    Margin="0,6,0,0"
                     Padding="8"
                     local:OrdnerDropHelper.Command="{Binding CommandExecuteReferenzOrdnerAusDropCommand}"
                     CornerRadius="8"
@@ -468,30 +513,35 @@
                 <!--
                     Optionen unter den beiden gerahmten Zeilen. GRD_Ordner hat keine
                     Spalten, ein Grid.Column wäre hier wirkungslos.
-
+                    
                     WrapPanel statt StackPanel: Die beiden Optionsgruppen, die
                     Einlese-Anzeige und der Entfernen-Knopf passen nicht immer
                     nebeneinander. Im StackPanel ragte das letzte Element seitlich
                     heraus; hier bricht es um, und die Karte wächst mit (Zeile ist Auto).
-
+                    
                     Die vier Haken sind zwei verschiedene Sorten und deshalb getrennt
                     beschriftet: „Umfang" bestimmt, WAS eingesammelt wird, und liest den
                     Ordner sofort neu ein. „Kriterium" bestimmt, WIE verglichen wird, und
-                    wirkt erst beim nächsten Suchlauf. In einer Reihe nebeneinander war
-                    weder das eine noch das andere zu erkennen — auch nicht, warum die
-                    ersten beiden sofort etwas tun und die anderen scheinbar nichts.
-
+                    wirkt erst beim nächsten Suchlauf — ein vorheriges Suchergebnis fällt
+                    beim Umschalten allerdings weg, weil es nach dem alten Kriterium
+                    entstanden ist. In einer Reihe nebeneinander war weder das eine noch
+                    das andere zu erkennen — auch nicht, warum die ersten beiden sofort
+                    etwas tun und die anderen scheinbar nichts.
+                    
                     Gruppen als eigene StackPanel: So bleibt eine Gruppe beim Umbruch
                     zusammen, statt zwischen Beschriftung und Haken zu zerreissen.
                 -->
                 <WrapPanel
                     x:Name="STP_DublettenOptionen"
-                    Grid.Row="3"
+                    Grid.Row="4"
                     Margin="2,12,0,0"
                     Orientation="Horizontal">
 
                     <!--  ===== Gruppe: Umfang — was überhaupt eingesammelt wird =====  -->
-                    <StackPanel x:Name="STP_GruppeUmfang" Margin="0,0,0,4">
+                    <StackPanel
+                        x:Name="STP_GruppeUmfang"
+                        Margin="0,0,0,4"
+                        Style="{StaticResource Optionsgruppe}">
                         <TextBlock
                             x:Name="TXT_GruppeUmfang"
                             Margin="0,0,0,5"
@@ -506,6 +556,7 @@
                             FontSize="12"
                             Foreground="#FF1F2937"
                             IsChecked="{Binding DublettenMitUnterordnern}"
+                            IsEnabled="{Binding DublettenOptionenBedienbar}"
                             ToolTip="Aus: nur der Ordner selbst. Ein: alle Unterordner mit – auf grossen Bäumen deutlich langsamer.">
                             <StackPanel x:Name="STP_UnterordnerInhalt" Orientation="Horizontal">
                                 <TextBlock
@@ -531,6 +582,7 @@
                             FontSize="12"
                             Foreground="#FF1F2937"
                             IsChecked="{Binding DublettenAlleDateitypen}"
+                            IsEnabled="{Binding DublettenOptionenBedienbar}"
                             ToolTip="Aus: nur Bilddateien (jpg, png, bmp, gif, webp). Ein: jede Datei – auch Archive, Videos, Dokumente. Die Liste wird sofort neu eingelesen.">
                             <StackPanel x:Name="STP_DateitypenInhalt" Orientation="Horizontal">
                                 <TextBlock
@@ -569,7 +621,10 @@
                         Background="#FFE2E8F0" />
 
                     <!--  ===== Gruppe: Kriterium — wann etwas als Dublette gilt =====  -->
-                    <StackPanel x:Name="STP_GruppeKriterium" Margin="0,0,0,4">
+                    <StackPanel
+                        x:Name="STP_GruppeKriterium"
+                        Margin="0,0,0,4"
+                        Style="{StaticResource Optionsgruppe}">
                         <TextBlock
                             x:Name="TXT_GruppeKriterium"
                             Margin="0,0,0,5"
@@ -590,6 +645,7 @@
                             FontSize="12"
                             Foreground="#FF1F2937"
                             IsChecked="{Binding DublettenNurGleicherName}"
+                            IsEnabled="{Binding DublettenOptionenBedienbar}"
                             ToolTip="Aus: jede Datei wird gegen den gesamten Bestand gleicher Grösse geprüft. Ein: nur gegen Dateien mit demselben Dateinamen – die Ordner dürfen anders heissen. Deutlich schneller, besonders über Netzlaufwerke.">
                             <StackPanel x:Name="STP_NurGleicherNameInhalt" Orientation="Horizontal">
                                 <TextBlock
@@ -621,7 +677,7 @@
                             übrig, und das räumt wahllos ab. Deshalb nur bedienbar,
                             solange der Haken darüber gesetzt ist — sichtbar bleibt er
                             trotzdem, sonst fände ihn niemand.
-
+                            
                             Das Symbol wechselt in den Warnzustand, sobald der Inhalt nicht
                             mehr geprüft wird — der riskante Zustand soll auffallen, ohne
                             dass man den Haken liest. Im gesperrten Zustand wird es
@@ -636,7 +692,7 @@
                             FontSize="12"
                             Foreground="#FF1F2937"
                             IsChecked="{Binding DublettenTiefenpruefung}"
-                            IsEnabled="{Binding DublettenNurGleicherName}"
+                            IsEnabled="{Binding DublettenTiefenpruefungBedienbar}"
                             ToolTip="Ein (Vorgabe): Der Inhalt wird gelesen und geprüft – ein Treffer ist dann sicher. Aus: Es entscheidet allein der Dateiname, keine Datei wird geöffnet. Das ist in Sekunden fertig, kann aber gleichnamige Dateien mit verschiedenem Inhalt zusammenbringen. Nur zusammen mit „Nur gleicher Dateiname“ abschaltbar.">
                             <StackPanel x:Name="STP_TiefenpruefungInhalt" Orientation="Horizontal">
                                 <TextBlock
@@ -714,9 +770,10 @@
                             x:Name="TXT_EinlesenHinweis"
                             Margin="8,0,0,0"
                             VerticalAlignment="Center"
+                            d:Text="liest … 240 / 1200 · 3,45 GB"
                             FontSize="11"
                             Foreground="Gray"
-                            Text="liest …" />
+                            Text="{Binding DublettenEinlesenHinweis}" />
 
                         <Button
                             x:Name="BTN_EinlesenAbbrechen"
@@ -772,7 +829,7 @@
                         x:Name="TXT_OrdnerRestHinweis"
                         Margin="24,0,0,4"
                         VerticalAlignment="Center"
-                        d:Text="noch 143 Dateien im Dubletten-Ordner"
+                        d:Text="noch 143 Dateien im Dubletten-Ordner · 12,04 GB"
                         FontSize="11"
                         Foreground="Gray"
                         Text="{Binding DublettenOrdnerRestText}"
@@ -835,13 +892,19 @@
                         Balken, sonst stünde dieselbe Angabe zweimal untereinander.
                     -->
                     <Grid x:Name="GRD_StatusZeile">
+                        <!--
+                            Der ToolTip trägt die Auskunft zum letzten Lauf: Leseplan mit
+                            Begründung, welcher Vergleichsweg getragen hat, Menge und
+                            Rate. In der Zeile selbst wäre das zu lang — sie schneidet ab.
+                        -->
                         <TextBlock
                             x:Name="TXT_DublettenStatus"
-                            d:Text="Wird in den Papierkorb verschoben … 12 von 40"
+                            d:Text="Wird geprüft … 12 von 40 Dateien (4 in Arbeit) – 3,60 GB von 12,04 GB"
                             FontSize="12"
                             Foreground="#FF374151"
                             Text="{Binding DublettenStatus}"
-                            TextTrimming="CharacterEllipsis" />
+                            TextTrimming="CharacterEllipsis"
+                            ToolTip="{Binding DublettenStatusAuskunft}" />
                     </Grid>
 
                     <!--  Balken, Restzeit und Abbruch in einer Zeile  -->
@@ -904,6 +967,7 @@
             <Grid x:Name="GRD_Treffer">
                 <Grid.RowDefinitions>
                     <RowDefinition x:Name="ROW_TrefferKopf" Height="Auto" />
+                    <RowDefinition x:Name="ROW_Gleichstand" Height="Auto" />
                     <RowDefinition x:Name="ROW_TrefferListe" Height="*" />
                 </Grid.RowDefinitions>
 
@@ -978,7 +1042,7 @@
                             „0 markiert – 0,0 MB". Das las sich wie ein Ergebnis, war aber
                             nur der Anfangszustand. Deshalb tritt für die Dauer der Suche
                             eine Wortmeldung an ihre Stelle.
-
+                            
                             Beim Löschlauf bleiben die Zahlen stehen — dort zählen sie
                             tatsächlich herunter und sind die eigentliche Information.
                         -->
@@ -1047,9 +1111,108 @@
                     </Border>
                 </Grid>
 
+                <!--
+                    Ergebnis des Ordnervergleichs (FileSync-Denke): Deckt sich der
+                    Dubletten-Ordner mit dem Referenzordner, steht das hier in einem Satz.
+                    Grün nur im Ganz-oder-gar-nicht-Fall — jede Einschränkung (Rest auf
+                    einer Seite, gesperrte Dateien, mehrere Referenzordner, ungeprüfter
+                    Inhalt) bleibt neutral grau, damit „grün" nie zu viel verspricht.
+                    Ohne Aussage ist der Text leer und die Zeile verschwindet.
+                -->
+                <Border
+                    x:Name="BRD_Gleichstand"
+                    Grid.Row="1"
+                    Margin="0,0,0,8"
+                    Padding="10,7"
+                    CornerRadius="6"
+                    SnapsToDevicePixels="True">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Background" Value="#FFF8FAFC" />
+                            <Setter Property="BorderBrush" Value="#FFE2E8F0" />
+                            <Setter Property="BorderThickness" Value="1" />
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding DublettenGleichstandText}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding DublettenOrdnerDeckungsgleich}" Value="True">
+                                    <Setter Property="Background" Value="#FFECFDF3" />
+                                    <Setter Property="BorderBrush" Value="#FF6BB68A" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+
+                    <StackPanel x:Name="STP_GleichstandInhalt" Orientation="Horizontal">
+                        <TextBlock
+                            x:Name="IC_Gleichstand"
+                            Margin="0,0,8,0"
+                            VerticalAlignment="Center"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="14">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <!--  Neutraler Stand: die Zeile berichtet, urteilt aber nicht.  -->
+                                    <Setter Property="Text" Value="&#xE946;" />
+                                    <Setter Property="Foreground" Value="#FF64748B" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DublettenOrdnerDeckungsgleich}" Value="True">
+                                            <!--  Haken im Kreis: beide Seiten sind gleich.  -->
+                                            <Setter Property="Text" Value="&#xE930;" />
+                                            <Setter Property="Foreground" Value="#FF059669" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <StackPanel x:Name="STP_GleichstandTexte" VerticalAlignment="Center">
+                            <TextBlock
+                                x:Name="TXT_GleichstandTitel"
+                                d:Text="Deckungsgleich – beide Ordner enthalten dieselben 128 Dateien"
+                                FontSize="12"
+                                FontWeight="SemiBold"
+                                Text="{Binding DublettenGleichstandText}"
+                                TextTrimming="CharacterEllipsis">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="#FF1F2937" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DublettenOrdnerDeckungsgleich}" Value="True">
+                                                <Setter Property="Foreground" Value="#FF065F46" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <TextBlock
+                                x:Name="TXT_GleichstandDetail"
+                                Margin="0,2,0,0"
+                                d:Text="Auch die Ablage stimmt überein – jede Datei liegt auf beiden Seiten im selben Unterordner."
+                                FontSize="11"
+                                Foreground="Gray"
+                                Text="{Binding DublettenGleichstandDetail}"
+                                TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DublettenGleichstandDetail}" Value="">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
                 <Border
                     x:Name="BRD_TrefferListe"
-                    Grid.Row="1"
+                    Grid.Row="2"
                     Background="#FFFCFCFD"
                     BorderBrush="#FFE5E7EB"
                     BorderThickness="1"
@@ -1332,7 +1495,7 @@
                             Treffer werden erst gesetzt, wenn alles verglichen ist. Genau
                             das muss hier stehen, sonst wartet man vor einer leeren Fläche
                             und weiss nicht, ob noch etwas kommt.
-
+                            
                             Der Fortschritt selbst steht bewusst nicht noch einmal hier: Er
                             steht eine Karte höher mit Balken und Restzeit, und zweimal
                             dieselbe Zahl auf einem Schirm liest sich wie zwei Vorgänge.
@@ -1401,8 +1564,8 @@
 
                             <TextBlock
                                 x:Name="TXT_SucheLaeuftHinweis"
-                                Margin="0,4,0,0"
                                 MaxWidth="380"
+                                Margin="0,4,0,0"
                                 HorizontalAlignment="Center"
                                 FontSize="11"
                                 Foreground="Gray"
@@ -1416,7 +1579,7 @@
                             der Suche, nur kürzer: Die Liste ist geleert, und ohne diesen
                             Block stünde mitten darin der alte Leerhinweis. Über ein
                             Netzlaufwerk mit vielen Dateien zieht sich auch das Auflisten.
-
+                            
                             Bewusst ein anderer Text als bei der Suche: Hier wird nichts
                             verglichen, sondern nur aufgezählt, was auf der Löschseite
                             liegt — und die Zusatzbedingung stellt sicher, dass nie beide
@@ -1490,8 +1653,8 @@
 
                             <TextBlock
                                 x:Name="TXT_EinlesenLaeuftHinweis"
-                                Margin="0,4,0,0"
                                 MaxWidth="380"
+                                Margin="0,4,0,0"
                                 HorizontalAlignment="Center"
                                 FontSize="11"
                                 Foreground="Gray"

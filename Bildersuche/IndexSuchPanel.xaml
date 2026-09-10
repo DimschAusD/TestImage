@@ -100,6 +100,30 @@
         CornerRadius="10">
 
         <!--
+            Zwei Zeilen statt eines durchgehenden Stapels: Im Stapel bekam die
+            Trefferfläche nur ihre Wunschhöhe, in einem hohen Fenster blieb darunter
+            eine leere Fläche stehen. Als eigene Sternzeile bekommt sie den Rest der
+            Fensterhöhe.
+
+            An der Breite ändert das nichts: Die Spalte richtet sich weiter nach dem
+            breitesten Kind, wie zuvor der Stapel.
+        -->
+        <Grid x:Name="GRD_Panel">
+            <Grid.RowDefinitions>
+                <RowDefinition x:Name="ROW_PanelWerkzeuge" Height="Auto" />
+                <!--
+                    MinHeight, damit bei einem kleinen Fenster nicht die ganze
+                    Trefferfläche weggequetscht wird: Lieber wird oben etwas
+                    abgeschnitten, als dass unten keine einzige Miniatur mehr zu
+                    sehen ist.
+                -->
+                <RowDefinition
+                    x:Name="ROW_PanelTreffer"
+                    Height="*"
+                    MinHeight="120" />
+            </Grid.RowDefinitions>
+
+        <!--
             Linksbündig statt gedehnt: Sonst nehmen die Karten darunter die volle
             Fensterbreite an, während die Werkzeugleiste bei ihrer Wunschbreite stehen
             bleibt — die Karten ragten rechts über BRD_SchemaHilfe hinaus. So richtet
@@ -108,6 +132,7 @@
         -->
         <StackPanel
             x:Name="STP_Inhalt"
+            Grid.Row="0"
             Margin="6"
             HorizontalAlignment="Left"
             Orientation="Vertical">
@@ -1370,6 +1395,16 @@
                         Foreground="#FF555555"
                         IsChecked="{Binding BegriffeAufDeutsch, Mode=TwoWay}" />
 
+                    <!--
+                        HIER STAND CHK_SortierenWieExplorer.
+
+                        Der Schalter sitzt jetzt hinter dem Zahnrad der Kopfleiste
+                        (BTN_Einstellungen in NormalAnsicht.xaml). Diese Karte klappt nur
+                        über den Filter-Knopf auf und sammelt Suchoptionen; die
+                        Namenssortierung gilt dagegen für die ganze Anwendung und war hier
+                        praktisch nicht zu finden.
+                    -->
+
 
                     <!--  Trennlinie  -->
                     <Border
@@ -1839,6 +1874,52 @@
                             TextWrapping="Wrap" />
 
                         <!--
+                            Platzhalter für die vorgesehene Verschlüsselung. Steht bewusst
+                            hier und nicht bei „Ordner lesen": Er ist die Antwort auf den
+                            Satz direkt darüber, und dort sucht man ihn.
+
+                            Dauerhaft gesperrt, bis die Verschlüsselung gebaut ist —
+                            deshalb kein Command. Ein gesperrter Knopf zeigt in WPF von
+                            sich aus keinen Tooltip; ohne ShowOnDisabled bliebe er also
+                            stumm und sähe aus wie ein Fehler. Der graue Vermerk daneben
+                            sagt es zusätzlich, ohne dass man mit der Maus hinfahren muss.
+                        -->
+                        <StackPanel
+                            x:Name="STP_OcrVerschluesselnReihe"
+                            Margin="0,8,0,0"
+                            Orientation="Horizontal">
+                            <Button
+                                x:Name="BTN_OcrVerschluesseln"
+                                IsEnabled="False"
+                                Style="{StaticResource OutlineButtonStyle}"
+                                ToolTipService.ShowOnDisabled="True"
+                                ToolTip="Den erkannten Text verschlüsselt ablegen statt im Klartext. Noch nicht gebaut — die Cache-Datei führt dafür bereits eine Version mit.">
+                                <StackPanel x:Name="STP_OcrVerschluesselnInhalt" Orientation="Horizontal">
+                                    <TextBlock
+                                        x:Name="TXT_OcrSchlossIcon"
+                                        Margin="0,1,6,0"
+                                        VerticalAlignment="Center"
+                                        FontFamily="Segoe MDL2 Assets"
+                                        FontSize="12"
+                                        Text="&#xE72E;" />
+                                    <TextBlock
+                                        x:Name="TXT_OcrVerschluesselnLabel"
+                                        VerticalAlignment="Center"
+                                        Text="Text verschlüsseln" />
+                                </StackPanel>
+                            </Button>
+
+                            <TextBlock
+                                x:Name="TXT_OcrVerschluesselnVermerk"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"
+                                FontFamily="Segoe UI"
+                                FontSize="11"
+                                Foreground="Gray"
+                                Text="in Vorbereitung" />
+                        </StackPanel>
+
+                        <!--
                             Lesen und Abbrechen. Der Abbrechen-Knopf steht nur da, solange
                             gelesen wird — ein dauerhaft sichtbarer, meist gesperrter Knopf
                             nähme Platz, ohne je etwas zu sagen.
@@ -2058,10 +2139,49 @@
                             Das Kleinbild dagegen nur zugeklappt: Aufgeklappt steht das
                             Muster gleich darunter in 96 Punkten, zweimal dasselbe Zeichen
                             in einer Karte sagt nichts Zusätzliches.
+
+                            Die ganze Zeile schaltet die Karte, nicht nur der Chevron
+                            rechts: Auf den Titel zu klicken ist bei aufklappbaren Karten
+                            das Erwartete, und ein 24 Punkte breiter Knopf am anderen Ende
+                            der Zeile ist das kleinere Ziel. Als Button und nicht per
+                            InputBinding, damit die Fläche auch zwischen den Symbolen
+                            trifft und beim Überfahren zu sehen ist, dass sie schaltet.
+
+                            Focusable aus: Die Zeile ist eine Bequemlichkeit neben dem
+                            Knopf, der den Tabstopp schon hat — zwei Haltepunkte für
+                            dieselbe Handlung wären einer zu viel.
                         -->
+                        <Button
+                            x:Name="BTN_WasserzeichenTitelZeile"
+                            Grid.Column="0"
+                            HorizontalContentAlignment="Left"
+                            VerticalAlignment="Center"
+                            Command="{Binding CommandExecuteWasserzeichenToggleCommand}"
+                            Cursor="Hand"
+                            Focusable="False"
+                            ToolTip="Diese Karte ein- und ausklappen">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border
+                                        x:Name="BRD_TitelZeileFläche"
+                                        Padding="2,3,6,3"
+                                        Background="Transparent"
+                                        CornerRadius="6">
+                                        <ContentPresenter VerticalAlignment="Center" />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="BRD_TitelZeileFläche" Property="Background" Value="#FFF3F4F6" />
+                                        </Trigger>
+                                        <Trigger Property="IsPressed" Value="True">
+                                            <Setter TargetName="BRD_TitelZeileFläche" Property="Background" Value="#FFE5E7EB" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+
                         <StackPanel
                             x:Name="STP_WasserzeichenTitelZeile"
-                            Grid.Column="0"
                             VerticalAlignment="Center"
                             Orientation="Horizontal">
 
@@ -2163,6 +2283,7 @@
                                 </Path.Style>
                             </Path>
                         </StackPanel>
+                        </Button>
 
                         <!--  Dreht sich beim Umschalten, gleiche Mechanik wie TXT_OcrChevron.  -->
                         <Button
@@ -2580,6 +2701,27 @@
                         Meldungen sagen das Nötige — warum ein Muster übersprungen wurde,
                         wie viele Bilder noch fehlen.
                     -->
+                    <!--
+                        Balken über der Statuszeile, wie beim Textlesen: Die Zahlen stehen
+                        darunter im Status, der Balken sagt auf einen Blick, wie weit der
+                        Lauf ist. Ein Lernordner mit vielen Bildern läuft Minuten — vorher
+                        war daran nur eine durchlaufende Schraffur zu sehen.
+
+                        Schraffur bleibt für die Anlaufzeit: Bis zur ersten Stückmeldung
+                        gibt es nichts zu zeigen (WasserzeichenUnbestimmt).
+                    -->
+                    <ProgressBar
+                        x:Name="PGB_WasserzeichenFortschritt"
+                        Height="6"
+                        Margin="0,10,0,0"
+                        d:Value="40"
+                        d:Visibility="Visible"
+                        IsIndeterminate="{Binding WasserzeichenUnbestimmt}"
+                        Maximum="100"
+                        Minimum="0"
+                        Visibility="{Binding WasserzeichenAufgabeLäuft, Converter={StaticResource CLconverterVisiblityBoolian}}"
+                        Value="{Binding WasserzeichenFortschritt}" />
+
                     <TextBlock
                         x:Name="TXT_WasserzeichenStatus"
                         Margin="0,10,0,0"
@@ -2614,15 +2756,50 @@
                             <ColumnDefinition x:Name="COL_WzMusterKnopf" Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock
-                            x:Name="TXT_WasserzeichenMusterTitel"
+                        <!--
+                            Titel schaltet mit, wie in der Kartentitelzeile darüber
+                            (BTN_WasserzeichenTitelZeile). Gleiche Fläche, gleicher
+                            Hover-Grund — nur ohne eigene Grösse, die Schrift ist hier
+                            ohnehin eine Stufe leiser.
+                        -->
+                        <Button
+                            x:Name="BTN_WasserzeichenMusterTitelZeile"
                             Grid.Column="0"
+                            HorizontalContentAlignment="Left"
                             VerticalAlignment="Center"
-                            FontFamily="Segoe UI"
-                            FontSize="12"
-                            FontWeight="SemiBold"
-                            Foreground="#FF374151"
-                            Text="Muster lernen und verwalten" />
+                            Command="{Binding CommandExecuteWasserzeichenMusterToggleCommand}"
+                            Cursor="Hand"
+                            Focusable="False"
+                            ToolTip="Muster-Einrichtung ein- und ausklappen">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border
+                                        x:Name="BRD_MusterTitelZeileFläche"
+                                        Padding="2,3,6,3"
+                                        Background="Transparent"
+                                        CornerRadius="6">
+                                        <ContentPresenter VerticalAlignment="Center" />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="BRD_MusterTitelZeileFläche" Property="Background" Value="#FFF3F4F6" />
+                                        </Trigger>
+                                        <Trigger Property="IsPressed" Value="True">
+                                            <Setter TargetName="BRD_MusterTitelZeileFläche" Property="Background" Value="#FFE5E7EB" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+
+                            <TextBlock
+                                x:Name="TXT_WasserzeichenMusterTitel"
+                                VerticalAlignment="Center"
+                                FontFamily="Segoe UI"
+                                FontSize="12"
+                                FontWeight="SemiBold"
+                                Foreground="#FF374151"
+                                Text="Muster lernen und verwalten" />
+                        </Button>
 
                         <Button
                             x:Name="BTN_WasserzeichenMusterEinklappen"
@@ -3392,14 +3569,28 @@
                 </Grid>
             </Border>
 
-            <!--  Suchergebnisse: klickbare Miniaturen  -->
-            <StackPanel x:Name="STP_SuchErgebnisse" Margin="2,4,2,2">
+        </StackPanel>
+
+            <!--
+                Suchergebnisse: klickbare Miniaturen. Auch hier ein Grid mit Auto/*,
+                damit die Höhe der Zeile bis zum Rollbereich durchreicht und nicht
+                schon bei der Leiste darüber hängen bleibt.
+            -->
+            <Grid
+                x:Name="GRD_SuchErgebnisse"
+                Grid.Row="1"
+                Margin="2,4,2,2">
+                <Grid.RowDefinitions>
+                    <RowDefinition x:Name="ROW_TrefferUebernehmen" Height="Auto" />
+                    <RowDefinition x:Name="ROW_TrefferFlaeche" Height="*" />
+                </Grid.RowDefinitions>
+
                 <!--
                     Treffer in die Bilderliste übernehmen, rechts daneben die Suchmeldung.
                     Grid statt StackPanel, damit die Meldung den Restplatz bekommt und bei
                     langem Text mit Auslassungspunkten endet statt abgeschnitten zu werden.
                 -->
-                <Grid x:Name="GRD_TrefferUebernehmenLeiste">
+                <Grid x:Name="GRD_TrefferUebernehmenLeiste" Grid.Row="0">
                     <Grid.Style>
                         <Style TargetType="Grid">
                             <Setter Property="Visibility" Value="Visible" />
@@ -3477,7 +3668,7 @@
                         FontFamily="Segoe UI"
                         FontSize="12"
                         Foreground="#FF7A4E00"
-                        TextWrapping="Wrap"><Run FontSize="12" Text="Nicht übersetzt: " /><Run
+                        TextWrapping="Wrap"><Run FontSize="12" Text="Unbekannt: " /><Run
                             FontSize="14"
                             FontWeight="Bold"
                             Foreground="#FFB45309"
@@ -3498,11 +3689,25 @@
                     </TextBlock>
                 </Grid>
 
+                <!--
+                    Höhe nach oben gedeckelt auf sechs Miniaturreihen: 78 Punkte Kachel
+                    + 6 Punkte Abstand = 84 je Reihe. Ohne Deckel zog sich die Fläche
+                    bei vielen Treffern über das ganze Fenster und schob alles andere
+                    aus dem Blick. Nach unten bleibt sie beweglich — sie nimmt nur, was
+                    die Zeile ihr lässt, und wird in einem niedrigen Fenster von selbst
+                    kürzer.
+
+                    RequestBringIntoView: siehe Code-Behind — hält die Rollposition
+                    fest, wenn eine Miniatur angeklickt wird.
+                -->
                 <ScrollViewer
                     x:Name="SCV_SuchErgebnisse"
-                    MaxHeight="260"
+                    Grid.Row="1"
+                    MaxHeight="504"
                     Margin="0,8,0,0"
+                    VerticalAlignment="Top"
                     HorizontalScrollBarVisibility="Disabled"
+                    RequestBringIntoView="SuchErgebnisse_RequestBringIntoView"
                     VerticalScrollBarVisibility="Auto">
                     <ItemsControl
                         x:Name="IC_SuchErgebnisse"
@@ -3621,8 +3826,8 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </ScrollViewer>
-            </StackPanel>
+            </Grid>
 
-        </StackPanel>
+        </Grid>
     </Border>
 </UserControl>

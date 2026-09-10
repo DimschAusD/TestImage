@@ -23,6 +23,21 @@ namespace TestImage.Bildersuche
     internal static class OcrDienst
     {
         /// <summary>
+        /// Länge, auf die die längere Kante kleiner Bilder gebracht wird, bevor erkannt
+        /// wird.
+        ///
+        /// Gemessen an einem Kartenausschnitt mit Strassennamen, 1026 × 607: In
+        /// Originalgrösse fand die Engine 2 Wörter, verdoppelt 5 — und die verdoppelten
+        /// waren sauber geschrieben, während in Originalgrösse „Helena-weg“ herauskam.
+        /// Der Lauf kostete dafür 94 statt 254 ms je Bild.
+        ///
+        /// Bilder, die schon grösser sind, bleiben unangetastet: Dort ist die Schrift
+        /// ohnehin gross genug, und die vierfache Fläche wäre nur Rechenzeit.
+        /// </summary>
+        private const uint ZielKante = 2000;
+
+
+        /// <summary>
         /// Die Engine für die Anzeigesprachen des Nutzers. <c>null</c>, wenn für keine
         /// davon ein Erkennungspaket installiert ist.
         ///
@@ -88,6 +103,8 @@ namespace TestImage.Bildersuche
         /// <see cref="OcrEngine.MaxImageDimension"/> ist eine harte Grenze — darüber
         /// wirft RecognizeAsync. Verkleinert wird schon beim Auspacken, nicht danach:
         /// So packt der Decoder gar nicht erst die volle Grösse aus.
+        ///
+        /// <b>Kleine Bilder werden vergrössert</b>, siehe <see cref="ZielKante"/>.
         /// </summary>
         private static async Task<SoftwareBitmap> LadeBitmapAsync(string pfad)
         {
@@ -106,13 +123,26 @@ namespace TestImage.Bildersuche
             uint breite = decoder.PixelWidth;
             uint hoehe = decoder.PixelHeight;
             uint grenze = OcrEngine.MaxImageDimension;
+            uint laengste = Math.Max(breite, hoehe);
 
             var wandlung = new BitmapTransform();
-            if (breite > grenze || hoehe > grenze)
+
+            if (laengste > grenze)
             {
-                double faktor = (double)grenze / Math.Max(breite, hoehe);
+                double faktor = (double)grenze / laengste;
                 wandlung.ScaledWidth = (uint)Math.Max(1, breite * faktor);
                 wandlung.ScaledHeight = (uint)Math.Max(1, hoehe * faktor);
+                wandlung.InterpolationMode = BitmapInterpolationMode.Fant;
+            }
+            else if (laengste > 0 && laengste < ZielKante)
+            {
+                // Höchstens verdoppeln: Darüber hinaus wurde es im Versuch wieder
+                // schlechter — bei Faktor 3 und mehr fand die Engine gar keinen
+                // Textwinkel mehr und lieferte fast nichts.
+                double faktor = Math.Min(2.0, (double)ZielKante / laengste);
+
+                wandlung.ScaledWidth = (uint)Math.Round(breite * faktor);
+                wandlung.ScaledHeight = (uint)Math.Round(hoehe * faktor);
                 wandlung.InterpolationMode = BitmapInterpolationMode.Fant;
             }
 

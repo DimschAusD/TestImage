@@ -86,6 +86,10 @@ namespace TestImage
                 PlaneKonturNeuberechnung();
             else
                 KonturImage = null;   // veraltetes Kantenbild nicht aufheben
+
+            // Das Eigenschaften-Feld gehört zum angezeigten Bild und zieht deshalb hier
+            // mit. Es steigt selbst aus, solange es zugeklappt ist.
+            AktualisiereBildinfo();
         }
 
         partial void OnZeigeKonturChanged(bool value)

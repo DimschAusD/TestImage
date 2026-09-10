@@ -17,6 +17,156 @@ namespace TestImage.Ansichten
     public partial class VollbildAnsicht : UserControl
     {
         /// <summary>
+        /// Breite, die das aufgefahrene Eigenschaften-Feld belegt. Der Host holt sie hier
+        /// ab, um das Fenster um genau diesen Betrag zu verbreitern — so können Spalte und
+        /// Fensterzuwachs nicht auseinanderlaufen.
+        /// </summary>
+        public const double BildinfoSpaltenbreite = 300;
+
+        /// <summary>Läuft gerade eine Fahrt, und wohin? Fängt Umschalten während der Fahrt ab.</summary>
+        private bool? _bildinfoFahrtZiel;
+
+        /// <summary>
+        /// Blendet das Eigenschaften-Feld ein oder aus.
+        ///
+        /// Die Spalte selbst wird nicht animiert, sondern in einem Schritt gesetzt: Der Host
+        /// ändert die Fensterbreite im selben Zug, und nur wenn beides in demselben
+        /// Layout-Durchlauf passiert, bleibt der Bildbereich exakt gleich breit. Animiert
+        /// sind Verschiebung und Deckkraft des Feldes — die kosten kein Layout und keine
+        /// Fenstergrössenänderung, laufen also flüssig, egal wie gross das Bild ist.
+        ///
+        /// Beim Auffahren wird zuerst das Fenster breiter (<paramref name="fensterSchritt"/>),
+        /// dann gleitet das Feld in den frei gewordenen Streifen; beim Zuklappen fährt es
+        /// erst hinaus, danach gehen Spalte und Fensterbreite zusammen weg. Die
+        /// Reihenfolge steht deshalb hier und nicht beim Host.
+        /// </summary>
+        /// <param name="dauer">Null oder kleiner: sofort setzen, ohne Fahrt.</param>
+        /// <param name="fensterSchritt">Ändert die Fensterbreite; läuft im richtigen Moment.</param>
+        public void SetzeBildinfoSpalte(bool sichtbar, TimeSpan dauer, Action? fensterSchritt = null)
+        {
+            _bildinfoFahrtZiel = sichtbar;
+
+            BRD_Bildinfo.BeginAnimation(UIElement.OpacityProperty, null);
+            TTF_Bildinfo.BeginAnimation(TranslateTransform.XProperty, null);
+
+            // Ruhewerte sofort setzen; die Fahrt darunter ist nur der Weg dorthin und läuft
+            // mit FillBehavior.Stop, damit am Ende nichts nachträglich festgeschrieben
+            // werden muss und ein zweiter Tastendruck sofort richtig rechnet.
+            BRD_Bildinfo.Opacity = 1;
+            TTF_Bildinfo.X = 0;
+
+            if (dauer <= TimeSpan.Zero)
+            {
+                HalteBildspalte(true);
+                BRD_Bildinfo.Visibility = sichtbar ? Visibility.Visible : Visibility.Collapsed;
+                fensterSchritt?.Invoke();
+                HalteBildspalte(false);
+
+                FeldInFahrt(false);
+                _bildinfoFahrtZiel = null;
+                return;
+            }
+
+            // Herein von rechts, hinaus nach rechts — die Seite, an der das Feld sitzt.
+            double vonX = sichtbar ? BildinfoSpaltenbreite : 0;
+            double bisX = sichtbar ? 0 : BildinfoSpaltenbreite;
+
+            var beschleunigung = new CubicEase { EasingMode = EasingMode.EaseOut };
+
+            var schieben = new DoubleAnimation(vonX, bisX, new Duration(dauer))
+            {
+                EasingFunction = beschleunigung,
+                FillBehavior = FillBehavior.Stop
+            };
+
+            // Deckkraft mit: Ohne sie schöbe sich beim Zuklappen eine harte Kante über den
+            // Rand hinaus, statt dass das Feld verschwindet.
+            var blenden = new DoubleAnimation(sichtbar ? 0 : 1, sichtbar ? 1 : 0, new Duration(dauer))
+            {
+                EasingFunction = beschleunigung,
+                FillBehavior = FillBehavior.Stop
+            };
+
+            schieben.Completed += (_, _) =>
+            {
+                // Nur aufräumen, wenn inzwischen nicht schon wieder umgeschaltet wurde.
+                if (_bildinfoFahrtZiel != sichtbar)
+                    return;
+
+                _bildinfoFahrtZiel = null;
+                FeldInFahrt(false);
+
+                if (!sichtbar)
+                {
+                    // Spalte und Fensterbreite in einem Zug, mit festgehaltener Bildspalte:
+                    // Dazwischen wird nichts gezeichnet, in dem das Bild anders läge.
+                    HalteBildspalte(true);
+                    BRD_Bildinfo.Visibility = Visibility.Collapsed;
+                    fensterSchritt?.Invoke();
+                    HalteBildspalte(false);
+                }
+            };
+
+            if (sichtbar)
+            {
+                // Erst Platz schaffen, dann das Feld hineinfahren lassen. Die Bildspalte
+                // wird dabei festgehalten, damit der Zuwachs vollständig an den Streifen
+                // rechts geht statt für einen Moment an das Bild.
+                HalteBildspalte(true);
+                fensterSchritt?.Invoke();
+                BRD_Bildinfo.Visibility = Visibility.Visible;
+                HalteBildspalte(false);
+            }
+            else
+            {
+                // Beim Zuklappen muss das Feld bis zum Ende der Fahrt stehen bleiben, sonst
+                // gäbe es nichts mehr, was hinausfahren könnte.
+                BRD_Bildinfo.Visibility = Visibility.Visible;
+            }
+
+            FeldInFahrt(true);
+            BRD_Bildinfo.BeginAnimation(UIElement.OpacityProperty, blenden);
+            TTF_Bildinfo.BeginAnimation(TranslateTransform.XProperty, schieben);
+        }
+
+        /// <summary>
+        /// Hält die Bildspalte auf ihrer jetzigen Breite fest, solange sich die
+        /// Fensterbreite ändert.
+        ///
+        /// Eine Änderung von Window.Width zeichnet sofort ein Bild — noch bevor die Spalte
+        /// daneben steht. Ohne diesen Halt blitzt das Vollbild darin einmal über die volle
+        /// neue Breite skaliert auf. Festgehalten geht der Zuwachs vollständig an den
+        /// leeren Streifen rechts, in den das Feld anschliessend hineingleitet, und das
+        /// Bild bleibt in jedem einzelnen Bild der Folge gleich gross.
+        /// </summary>
+        private void HalteBildspalte(bool halten)
+        {
+            // Nur halten, was auch gemessen ist: Beim Ansichtswechsel ist die Spalte noch
+            // ohne Breite, und eine festgeschriebene Null nähme dem Bild die Fläche.
+            if (halten && COL_VollbildBild.ActualWidth <= 0)
+                return;
+
+            COL_VollbildBild.Width = halten
+                ? new GridLength(COL_VollbildBild.ActualWidth, GridUnitType.Pixel)
+                : new GridLength(1, GridUnitType.Star);
+        }
+
+        /// <summary>
+        /// Legt das Feld für die Dauer der Fahrt in eine fertige Textur.
+        ///
+        /// Verschieben und Blenden sind dann reines Kopieren auf der Grafikkarte; ohne den
+        /// Zwischenspeicher würde jedes Bild der Fahrt den Text neu gesetzt und die
+        /// Deckkraft auf jedes Element einzeln gerechnet.
+        /// </summary>
+        private void FeldInFahrt(bool fahrtLäuft)
+        {
+            if (fahrtLäuft)
+                BRD_Bildinfo.CacheMode ??= new BitmapCache();
+            else
+                BRD_Bildinfo.CacheMode = null;
+        }
+
+        /// <summary>
         /// Eine Kachel des Filmstrips hat eine andere Datei bekommen — Miniatur anfordern,
         /// alten Auftrag zurücknehmen. Wortgleich zur Normalansicht; die Begründung steht
         /// in <see cref="MiniaturLader"/>.

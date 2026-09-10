@@ -266,8 +266,9 @@
                         <ColumnDefinition x:Name="COL_Taste" Width="Auto" />
                         <ColumnDefinition x:Name="COL_Bedeutung" Width="*" />
                     </Grid.ColumnDefinitions>
-                    <!--  12 Zeilen: eine je Tastenkürzel  -->
+                    <!--  13 Zeilen: eine je Tastenkürzel  -->
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -412,7 +413,24 @@
                         Text="Ordner neu einlesen   (nur Bildmodus)" />
 
                     <TextBlock
+                        x:Name="TXT_TasteBildinfo"
                         Grid.Row="8"
+                        Grid.Column="0"
+                        Margin="0,0,20,7"
+                        FontFamily="Consolas"
+                        FontSize="13"
+                        Foreground="#FFFFC46B"
+                        Text="I" />
+                    <TextBlock
+                        Grid.Row="8"
+                        Grid.Column="1"
+                        Margin="0,0,0,7"
+                        FontSize="13"
+                        Foreground="#FFE6E6E6"
+                        Text="Eigenschaften ein-/ausblenden   (nur Bildmodus)" />
+
+                    <TextBlock
+                        Grid.Row="9"
                         Grid.Column="0"
                         Margin="0,0,20,7"
                         FontFamily="Consolas"
@@ -420,7 +438,7 @@
                         Foreground="#FFFFC46B"
                         Text="Strg+Z" />
                     <TextBlock
-                        Grid.Row="8"
+                        Grid.Row="9"
                         Grid.Column="1"
                         Margin="0,0,0,7"
                         FontSize="13"
@@ -429,7 +447,7 @@
 
                     <TextBlock
                         x:Name="TXT_TasteErweiterteSuche"
-                        Grid.Row="9"
+                        Grid.Row="10"
                         Grid.Column="0"
                         Margin="0,0,20,7"
                         FontFamily="Consolas"
@@ -437,7 +455,7 @@
                         Foreground="#FFFFC46B"
                         Text="Umschalt+F" />
                     <TextBlock
-                        Grid.Row="9"
+                        Grid.Row="10"
                         Grid.Column="1"
                         Margin="0,0,0,7"
                         FontSize="13"
@@ -445,7 +463,7 @@
                         Text="Erweiterte Suche ein-/ausblenden (nicht im Eingabefeld)" />
 
                     <TextBlock
-                        Grid.Row="10"
+                        Grid.Row="11"
                         Grid.Column="0"
                         Margin="0,0,20,7"
                         FontFamily="Consolas"
@@ -453,7 +471,7 @@
                         Foreground="#FFFFC46B"
                         Text="F11" />
                     <TextBlock
-                        Grid.Row="10"
+                        Grid.Row="11"
                         Grid.Column="1"
                         Margin="0,0,0,7"
                         FontSize="13"
@@ -461,7 +479,7 @@
                         Text="Bildmodus verlassen" />
 
                     <TextBlock
-                        Grid.Row="11"
+                        Grid.Row="12"
                         Grid.Column="0"
                         Margin="0,0,20,0"
                         FontFamily="Consolas"
@@ -469,7 +487,7 @@
                         Foreground="#FFFFC46B"
                         Text="F1 / Esc" />
                     <TextBlock
-                        Grid.Row="11"
+                        Grid.Row="12"
                         Grid.Column="1"
                         FontSize="13"
                         Foreground="#FFE6E6E6"

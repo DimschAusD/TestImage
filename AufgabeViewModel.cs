@@ -36,8 +36,6 @@ namespace TestImage
         public partial string Version { get; set; } = "v2x.0.70.751 Beta 2026-09-03 (.NETCore net10.0)";
 
 
-
-
         [ObservableProperty]
         public partial int CountInnerZählerTest { get; set; }
 
@@ -316,6 +314,30 @@ namespace TestImage
 
         public AufgabeViewModel()
         {
+            // FileSystemWatcher im Hintergrund vorwärmen.
+            //
+            // Beim ersten Drop einer Sitzung lud .NET mitten in der Auswahl
+            // System.IO.FileSystem.Watcher.dll nach — sichtbar im Ausgabefenster, und
+            // der Ladevorgang lag im UI-Faden, weil UeberwacheIndexDatei den Wächter
+            // dort erzeugt. Ein Bruchteil des ersten Ruckelns geht darauf.
+            //
+            // Einmal anfassen und wegwerfen genügt: Danach ist die Assembly geladen,
+            // und der echte Wächter entsteht ohne Nachlad. Kein Pfad, kein
+            // EnableRaisingEvents — dieses Exemplar überwacht nichts.
+            //
+            // Fehler still: Es ist reine Vorsorge. Klappt sie nicht, lädt die Assembly
+            // eben wie bisher beim ersten Drop.
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    using var vorwaermer = new System.IO.FileSystemWatcher();
+                }
+                catch
+                {
+                }
+            });
+
             _geraeteTimer = new System.Windows.Threading.DispatcherTimer
             {
                 Interval = TimeSpan.FromSeconds(2)
@@ -344,6 +366,14 @@ namespace TestImage
                     VorratLeeren();
                 }
             };
+
+            // Sortierweise aus der letzten Sitzung — vor dem Vergleicher, denn der merkt
+            // sich die Weise, die er bei seiner Erzeugung vorfindet.
+            //
+            // Der Setter setzt über OnSortierenWieExplorerChanged den Standard des
+            // Vergleichers; die Ansicht rührt er hier noch nicht an, es gibt sie ja noch
+            // nicht.
+            SortierenWieExplorer = Einstellungen.SortierenWieExplorer;
 
             AufgabenView = CollectionViewSource.GetDefaultView(ocAufgabens) as ListCollectionView;
             AufgabenView.SortDescriptions.Clear();
@@ -781,7 +811,26 @@ namespace TestImage
         /// False für interne Aufrufe: Beim Öffnen eines Suchtreffers aus einem anderen
         /// Ordner und beim Neu-Einlesen muss die Trefferliste stehen bleiben.
         /// </param>
+        /// <remarks>
+        /// Setzt nur den Warte-Schalter und ruft <see cref="OnFileDropKern"/>. Getrennt,
+        /// weil der Kern an einem Dutzend Stellen mit <c>return</c> aussteigt — ein
+        /// try/finally darum ist die einzige Fassung, bei der der Schalter auf jedem
+        /// dieser Wege wieder fällt.
+        /// </remarks>
         private async Task OnFileDrop(string[] filepaths, bool verwerfeSuchtreffer)
+        {
+            OrdnerEinlesenLäuft = true;
+            try
+            {
+                await OnFileDropKern(filepaths, verwerfeSuchtreffer);
+            }
+            finally
+            {
+                OrdnerEinlesenLäuft = false;
+            }
+        }
+
+        private async Task OnFileDropKern(string[] filepaths, bool verwerfeSuchtreffer)
         {
             // 1570
 
@@ -851,6 +900,25 @@ namespace TestImage
                 LabelDropContent = string.Empty;
                 DropDateiName = fullDateiName;
 
+                // Zeitmessung der Drop-Strecke, Ausgabe ins Debug-Fenster.
+                //
+                // Der Warte-Ring stockt, wenn der UI-Faden länger als ein Bildaufbau am
+                // Stück belegt ist. Wo das passiert, ist von aussen nicht zu sehen: In
+                // dieser Strecke stecken fünf Abschnitte, die es sein könnten. Also
+                // messen statt raten.
+                //
+                // Debug.WriteLine trägt [Conditional("DEBUG")] — im Release fallen die
+                // Aufrufe weg, die Stoppuhr bleibt und kostet nichts Messbares.
+                var dropUhr = Stopwatch.StartNew();
+                long dropMarke = 0;
+
+                void DropTakt(string abschnitt)
+                {
+                    long jetzt = dropUhr.ElapsedMilliseconds;
+                    Debug.WriteLine($"[Drop] {abschnitt}: {jetzt - dropMarke} ms");
+                    dropMarke = jetzt;
+                }
+
                 // Das abgelegte Bild sofort zeigen, bevor der Ordner durchlaufen wird.
                 //
                 // Sonst steht die Bildfläche vom Leeren der Liste bis zum Ende des
@@ -868,6 +936,8 @@ namespace TestImage
                 {
                     // Vorschau ist nur Beiwerk – das Einlesen läuft trotzdem weiter.
                 }
+
+                DropTakt("Vorschau");
 
                 ocAufgabens.Clear();
                 OnPropertyChanged(nameof(CountBildchenFürLinks));
@@ -930,10 +1000,70 @@ namespace TestImage
                     return liste;
                 });
 
+                DropTakt($"Dateiliste ({dateies.Count} Einträge)");
+
+                // Warum nicht mehr Task.Yield je Datei:
+                //
+                // Task.Yield stellt die Fortsetzung über den Dispatcher zu — mit
+                // DispatcherPriority.Normal (9). Zeichnen (Render, 7) und Eingaben
+                // (Input, 5) stehen darunter und kommen erst dran, wenn die
+                // Warteschlange leer ist. Die Schleife legte also ununterbrochen
+                // Normal-Aufträge nach und verhungerte damit genau das, wofür das
+                // Yield gedacht war: Die Oberfläche stand ein bis zwei Sekunden still,
+                // sichtbar daran, dass der Hinweis „Bild hier ablegen" noch dastand,
+                // obwohl scdd_Drop ihn längst auf Collapsed gesetzt hatte.
+                //
+                // Dispatcher.Yield(Input) reiht sich unter Render (7) ein: Zeichnen,
+                // Binden und Layout kommen vor der Fortsetzung dran, gewartete
+                // Mauseingaben liegen gleichauf und werden der Reihe nach bedient.
+                // Je Unterbrechung kommt damit mehr durch als beim alten Task.Yield,
+                // nicht weniger — alles Höherwertige wird davor abgearbeitet.
+                //
+                // Nicht Background (4): Von dort aus müsste die Schleife zusätzlich
+                // hinter jeder Leerlaufarbeit warten und im ungünstigsten Fall je
+                // Unterbrechung einen ganzen Bildaufbau — der Ladevorgang würde
+                // spürbar länger. Input hält die Anzeige frei, ohne das Einlesen
+                // auszubremsen.
+                //
+                // Takt statt je Datei: 25 ms sind kürzer als ein Bildaufbau bei
+                // 30 Hz, die Anzeige wirkt also durchgehend flüssig, und die Zahl
+                // der Unterbrechungen hängt an der Dauer statt an der Dateimenge.
+                //
+                // Die Schleife selbst bleibt Zeile für Zeile die alte: einzeln
+                // einfügen, damit beim ersten Bild das aktuelle Element gesetzt wird.
+                //
+                // Schon einmal gescheitert (steht in keinem Commit, der Versuch wurde
+                // verworfen): das Yield ganz zu streichen und dafür stapelweise
+                // einzufügen. Das war deutlich schlechter — ohne Yield pumpt der
+                // Dispatcher überhaupt nicht mehr, das Fenster ist bis zum Ende der
+                // Schleife tot, und stapelweise fällt zusätzlich weg, dass das erste
+                // Bild sofort als aktuelles Element ankommt. Wer hier wieder
+                // umbaut: Beides bleibt.
+                var anzeigeTakt = Stopwatch.StartNew();
+
+                // Die längste Strecke ohne Unterbrechung ist die Zahl, an der das
+                // Stocken hängt — nicht der Mittelwert. Bleibt sie nah bei 25 ms,
+                // liegt ein sichtbarer Ruckler nicht an dieser Schleife.
+                long längsteBlockade = 0;
+                int pausen = 0;
+
                 //int index = 0;
                 foreach (var datei in dateies)
                 {
-                    await Task.Yield();
+                    if (anzeigeTakt.ElapsedMilliseconds >= 25)
+                    {
+                        if (anzeigeTakt.ElapsedMilliseconds > längsteBlockade)
+                        {
+                            längsteBlockade = anzeigeTakt.ElapsedMilliseconds;
+                        }
+
+                        pausen++;
+
+                        await System.Windows.Threading.Dispatcher.Yield(
+                            System.Windows.Threading.DispatcherPriority.Input);
+                        anzeigeTakt.Restart();
+                    }
+
                     //Debug.WriteLine(datei);
                     if (extensions.Contains(System.IO.Path.GetExtension(datei).ToLower()))
                     {
@@ -946,9 +1076,54 @@ namespace TestImage
                     }
                 }
 
+                DropTakt($"Einfügen ({ocAufgabens.Count} Bilder, {pausen} Pausen, längste Blockade {längsteBlockade} ms)");
+
                 AlterDropCount = ocAufgabens.Count;
 
+                // Dieser Refresh war am 07.09.2026 kurzzeitig entfernt — zu Unrecht.
+                //
+                // Belegt war nur „Count 3812 → 3812, Position 7 → 7". Das deckt Anzahl
+                // und Auswahl ab, aber nicht die Reihenfolge, und genau die steht hier
+                // zur Debatte:
+                //
+                // ListCollectionView mit CustomSort fügt jedes Add per Binärsuche an
+                // seiner Stelle ein; Refresh sortiert stattdessen die ganze Liste am
+                // Stück. Beide Wege liefern nur dann dieselbe Folge, wenn der
+                // Vergleicher streng widerspruchsfrei ist — bei Ungleichheiten hängt
+                // das Ergebnis der Binärsuche von der Einfügereihenfolge ab, das der
+                // Sortierung nicht. Dann zieht der Refresh die Reihenfolge gerade, und
+                // ohne ihn steht die Einfügefolge da.
+                //
+                // Die Messung unten sagt, ob das hier zutrifft.
+                var folgeVorher = AufgabenView.Cast<MeinBildchen>().Select(b => b.BName).ToArray();
+
                 AufgabenView.Refresh();
+
+                var folgeNachher = AufgabenView.Cast<MeinBildchen>().Select(b => b.BName).ToArray();
+
+                int ersteAbweichung = -1;
+                int abweichungen = 0;
+
+                for (int i = 0; i < Math.Min(folgeVorher.Length, folgeNachher.Length); i++)
+                {
+                    if (!string.Equals(folgeVorher[i], folgeNachher[i], StringComparison.Ordinal))
+                    {
+                        abweichungen++;
+                        if (ersteAbweichung < 0) ersteAbweichung = i;
+                    }
+                }
+
+                if (abweichungen == 0)
+                {
+                    Debug.WriteLine($"[Drop] Refresh 1 Reihenfolge: unverändert ({folgeVorher.Length} Einträge)");
+                }
+                else
+                {
+                    Debug.WriteLine($"[Drop] Refresh 1 Reihenfolge: {abweichungen} von {folgeVorher.Length} Positionen anders, "
+                                    + $"erste bei {ersteAbweichung + 1}");
+                    Debug.WriteLine($"[Drop]   ohne Refresh stünde dort: {Path.GetFileName(folgeVorher[ersteAbweichung])}");
+                    Debug.WriteLine($"[Drop]   mit Refresh steht dort:   {Path.GetFileName(folgeNachher[ersteAbweichung])}");
+                }
 
 
 
@@ -981,17 +1156,33 @@ namespace TestImage
                 // sich nur in der Gross-/Kleinschreibung unterscheiden.
                 var bildchen = OcAufgabens.FirstOrDefault(
                     b => string.Equals(b.BName, fullDateiName, StringComparison.OrdinalIgnoreCase));
+
+                // Zweigeteilt gemessen: Das Suchen ist eine Schleife über die Liste, das
+                // Setzen löst die ganze Kette am Auswahlwechsel aus — Bild laden,
+                // Indexstand prüfen, Miniaturleiste hinscrollen. 127 ms am Stück können
+                // aus beidem kommen, und nur eins davon lohnt das Nachsehen.
+                DropTakt("Bild in der Liste suchen");
+
                 if (bildchen != null)
                 {
                     var ivm = AufgabenView.IndexOf(bildchen);
+
+                    DropTakt("Position ermitteln");
+
                     if (ivm != -1)
                     {
                         AufgabenView.MoveCurrentToPosition(ivm);
                     }
                 }
 
+                DropTakt("Auswahl setzen");
+
+                // Auch dieser Refresh ist zurück, aus demselben Grund wie der erste:
+                // Die Messung von damals deckte die Reihenfolge nicht ab.
                 AufgabenView.Refresh();
                 AlleBilderVerschoben = false;
+
+                DropTakt("Refresh 2");
 
                 // Dieser Weg läuft an AktualisiereAufgabenView vorbei: Steht beim
                 // Neu-Einlesen ein Filter, kann er im neuen Ordner treffen oder auch
@@ -1001,15 +1192,52 @@ namespace TestImage
                 // Index-Status des (neuen) Ordners bestimmen → steuert „Schema-ähnlich".
                 PruefeAktuellerOrdnerIndiziert();
 
+                // Die Ordnerzahlen am Bereichsschalter („Zweig (2)") hängen am geladenen
+                // Ordner und bleiben sonst auf dem Stand des vorigen stehen. Hier und
+                // nicht in PruefeAktuellerOrdnerIndiziert: Die Zahl kostet einen Lauf
+                // über das Ordnerverzeichnis samt Existenzprüfung je Eintrag, und jene
+                // Methode läuft bei jedem Bildwechsel.
+                AktualisiereSuchbereichText();
+
+                DropTakt("Indexprüfung");
+
                 // Bereits gespeicherte Wasserzeichen-Befunde übernehmen (Badges).
-                LadeWasserzeichenBefunde(Path.GetDirectoryName(fullDateiName));
+                // Async-Fassung: Das Lesen der Befunddatei lag hier im UI-Faden.
+                await LadeWasserzeichenBefundeAsync(Path.GetDirectoryName(fullDateiName));
+
+                DropTakt("Wasserzeichen-Befunde");
 
                 // Übersichtsleiste (Bilder je Zeitraum) im Hintergrund neu aufbauen.
                 AktualisiereZeitleiste();
 
+                DropTakt("Zeitleiste anstossen");
+
                 // Zuletzt: Sagen, wenn ein stehender Filter das abgelegte Bild versteckt.
                 // Erst hier steht fest, was die Ansicht nach dem Einlesen zeigt.
                 MeldeVersteckendenFilter(fullDateiName);
+
+                DropTakt("Filtermeldung");
+
+                // Nachweis, dass die Auswahl auf dem abgelegten Bild steht.
+                //
+                // Seit dem Wegfall beider Refresh-Aufrufe trägt allein das Einfügen die
+                // Ansicht. Am Bildschirm ist das nur zu beurteilen, wenn man den Ordner
+                // auswendig kennt — in einem Ordner mit tausenden Bildern sieht eine
+                // falsche Auswahl genauso richtig aus wie die richtige. Diese Zeile
+                // vergleicht, was abgelegt wurde, mit dem, was am Ende gewählt ist.
+                //
+                // OrdinalIgnoreCase wie überall sonst beim Pfadvergleich: Der Explorer
+                // liefert die echte Schreibweise, andere Drop-Quellen müssen das nicht.
+                string gewaehlt = (AufgabenView.CurrentItem as MeinBildchen)?.BName ?? string.Empty;
+                bool auswahlTrifft = string.Equals(gewaehlt, fullDateiName, StringComparison.OrdinalIgnoreCase);
+
+                Debug.WriteLine($"[Drop] Auswahl {(auswahlTrifft ? "RICHTIG" : "FALSCH")}: "
+                                + $"abgelegt „{Path.GetFileName(fullDateiName)}“, "
+                                + $"gewählt „{(gewaehlt.Length == 0 ? "(nichts)" : Path.GetFileName(gewaehlt))}“, "
+                                + $"Position {AufgabenView.CurrentPosition + 1} von {AufgabenView.Count}, "
+                                + $"Filter „{FilterText}“");
+
+                Debug.WriteLine($"[Drop] ---- gesamt: {dropUhr.ElapsedMilliseconds} ms ----");
             }
 
 
@@ -1761,16 +1989,20 @@ namespace TestImage
 
         /// <summary>
         /// Das Bild aus <paramref name="ordner"/>, das in der Ansicht auf
-        /// <paramref name="bezugsName"/> folgen würde — also die Stelle, an der das
+        /// <paramref name="bezugsPfad"/> folgen würde — also die Stelle, an der das
         /// weggelegte Bild vorher stand.
         ///
         /// Das Bild in der Ablage stammt aus genau diesem Ordner, sein Name sortiert dort
         /// also weiterhin an seiner alten Stelle mit. Gesucht wird der erste Name, der
         /// dahinter liegt; gibt es keinen, war das Bild das letzte des Ordners, dann das
-        /// letzte vorhandene. Ohne <paramref name="bezugsName"/> das erste.
+        /// letzte vorhandene. Ohne <paramref name="bezugsPfad"/> das erste.
         ///
         /// Sortiert mit demselben <see cref="NaturalStringComparer"/> und über denselben
-        /// Schlüssel wie die Ansicht — Dateiname ohne Endung.
+        /// Schlüssel wie die Ansicht — welcher das ist, entscheidet allein
+        /// <see cref="NaturalStringComparer.Schlüssel"/>, je nach eingestellter
+        /// <see cref="Sortierweise"/>. Deshalb wird hier der ganze Pfad hereingereicht
+        /// und nicht ein hier selbst zurechtgeschnittener Name: Ein eigener Schlüssel
+        /// liefe auseinander, sobald die Weise wechselt.
         ///
         /// Der gleiche Vergleicher ist hier keine Kosmetik: <see cref="OnFileDrop(string[])"/>
         /// wählt die übergebene Datei aus, und daran hängt der Ladebefehl für das grosse
@@ -1781,7 +2013,7 @@ namespace TestImage
         ///
         /// <c>null</c>, wenn der Ordner kein Bild enthält oder nicht lesbar ist.
         /// </summary>
-        private static string? NachfolgerInAnsichtsordnung(string ordner, string? bezugsName)
+        private static string? NachfolgerInAnsichtsordnung(string ordner, string? bezugsPfad)
         {
             try
             {
@@ -1789,7 +2021,9 @@ namespace TestImage
 
                 var kandidaten = Directory.EnumerateFiles(ordner)
                     .Where(d => AnzeigbareEndungen.Contains(Path.GetExtension(d).ToLowerInvariant()))
-                    .OrderBy(d => Path.GetFileNameWithoutExtension(d), vergleicher)
+                    // Das „!" ist hier belastbar: Schlüssel gibt nur für einen null-Pfad
+                    // null zurück, und EnumerateFiles liefert keinen.
+                    .OrderBy(d => vergleicher.Schlüssel(d)!, vergleicher)
                     .ToList();
 
                 if (kandidaten.Count == 0)
@@ -1797,7 +2031,8 @@ namespace TestImage
                     return null;
                 }
 
-                if (string.IsNullOrEmpty(bezugsName))
+                string? bezugsSchlüssel = vergleicher.Schlüssel(bezugsPfad);
+                if (string.IsNullOrEmpty(bezugsSchlüssel))
                 {
                     return kandidaten[0];
                 }
@@ -1806,7 +2041,7 @@ namespace TestImage
                 // gleichnamigen Eintrag, ist das nicht das weggelegte Bild — der
                 // Nachfolger ist dann trotzdem der richtige Landeplatz.
                 int nachfolger = kandidaten.FindIndex(
-                    d => vergleicher.Compare(Path.GetFileNameWithoutExtension(d), bezugsName) > 0);
+                    d => vergleicher.Compare(vergleicher.Schlüssel(d), bezugsSchlüssel) > 0);
 
                 return nachfolger >= 0 ? kandidaten[nachfolger] : kandidaten[^1];
             }
@@ -1821,15 +2056,22 @@ namespace TestImage
         }
 
         /// <summary>
-        /// Nur eingeschaltet, wenn das Bild in einer der Ablagen dieser Anwendung liegt —
-        /// <c>kein_Fav</c>, <c>KI_Fehler</c>, <c>Doppelt</c>, <c>Besonders</c>,
-        /// <c>Wasserzeichen</c>. Die Liste steht als <c>AussortiertOrdner</c> in
-        /// AufgabeViewModel.IndexOrdner.cs.
+        /// Nur eingeschaltet, wenn der <b>geladene Ordner</b> eine der Ablagen dieser
+        /// Anwendung ist — <c>kein_Fav</c>, <c>KI_Fehler</c>, <c>Doppelt</c>,
+        /// <c>Besonders</c>, <c>Wasserzeichen</c>. Die Liste steht als
+        /// <c>AussortiertOrdner</c> in AufgabeViewModel.IndexOrdner.cs.
         ///
         /// Ohne diese Bedingung führte der Knopf aus einem gewöhnlichen Künstlerordner
         /// heraus in dessen Elternordner — dieselbe Falle, gegen die auch
         /// <see cref="CanExecuteBildInsHauptVerzeichnisZuruckVerschiebenCommand"/> den
         /// Ordnernamen prüft.
+        ///
+        /// <b>Massgeblich ist der Droppfad, nicht das gewählte Bild.</b> Ein verschobenes
+        /// Bild bleibt in <c>ocAufgabens</c> stehen und trägt dann <c>kein_Fav</c> im Pfad
+        /// — am gewählten Bild gemessen ging der Knopf deshalb an, obwohl der geladene
+        /// Ordner ein ganz gewöhnlicher war. Ein Klick auf einen solchen Treffer in der
+        /// Ergebnisleiste genügte dafür. Die geladene Liste ist das Mass, nicht der
+        /// einzelne Eintrag.
         ///
         /// Bewusst ohne Zugriff auf die Platte: CanExecute wird bei jedem Bildwechsel
         /// ausgewertet, und ein Verzeichnislauf je Wechsel wäre auf Netzlaufwerken
@@ -1842,13 +2084,37 @@ namespace TestImage
                 return false;
             }
 
-            string? ordner = Path.GetDirectoryName(SelectedBildchen.BName);
+            string? ordner = GeladenerOrdner();
             if (string.IsNullOrEmpty(ordner) || !IstAussortiert(ordner))
             {
                 return false;
             }
 
             return !string.IsNullOrEmpty(Path.GetDirectoryName(ordner));
+        }
+
+        /// <summary>
+        /// Der Ordner, dessen Bilder gerade in <c>ocAufgabens</c> stehen — abgeleitet aus
+        /// <see cref="DropDateiName"/>, dem zuletzt abgelegten oder angefahrenen Bild.
+        ///
+        /// Nicht aus <c>SelectedBildchen</c>: Dessen Pfad wandert mit jedem Verschieben in
+        /// die Ablage, während die Liste unverändert den alten Ordner zeigt.
+        /// </summary>
+        private string? GeladenerOrdner()
+        {
+            if (string.IsNullOrEmpty(DropDateiName))
+            {
+                return null;
+            }
+
+            try
+            {
+                return Path.GetDirectoryName(DropDateiName);
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         /// <summary>
@@ -1861,7 +2127,10 @@ namespace TestImage
         [RelayCommand(CanExecute = nameof(CanExecuteOrdnerEineEbeneHoch))]
         private async Task CommandExecuteOrdnerEineEbeneHoch()
         {
-            string? ordner = Path.GetDirectoryName(SelectedBildchen?.BName);
+            // Derselbe Massstab wie in CanExecute: der geladene Ordner. Am gewählten Bild
+            // gemessen führte der Knopf aus einem gewöhnlichen Ordner heraus, sobald die
+            // Auswahl auf einem verschobenen Eintrag stand.
+            string? ordner = GeladenerOrdner();
             string? darueber = string.IsNullOrEmpty(ordner) ? null : Path.GetDirectoryName(ordner);
             if (string.IsNullOrEmpty(darueber))
             {
@@ -1870,9 +2139,10 @@ namespace TestImage
 
             // An der Stelle landen, an der das weggelegte Bild vorher stand — nicht am
             // Anfang. In einem Ordner mit tausend Bildern ist der Weg zurück sonst weit.
-            string? zielBild = NachfolgerInAnsichtsordnung(
-                darueber,
-                Path.GetFileNameWithoutExtension(SelectedBildchen?.BName));
+            // Ganzer Pfad statt eines hier zurechtgeschnittenen Namens: Welcher Teil den
+            // Sortierschlüssel bildet, hängt an der eingestellten Sortierweise und wird
+            // allein im Vergleicher entschieden.
+            string? zielBild = NachfolgerInAnsichtsordnung(darueber, SelectedBildchen?.BName);
 
             if (zielBild == null)
             {
@@ -3857,6 +4127,61 @@ namespace TestImage
         partial void OnBegriffeAufDeutschChanged(bool value) => RenderBegriffe();
 
 
+        /// <summary>
+        /// True, wenn das Einstellungen-Feld der Normalansicht aufgeklappt ist.
+        ///
+        /// Eigener Zustand neben <see cref="IsIndexPopoverOffen"/>: Dieses Feld hängt
+        /// am Zahnrad der Kopfleiste und beschreibt den Rechner, jenes hängt an der
+        /// Bildersuche und beschreibt den Suchlauf.
+        /// </summary>
+        [ObservableProperty]
+        public partial bool IsEinstellungenOffen { get; set; }
+
+        /// <summary>
+        /// True = Namen sortieren wie der Windows-Explorer, False = wie der
+        /// SpeedCommander. Standard ist der SpeedCommander, weil die Bilderordner in
+        /// dieser Reihenfolge angelegt sind.
+        /// </summary>
+        [ObservableProperty]
+        public partial bool SortierenWieExplorer { get; set; }
+
+        /// <summary>
+        /// Stellt die Weise für alle künftig erzeugten Vergleicher um, hält sie für die
+        /// nächste Sitzung fest und sortiert die Ansicht sofort neu.
+        /// </summary>
+        partial void OnSortierenWieExplorerChanged(bool value)
+        {
+            NaturalStringComparer.Standard = value
+                ? Sortierweise.WindowsExplorer
+                : Sortierweise.SpeedCommander;
+
+            // Beim Laden im Konstruktor schreibt das nichts: Dort steht schon derselbe
+            // Wert in der Datei, und ein unveränderter Wert rührt sie nicht an.
+            Einstellungen.SortierenWieExplorer = value;
+
+            // Nur, wenn die Ansicht gerade überhaupt nach Namen sortiert: Nach „In Liste
+            // übernehmen" steht CustomSort auf null, damit die Trefferliste in ihrer
+            // Rangfolge stehen bleibt. Ein Umschalten hier dürfte die nicht zerschlagen —
+            // beim nächsten Einlesen greift die neue Weise ohnehin.
+            if (AufgabenView?.CustomSort == null)
+            {
+                return;
+            }
+
+            // Neue Instanz statt nur des umgesetzten Standards: Die ListCollectionView
+            // sortiert erst neu, wenn ihr CustomSort zugewiesen wird.
+            object? gewaehlt = AufgabenView.CurrentItem;
+            AufgabenView.CustomSort = new NaturalStringComparer();
+
+            // Beim Sortierlauf kann die Auswahl verrutschen. Bleibt sie stehen, ist das
+            // Nachfassen ein Leerlauf und löst kein CurrentChanged aus.
+            if (gewaehlt != null)
+            {
+                AufgabenView.MoveCurrentTo(gewaehlt);
+            }
+        }
+
+
         /// <summary>Standardwert der Tag-Schwelle (Reset-Button).</summary>
         public const double TagSchwelleStandard = 0.23;
 
@@ -4828,6 +5153,17 @@ namespace TestImage
             IsIndexPopoverOffen = !IsIndexPopoverOffen;
         }
 
+        /// <summary>
+        /// Klappt das Einstellungen-Feld am Zahnrad der Kopfleiste auf und zu. Ein Klick
+        /// daneben schliesst es ebenfalls — das erledigt das Popup selbst und schreibt
+        /// den Zustand über die Bindung zurück.
+        /// </summary>
+        [RelayCommand]
+        private void CommandExecuteEinstellungenToggle()
+        {
+            IsEinstellungenOffen = !IsEinstellungenOffen;
+        }
+
         [RelayCommand(IncludeCancelCommand = true)]
         private async Task CommandExecuteFreitextSuche(CancellationToken token)
         {
@@ -4902,7 +5238,9 @@ namespace TestImage
                     SuchfeldFortschritt = (int)((i + 1) * 100.0 / treffer.Count);
                 }
 
-                await FuegeErgebnisseEinAsync(ergebnisse);
+                // nurCache: Die Anzeige baut RenderSuchErgebnisse gleich darauf gefiltert
+                // auf. Ungefiltert einzufügen liesse hier alle Rohtreffer aufblitzen.
+                await FuegeErgebnisseEinAsync(ergebnisse, nurCache: true);
 
                 RenderSuchErgebnisse();
             }
@@ -4922,8 +5260,8 @@ namespace TestImage
         }
 
         /// <summary>
-        /// Die nicht übersetzten Wörter, in Anführungszeichen und durch Komma getrennt.
-        /// Leer, wenn alles übersetzt wurde — daran hängt auch die Sichtbarkeit der Zeile.
+        /// Die unverstandenen Wörter, in Anführungszeichen und durch Komma getrennt.
+        /// Leer, wenn jedes Wort ankam — daran hängt auch die Sichtbarkeit der Zeile.
         /// </summary>
         [ObservableProperty]
         public partial string SuchWortHinweisWoerter { get; set; } = string.Empty;
@@ -4933,7 +5271,11 @@ namespace TestImage
         public partial string SuchWortHinweisText { get; set; } = string.Empty;
 
         /// <summary>
-        /// Setzt den Hinweis über Wörter, die der Übersetzer nicht kannte.
+        /// Setzt den Hinweis über Wörter, mit denen die Suche nichts anfangen konnte.
+        ///
+        /// Gemeldet wird nur, was <b>weder</b> der Übersetzer <b>noch</b> das
+        /// CLIP-Vokabular kennt — die Vorauswahl trifft <c>BildAnalyseService</c>. Wer
+        /// gleich englisch tippt, löst den Hinweis deshalb nicht mehr aus.
         ///
         /// In zwei Eigenschaften geteilt, damit die Oberfläche die Wörter selbst farblich
         /// hervorheben kann — in einer durchgehend grauen Zeile gehen sie unter, und
@@ -4956,13 +5298,13 @@ namespace TestImage
 
             SuchWortHinweisWoerter = string.Join(", ", unbekannt.Select(w => $"„{w}“"));
 
-            // Vorsichtig formuliert, weil der Hinweis irren kann: Ein deutsches Wort, das
-            // im Englischen genauso heisst — Sofa, Hotel, Taxi —, geht unübersetzt durch
-            // und wird von CLIP trotzdem verstanden. Offline lässt sich das nicht
-            // unterscheiden; dafür fehlt eine englische Wortliste.
+            // Der Vorbehalt von früher ist weg: Ein Wort, das im Englischen genauso heisst
+            // — Sofa, Hotel, Taxi —, steht im CLIP-Vokabular und wird gar nicht mehr
+            // gemeldet. Die englische Wortliste, die dafür fehlte, lag die ganze Zeit
+            // neben dem Modell.
             SuchWortHinweisText = unbekannt.Count == 1
-                ? " kennt der Übersetzer nicht — es trägt nichts zur Suche bei, ausser es heisst auf Englisch genauso."
-                : " kennt der Übersetzer nicht — sie tragen nichts zur Suche bei, ausser sie heissen auf Englisch genauso.";
+                ? " versteht die Suche nicht — es trägt nichts zum Ergebnis bei."
+                : " versteht die Suche nicht — sie tragen nichts zum Ergebnis bei.";
         }
 
         /// <summary>Gecachte Treffer nach der Mindest-Ähnlichkeit filtern und anzeigen.</summary>
@@ -5160,13 +5502,38 @@ namespace TestImage
             }
         }
 
-        private async Task FuegeErgebnisseEinAsync(System.Collections.Generic.List<(SuchErgebnis Erg, float Score)> liste)
+        /// <summary>
+        /// Legt die Rohtreffer in den Cache und — ausser bei <paramref name="nurCache"/> —
+        /// zugleich in die angezeigte Liste.
+        ///
+        /// <paramref name="nurCache"/> ist für Suchwege gedacht, die anschliessend
+        /// <see cref="RenderSuchErgebnisse"/> rufen und die Liste dort <b>gefiltert</b>
+        /// aufbauen. Ohne den Schalter erschienen bei ihnen erst alle Rohtreffer und
+        /// wurden unmittelbar danach wieder entfernt: Lag keiner über der
+        /// Mindest-Ähnlichkeit, blitzten sämtliche Bilder auf und waren wieder weg — als
+        /// hätte die Suche ihre Treffer verloren.
+        ///
+        /// Für alle anderen Wege — Dubletten, Serie, OCR — bleibt es beim direkten
+        /// Einfügen. Sie kennen keine Mindest-Ähnlichkeit, rufen
+        /// <c>RenderSuchErgebnisse</c> nicht und hätten sonst gar keine Anzeige mehr.
+        ///
+        /// Der Cache bekommt in jedem Fall alles, auch die Treffer unter der Schwelle: An
+        /// ihm hängt, dass ein Zurückziehen des Reglers ohne neuen Suchlauf auskommt.
+        /// </summary>
+        private async Task FuegeErgebnisseEinAsync(
+            System.Collections.Generic.List<(SuchErgebnis Erg, float Score)> liste,
+            bool nurCache = false)
         {
             const int batch = 8;
             for (int i = 0; i < liste.Count; i++)
             {
                 _alleSuchTreffer.Add(liste[i]);
-                SuchErgebnisse.Add(liste[i].Erg);
+
+                if (!nurCache)
+                {
+                    SuchErgebnisse.Add(liste[i].Erg);
+                }
+
                 if ((i + 1) % batch == 0)
                 {
                     await Task.Delay(1);
@@ -5193,7 +5560,9 @@ namespace TestImage
                 return;
             }
 
-            string? ordner = Path.GetDirectoryName(pfad);
+            // Geladener Ordner, nicht der des gewählten Bildes — dieselbe Regel wie bei
+            // Dubletten und Schema-ähnlich, Begründung bei CanExecuteOrdnerEineEbeneHoch.
+            string? ordner = GeladenerOrdner() ?? Path.GetDirectoryName(pfad);
             if (string.IsNullOrEmpty(ordner))
             {
                 return;
@@ -5277,7 +5646,12 @@ namespace TestImage
                 return;
             }
 
-            string? ordner = Path.GetDirectoryName(bildPfad);
+            // Massgeblich ist der geladene Ordner, nicht der des gewählten Bildes: Steht
+            // die Auswahl auf einem verschobenen — roten — Eintrag, zeigt dessen Pfad nach
+            // kein_Fav, wo keine Indexdatei liegt. Genau so nimmt man aber ein bereits
+            // weggelegtes Bild als Anfrage, um seine übersehenen Geschwister zu finden.
+            // Ausführliche Begründung bei CanExecuteOrdnerEineEbeneHoch.
+            string? ordner = GeladenerOrdner() ?? Path.GetDirectoryName(bildPfad);
             if (string.IsNullOrEmpty(ordner))
             {
                 return;
@@ -5599,7 +5973,12 @@ namespace TestImage
                 return;
             }
 
-            string? ordner = Path.GetDirectoryName(bildPfad);
+            // Massgeblich ist der geladene Ordner, nicht der des gewählten Bildes: Steht
+            // die Auswahl auf einem verschobenen — roten — Eintrag, zeigt dessen Pfad nach
+            // kein_Fav, wo keine Indexdatei liegt. Genau so nimmt man aber ein bereits
+            // weggelegtes Bild als Anfrage, um seine übersehenen Geschwister zu finden.
+            // Ausführliche Begründung bei CanExecuteOrdnerEineEbeneHoch.
+            string? ordner = GeladenerOrdner() ?? Path.GetDirectoryName(bildPfad);
             if (string.IsNullOrEmpty(ordner))
             {
                 return;
@@ -5621,15 +6000,45 @@ namespace TestImage
             SerieIndeterminate = true;   // Marquee: Ähnlichkeitsberechnung läuft
             SerieSucheLaeuft = true;
 
+            // Zeitmessung wie in der Drop-Strecke, aus demselben Grund: Ein Stocken des
+            // Marquee-Balkens sagt nur, dass der UI-Faden hing, nicht wo. Beim ersten
+            // Lauf nach dem Start sind die Verzeichniseinträge der Platte noch kalt, beim
+            // zweiten nicht — der Unterschied steht damit schwarz auf weiss da.
+            // Debug.WriteLine trägt [Conditional("DEBUG")]; im Release bleibt nur die
+            // Stoppuhr übrig.
+            var schemaUhr = Stopwatch.StartNew();
+            long schemaMarke = 0;
+
+            void SchemaTakt(string abschnitt)
+            {
+                long jetzt = schemaUhr.ElapsedMilliseconds;
+                Debug.WriteLine($"[Schema] {abschnitt}: {jetzt - schemaMarke} ms");
+                schemaMarke = jetzt;
+            }
+
             try
             {
                 await StelleClipBereitAsync();
+                SchemaTakt("CLIP bereitstellen");
 
                 // Bild als Anfrage: alle Bilder im Ordner nach Ähnlichkeit sortiert,
                 // ab dem Slider-Minimum (breiter Kandidatensatz). Das Bild selbst ist
                 // mit 100 % dabei. Angezeigt wird dann per Slider gefiltert.
-                var suchOrdner = ErmittleSuchOrdner();
+                // Verschwundene Ordner erst hier aussortieren, nicht schon in
+                // ErmittleSuchOrdner: Dort hinge die Prüfung an vier Beschriftungen im
+                // UI-Faden. Für die Anzeige genügt der letzte bekannte Stand, für die
+                // Suche nicht — an dieser Zahl hängt, ob der Einzelordner-Weg samt
+                // Kalibrierung läuft oder der ordnerübergreifende, der auch Treffer
+                // ausserhalb der geladenen Liste zulässt.
+                //
+                // Das Ermitteln selbst bleibt im UI-Faden — es liest die Auswahl und den
+                // Droppfad, und die gehören ihm. Es kostet nichts mehr an der Platte.
+                var bekannteOrdner = ErmittleSuchOrdner();
+                var suchOrdner = await Task.Run(() => NurOrdnerMitIndex(bekannteOrdner), token);
+
                 bool ueberMehrere = suchOrdner.Count > 1;
+
+                SchemaTakt($"Suchordner ermitteln ({suchOrdner.Count})");
 
                 System.Collections.Generic.IReadOnlyList<(string Path, float Score)> treffer;
 
@@ -5650,7 +6059,11 @@ namespace TestImage
                         kalibrierKomponenten: SchemaKalibrierungAktiv ? SchemaKalibrierungKomponenten : -1);
                 }
 
-                treffer = AufListeAbbilden(treffer, nurAusListe: !ueberMehrere);
+                SchemaTakt($"Ähnlichkeiten berechnen ({treffer.Count} roh)");
+
+                treffer = await AufListeAbbildenAsync(treffer, nurAusListe: !ueberMehrere, token);
+
+                SchemaTakt($"Auf Liste abbilden ({treffer.Count} übrig)");
 
                 if (treffer.Count <= 1)
                 {
@@ -5662,9 +6075,13 @@ namespace TestImage
                 _letzteFrage = "Schema-ähnlich: " + Path.GetFileName(bildPfad);
                 await LadeSchemaKandidatenAsync(treffer, token);
 
+                SchemaTakt("Miniaturen laden");
+
                 ErgebnisseSindSchemaAehnlich = true;
                 RenderSchemaAehnlich();   // nach aktuellem Slider-Wert anzeigen
                 CommandExecuteTrefferUebernehmenCommand?.NotifyCanExecuteChanged();
+
+                SchemaTakt("Anzeigen");
             }
             catch (OperationCanceledException)
             {
@@ -5726,6 +6143,36 @@ namespace TestImage
         }
 
         /// <summary>
+        /// Wirft aus einer Liste von Suchordnern die weg, die keine Indexdatei (mehr)
+        /// haben. Der erste Eintrag bleibt in jedem Fall stehen: Dort liegt das
+        /// Anfragebild, und <see cref="BildAnalyseService.SucheNachSerieInOrdnernAsync"/>
+        /// nimmt ihn als Heimat, wenn der Ordner des Bildes selbst keinen Index hat.
+        ///
+        /// Nur in einem Hintergrundfaden zu rufen — jeder Eintrag kostet einen Gang ans
+        /// Dateisystem, und der kann auf einer schlafenden Platte dauern.
+        /// </summary>
+        private static System.Collections.Generic.List<string> NurOrdnerMitIndex(
+            System.Collections.Generic.List<string> ordner)
+        {
+            if (ordner.Count <= 1)
+            {
+                return ordner;
+            }
+
+            var ergebnis = new System.Collections.Generic.List<string>(ordner.Count) { ordner[0] };
+
+            for (int i = 1; i < ordner.Count; i++)
+            {
+                if (File.Exists(Path.Combine(ordner[i], BildAnalyseService.CacheDateiName)))
+                {
+                    ergebnis.Add(ordner[i]);
+                }
+            }
+
+            return ergebnis;
+        }
+
+        /// <summary>
         /// Bildet Index-Treffer auf die aktuelle Bildliste ab.
         ///
         /// Der Index kennt die Pfade vom Zeitpunkt des Indexierens. Diese App verschiebt
@@ -5750,6 +6197,37 @@ namespace TestImage
             System.Collections.Generic.IReadOnlyList<(string Path, float Score)> treffer,
             bool nurAusListe = true)
         {
+            var (nachPfad, nachName) = SpiegleBildListe();
+            return AufListeAbbilden(treffer, nachPfad, nachName, nurAusListe);
+        }
+
+        /// <summary>
+        /// Wie oben, nur mit dem Warten auf die Platte in einem Hintergrundfaden.
+        ///
+        /// Die drei Fälle unten fragen je Treffer, ob eine Datei noch da ist. Bei einer
+        /// Suche über mehrere Ordner sind das bis zu 200 Fragen an Verzeichnisse, die
+        /// gerade erst zum ersten Mal angefasst werden — im UI-Faden steht das Fenster
+        /// solange still. Nur der Spiegel der Bildliste bleibt hier: <c>ocAufgabens</c>
+        /// gehört dem UI-Faden und darf von nirgendwo sonst gelesen werden.
+        /// </summary>
+        private async Task<System.Collections.Generic.IReadOnlyList<(string Path, float Score)>> AufListeAbbildenAsync(
+            System.Collections.Generic.IReadOnlyList<(string Path, float Score)> treffer,
+            bool nurAusListe,
+            CancellationToken token)
+        {
+            var (nachPfad, nachName) = SpiegleBildListe();
+
+            return await Task.Run(
+                () => AufListeAbbilden(treffer, nachPfad, nachName, nurAusListe), token);
+        }
+
+        /// <summary>
+        /// Zieht aus <c>ocAufgabens</c> zwei Nachschlagewerke: die Pfade, und je
+        /// Dateiname den aktuellen Pfad. Nur im UI-Faden zu rufen.
+        /// </summary>
+        private (System.Collections.Generic.HashSet<string> NachPfad,
+                 System.Collections.Generic.Dictionary<string, string> NachName) SpiegleBildListe()
+        {
             var nachPfad = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var nachName = new System.Collections.Generic.Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -5769,6 +6247,19 @@ namespace TestImage
                 }
             }
 
+            return (nachPfad, nachName);
+        }
+
+        /// <summary>
+        /// Der eigentliche Abgleich — ohne Zugriff auf die Ansicht, damit er auch in
+        /// einem Hintergrundfaden laufen kann.
+        /// </summary>
+        private static System.Collections.Generic.IReadOnlyList<(string Path, float Score)> AufListeAbbilden(
+            System.Collections.Generic.IReadOnlyList<(string Path, float Score)> treffer,
+            System.Collections.Generic.HashSet<string> nachPfad,
+            System.Collections.Generic.Dictionary<string, string> nachName,
+            bool nurAusListe)
+        {
             var ergebnis = new System.Collections.Generic.List<(string Path, float Score)>(treffer.Count);
 
             // Das Abbilden kann zwei Treffer auf denselben Pfad führen – etwa wenn der
@@ -6186,7 +6677,17 @@ namespace TestImage
             }
         }
 
+        /// <summary>
+        /// Das zuletzt abgelegte oder angefahrene Bild — und damit der Anker für den
+        /// geladenen Ordner (<c>GeladenerOrdner</c>).
+        ///
+        /// Das Notify ist keine Zierde: An diesem Ordner hängt, ob
+        /// <c>BTN_OrdnerEineEbeneHoch</c> anklickbar ist. Ohne die Meldung wurde der Knopf
+        /// nur dann neu bewertet, wenn nebenbei <c>PrüfungLäuft</c> umsprang — er hing an
+        /// einem Ladevorgang statt an seiner eigenen Bedingung.
+        /// </summary>
         [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteOrdnerEineEbeneHochCommand))]
         public partial string DropDateiName { get; set; }
 
         [ObservableProperty]

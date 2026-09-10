@@ -39,11 +39,173 @@ namespace TestImage
 
         private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(AufgabeViewModel.IsImageMaximiert) && sender is AufgabeViewModel vm)
+            if (sender is not AufgabeViewModel vm)
+                return;
+
+            if (e.PropertyName == nameof(AufgabeViewModel.IsImageMaximiert))
             {
                 SetTitleBarDark(vm.IsImageMaximiert);
+
+                // Das Eigenschaften-Feld gibt es nur im Vollbild. Verlässt man die Ansicht
+                // mit offenem Feld, muss die dafür geholte Breite mit ihm verschwinden —
+                // sonst stünde ein zu breites Fenster ohne sichtbaren Anlass da.
+                //
+                // Ohne Animation: Beim Ansichtswechsel wird ohnehin alles ausgetauscht, da
+                // wäre eine aufziehende Spalte nur ein zweiter Vorgang im selben Moment.
+                PasseFensterbreiteAnBildinfoAn(vm.IsImageMaximiert && vm.IsBildinfoSichtbar, TimeSpan.Zero);
+            }
+            else if (e.PropertyName == nameof(AufgabeViewModel.IsBildinfoSichtbar))
+            {
+                PasseFensterbreiteAnBildinfoAn(vm.IsImageMaximiert && vm.IsBildinfoSichtbar, BildinfoFahrdauer);
             }
         }
+
+        #region Fensterbreite fürs Eigenschaften-Feld
+
+        /// <summary>Untergrenze, die das Zuklappen nicht unterschreiten darf.</summary>
+        private const double FensterMindestbreite = 400;
+
+        /// <summary>
+        /// Dauer, in der das Feld herein- und hinausfährt.
+        ///
+        /// Etwas grosszügiger als die frühere Fensterfahrt: Hier bewegt sich nur noch eine
+        /// fertige Textur, das darf man auch sehen.
+        /// </summary>
+        private static readonly TimeSpan BildinfoFahrdauer = TimeSpan.FromMilliseconds(200);
+
+        /// <summary>
+        /// Um wie viel das Fenster fürs Feld gewachsen ist; 0 = gar nicht. Beim Zuklappen
+        /// wird genau dieser Betrag zurückgegeben und nie pauschal die Spaltenbreite —
+        /// sonst schrumpfte auch ein Fenster, das nie gewachsen ist.
+        /// </summary>
+        private double _bildinfoZuwachs;
+
+        /// <summary>Linke Kante vor dem Wachsen — nur belegt, wenn dafür geschoben wurde.</summary>
+        private double _bildinfoLinksVorher;
+
+        /// <summary>
+        /// Linke Kante, die wir zuletzt selbst gesetzt haben. Schiebt der Nutzer das Fenster
+        /// danach von Hand, bleibt es beim Zuklappen dort stehen, wo er es hingestellt hat.
+        /// </summary>
+        private double _bildinfoLinksGesetzt;
+
+        /// <summary>
+        /// Holt die Breite fürs Eigenschaften-Feld vom Bildschirm statt vom Bild.
+        ///
+        /// Ohne das nähme die Spalte dem Bild 300 Punkte weg — ausgerechnet in der Ansicht,
+        /// in der das Bild so gross wie möglich sein soll. Also wächst das Fenster um die
+        /// Spaltenbreite und gibt sie beim Zuklappen wieder her.
+        ///
+        /// Drei Fälle bleiben beim alten Verhalten (das Bild rückt zur Seite), weil Wachsen
+        /// dort nicht möglich ist: maximiertes Fenster, Fenster schon so breit wie die
+        /// Arbeitsfläche, und der Rest, wenn nur ein Teil der Breite frei ist.
+        ///
+        /// Die Breite ändert sich in einem Schritt, nicht animiert. Eine animierte
+        /// Fensterbreite läuft nicht im selben Takt wie das Layout dahinter — die Breite
+        /// kommt über SetWindowPos herein, die Spalte im Rendertakt, und was zwischen den
+        /// beiden nicht zusammenpasst, sieht man am Bild als Zappeln und an der
+        /// Titelleiste als Nachziehen. Ein einziger Sprung hat diesen Zwischenzustand
+        /// nicht; die Fahrt macht danach das Feld, das keine Fenstergrösse anfasst.
+        /// </summary>
+        private void PasseFensterbreiteAnBildinfoAn(bool sichtbar, TimeSpan dauer)
+        {
+            // Wann die Fensterbreite an der Reihe ist, entscheidet die Ansicht: Sie muss den
+            // Schritt in denselben Layout-Durchlauf legen wie das Erscheinen der Spalte.
+            VIEW_Vollbild.SetzeBildinfoSpalte(
+                sichtbar,
+                dauer,
+                sichtbar ? VergrössereFensterFürBildinfo : VerkleinereFensterNachBildinfo);
+        }
+
+        private void VergrössereFensterFürBildinfo()
+        {
+            if (_bildinfoZuwachs > 0 || WindowState != WindowState.Normal)
+                return;
+
+            var fläche = ErmittleArbeitsfläche();
+            double zuwachs = Math.Min(VollbildAnsicht.BildinfoSpaltenbreite, Math.Max(0, fläche.Width - Width));
+            if (zuwachs <= 0)
+                return;
+
+            _bildinfoZuwachs = zuwachs;
+            _bildinfoLinksVorher = Left;
+            Width += zuwachs;
+
+            // Nach rechts ist am Bildschirmrand Schluss: Was dort nicht mehr hinpasst,
+            // holt sich das Fenster nach links, sonst läge die neue Spalte ausserhalb.
+            if (Left + Width > fläche.Right)
+                Left = Math.Max(fläche.Left, fläche.Right - Width);
+
+            _bildinfoLinksGesetzt = Left;
+        }
+
+        private void VerkleinereFensterNachBildinfo()
+        {
+            if (_bildinfoZuwachs <= 0)
+                return;
+
+            Width = Math.Max(FensterMindestbreite, Width - _bildinfoZuwachs);
+
+            if (Math.Abs(Left - _bildinfoLinksGesetzt) < 1)
+                Left = _bildinfoLinksVorher;
+
+            _bildinfoZuwachs = 0;
+        }
+
+        /// <summary>
+        /// Arbeitsfläche des Bildschirms, auf dem das Fenster gerade liegt.
+        ///
+        /// <see cref="SystemParameters.WorkArea"/> meint immer den Hauptbildschirm; auf dem
+        /// zweiten Schirm käme das Fenster damit an einer Kante an, die es dort nicht gibt.
+        /// Fällt darauf nur zurück, wenn der Monitor nicht zu ermitteln ist.
+        /// </summary>
+        private Rect ErmittleArbeitsfläche()
+        {
+            var hwnd = new WindowInteropHelper(this).Handle;
+            var quelle = PresentationSource.FromVisual(this) as HwndSource;
+            if (hwnd == IntPtr.Zero || quelle?.CompositionTarget is null)
+                return SystemParameters.WorkArea;
+
+            var monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+            var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+            if (monitor == IntPtr.Zero || !GetMonitorInfo(monitor, ref info))
+                return SystemParameters.WorkArea;
+
+            // Der Monitor rechnet in Gerätepunkten, Left und Width in WPF-Einheiten.
+            var vonGerät = quelle.CompositionTarget.TransformFromDevice;
+            var obenLinks = vonGerät.Transform(new Point(info.rcWork.Left, info.rcWork.Top));
+            var untenRechts = vonGerät.Transform(new Point(info.rcWork.Right, info.rcWork.Bottom));
+            return new Rect(obenLinks, untenRechts);
+        }
+
+        private const int MONITOR_DEFAULTTONEAREST = 2;
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr MonitorFromWindow(IntPtr hwnd, int dwFlags);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct RECT
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MONITORINFO
+        {
+            public int cbSize;
+            public RECT rcMonitor;
+            public RECT rcWork;
+            public int dwFlags;
+        }
+
+        #endregion
 
         private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
         {
@@ -256,6 +418,12 @@ namespace TestImage
                 case Key.S:
                     if (vm.CommandExecuteBildStretchAnpassenCommand.CanExecute(null))
                         vm.CommandExecuteBildStretchAnpassenCommand.Execute(null);
+                    e.Handled = true;
+                    break;
+
+                // I → Eigenschaften des Bildes ein-/ausblenden
+                case Key.I:
+                    vm.CommandExecuteBildinfoToggleCommand.Execute(null);
                     e.Handled = true;
                     break;
 

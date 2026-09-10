@@ -41,6 +41,37 @@ public sealed class ClipTokenizer
         _eot = _encoder["<|endoftext|>"];
     }
 
+    /// <summary>
+    /// Steht das Wort als Ganzes im CLIP-Vokabular?
+    ///
+    /// Das Vokabular ist Byte-Level-BPE: Häufige Wörter stehen als ein Stück darin,
+    /// erkennbar am Wortende-Zeichen <c>&lt;/w&gt;</c>; alles andere wird in Silben
+    /// zerlegt. Genau diese Unterscheidung wird gebraucht: Ein Wort mit eigenem Token
+    /// hat der Text-Encoder in seinem Training gesehen und trägt Bedeutung — ein in
+    /// Silben zerfallendes Wort liefert bestenfalls Rauschen.
+    ///
+    /// Gedacht für die Frage „muss vor diesem Wort gewarnt werden?", nicht als
+    /// Rechtschreibprüfung: Das Vokabular stammt aus englischem Netztext und enthält
+    /// deshalb auch häufige Wörter anderer Sprachen sowie Namen.
+    /// </summary>
+    public bool KenntGanzesWort(string? wort)
+    {
+        if (string.IsNullOrWhiteSpace(wort))
+        {
+            return false;
+        }
+
+        // Wie in Encode: kleingeschrieben und byteweise abgebildet, sonst trifft ein
+        // Wort mit Umlaut sein eigenes Token nicht.
+        var sb = new StringBuilder();
+        foreach (byte b in Encoding.UTF8.GetBytes(wort.Trim().ToLowerInvariant()))
+        {
+            sb.Append(_byteEncoder[b]);
+        }
+
+        return _encoder.ContainsKey(sb.ToString() + "</w>");
+    }
+
     /// <summary>Wandelt Text in CLIP-Token-IDs (inkl. Start-/End-Token).</summary>
     public IReadOnlyList<long> Encode(string text)
     {

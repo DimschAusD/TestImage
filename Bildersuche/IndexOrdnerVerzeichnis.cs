@@ -30,13 +30,36 @@ namespace TestImage.Bildersuche
         /// Alle bekannten Ordner, neueste zuerst. <see cref="IndexOrdnerEintrag.Existiert"/>
         /// ist dabei frisch geprüft.
         /// </summary>
-        internal static IReadOnlyList<IndexOrdnerEintrag> Alle()
+        internal static IReadOnlyList<IndexOrdnerEintrag> Alle() => Alle(pruefen: true);
+
+        /// <summary>
+        /// Wie oben, aber mit der Wahl, ob das Dateisystem befragt wird.
+        /// </summary>
+        /// <param name="pruefen">
+        /// False = <see cref="IndexOrdnerEintrag.Existiert"/> so lassen, wie es die letzte
+        /// Prüfung hinterlassen hat.
+        ///
+        /// Die Prüfung kostet je Eintrag zwei Gänge ans Dateisystem, und einer davon kann
+        /// lange dauern: Ein Ordner auf einer schlafenden USB-Platte weckt sie, ein
+        /// getrennter Netzpfad läuft in einen Zeitablauf von Sekunden. Steht das im
+        /// UI-Faden, steht die Anwendung.
+        ///
+        /// Für Beschriftungen und Anzahlen genügt der letzte bekannte Stand — die
+        /// Einträge sind dieselben Objekte wie im Zwischenspeicher, tragen also das
+        /// Ergebnis der letzten Auffrischung. Wo es wirklich darauf ankommt, wird ohnehin
+        /// erneut geprüft: <c>SucheNachSerieInOrdnernAsync</c> übergeht jeden Ordner ohne
+        /// Indexdatei, und zwar in einem Hintergrundfaden.
+        /// </param>
+        internal static IReadOnlyList<IndexOrdnerEintrag> Alle(bool pruefen)
         {
             var liste = Hole();
 
-            foreach (var e in liste)
+            if (pruefen)
             {
-                e.Existiert = IstVorhanden(e.Pfad);
+                foreach (var e in liste)
+                {
+                    e.Existiert = IstVorhanden(e.Pfad);
+                }
             }
 
             return liste.OrderByDescending(e => e.Stand).ToList();

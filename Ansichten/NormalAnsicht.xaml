@@ -40,6 +40,13 @@
             <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="SnapsToDevicePixels" Value="True" />
+            <!--
+                Die Dicke kommt vom Knopf, damit ein abgeleiteter Style einen
+                Dauerzustand über die Randstärke zeigen kann — siehe SuchleisteKnopf.
+                Der Wert 1 ist derselbe, der vorher fest im Template stand; für alle
+                bisherigen Knöpfe ändert sich dadurch nichts.
+            -->
+            <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type Button}">
@@ -47,7 +54,7 @@
                             x:Name="BRD_RibbonFlaeche"
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="1"
+                            BorderThickness="{TemplateBinding BorderThickness}"
                             CornerRadius="6"
                             SnapsToDevicePixels="True">
                             <ContentPresenter
@@ -89,6 +96,35 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <!--
+            „Erw. Suche" — ein Umschalter in der Kopfleiste, sonst ein RibbonKnopf.
+
+            Vorher trug er einen eigenen Inline-Style aus der Zeit, als die grauen
+            Knöpfe noch über dem Bild schwebten: Rand #33000000, Ecken 5, graues
+            Überfahren. Zwischen „Ansicht aktualisieren" (Ecken 6, grünes Überfahren,
+            Rand wird doppelt dick) und dem Filterfeld war er damit der einzige, der
+            eine andere Sprache sprach.
+
+            Der Dauerzustand hängt nicht nur an der Farbe, sondern am doppelt dicken
+            Rand — dieselbe Regel wie bei RibbonKnopf. Er sieht damit aus wie ein
+            eingerasteter Knopf und nicht wie ein zufällig dunklerer.
+
+            Das Überfahren überstimmt ihn: Die Trigger im Template setzen ihre Werte
+            über TargetName, und das schlägt jeden Setter von hier.
+        -->
+        <Style
+            x:Key="SuchleisteKnopf"
+            BasedOn="{StaticResource RibbonKnopf}"
+            TargetType="{x:Type Button}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsSuchleisteOffen}" Value="True">
+                    <Setter Property="Background" Value="#FFE1E5EA" />
+                    <Setter Property="BorderBrush" Value="#FF8A94A2" />
+                    <Setter Property="BorderThickness" Value="2" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
 
         <!--
@@ -351,12 +387,18 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type TextBox}">
+                        <!--
+                            Ecken 6 wie bei den Knöpfen links daneben. Vorher 4 — in
+                            einer Reihe mit RibbonKnopf (6) und dem früheren Inline-Stil
+                            der erweiterten Suche (5) standen drei verschiedene
+                            Rundungen nebeneinander, was die Leiste unruhig machte.
+                        -->
                         <Border
                             x:Name="BRD_Filterfeld"
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="4"
+                            CornerRadius="6"
                             SnapsToDevicePixels="True">
                             <Grid x:Name="GRD_FilterfeldInhalt">
                                 <Grid.ColumnDefinitions>
@@ -1362,9 +1404,22 @@
                         <Style TargetType="Border">
                             <Setter Property="Visibility" Value="Collapsed" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding OcAufgabens.Count}" Value="0">
+                                <!--
+                                    Zweite Bedingung, weil die Liste mitten im Einlesen
+                                    leer ist: OnFileDrop leert sie, bevor der neue Ordner
+                                    durchlaufen wird. Damit sprang dieser Hinweis nach
+                                    dem Ablegen wieder auf — „Bild hierher ziehen", über
+                                    der Vorschau des Bildes, das man gerade abgelegt hat,
+                                    für die ganze Dauer des Einlesens. Er ist für den
+                                    leeren Anfangszustand da, nicht für den Übergang.
+                                -->
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding OcAufgabens.Count}" Value="0" />
+                                        <Condition Binding="{Binding OrdnerEinlesenLäuft}" Value="False" />
+                                    </MultiDataTrigger.Conditions>
                                     <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
+                                </MultiDataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
@@ -1407,6 +1462,107 @@
                             Text="Danach: Pfeiltasten blättern und verschieben · F1 zeigt alle Tasten" />
                     </StackPanel>
                 </Border>
+
+                <!--
+                    Warte-Indikator: derselbe Ring wie in der Vollbildansicht, hier über
+                    der Bildfläche der Normalansicht.
+
+                    <b>Warum auch hier.</b> Die Kopfleiste zeigt nur, was zählbar
+                    fortschreitet und abbrechbar ist. Das Einlesen eines abgelegten
+                    Ordners ist beides nicht und blieb deshalb unsichtbar — nach dem
+                    Loslassen stand ein bis zwei Sekunden das alte Bild da. Der Ring
+                    hängt an WartenLäuft und deckt damit beides ab: das Einlesen nach
+                    einem Drop und das Laden des einzelnen Bildes.
+
+                    <b>Warum dunkel statt hell.</b> Die Fläche darunter wechselt die
+                    Farbe — Weiss, Rot nach dem Verschieben, im Bildmodus #FF111111,
+                    dazu das Bild selbst. Die dunkle Pille ist auf allen vieren lesbar,
+                    und sie ist dieselbe wie im Vollbild: ein Warten, ein Zeichen.
+
+                    ZIndex 250: über dem Erststart-Hinweis (200), unter dem Drop-Overlay
+                    (300) — solange gezogen wird, gilt dessen Aussage.
+
+                    d:Opacity zeigt den Ring im Entwurf; zur Laufzeit gilt die null aus
+                    der Vorlage, bis der Auslöser greift.
+                -->
+                <Control
+                    x:Name="CTL_WarteIndikator"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Panel.ZIndex="250"
+                    Focusable="False"
+                    IsHitTestVisible="False">
+                    <Control.Template>
+                        <ControlTemplate TargetType="{x:Type Control}">
+                            <Border
+                                x:Name="BRD_WarteFläche"
+                                Width="46"
+                                Height="46"
+                                Background="#99000000"
+                                BorderBrush="#33FFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="23"
+                                Opacity="0"
+                                Visibility="Collapsed"
+                                d:Opacity="1"
+                                d:Visibility="Visible">
+                                <Path
+                                    x:Name="PTH_WarteRing"
+                                    Width="26"
+                                    Height="26"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Data="M 13,2 A 11,11 0 1 1 2,13"
+                                    RenderTransformOrigin="0.5,0.5"
+                                    Stroke="#FFFFC46B"
+                                    StrokeEndLineCap="Round"
+                                    StrokeStartLineCap="Round"
+                                    StrokeThickness="2.5">
+                                    <Path.RenderTransform>
+                                        <RotateTransform x:Name="RTF_WarteRing" />
+                                    </Path.RenderTransform>
+                                </Path>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <DataTrigger Binding="{Binding WartenLäuft}" Value="True">
+
+                                    <!--
+                                        Sichtbarkeit über den Setter, nicht über die
+                                        Deckkraft-Animation: Ein Setter wird beim
+                                        Verlassen der Bedingung immer zurückgenommen,
+                                        eine Animation kann hängenbleiben. Die lange
+                                        Begründung steht beim gleichen Ring in
+                                        VollbildAnsicht.xaml, wo der Fehler auffiel.
+                                    -->
+                                    <Setter TargetName="BRD_WarteFläche" Property="Visibility" Value="Visible" />
+
+                                    <DataTrigger.EnterActions>
+                                        <BeginStoryboard x:Name="SBD_Warten">
+                                            <Storyboard>
+                                                <DoubleAnimation
+                                                    BeginTime="0:0:0.1"
+                                                    Storyboard.TargetName="BRD_WarteFläche"
+                                                    Storyboard.TargetProperty="Opacity"
+                                                    To="1"
+                                                    Duration="0:0:0.15" />
+                                                <DoubleAnimation
+                                                    RepeatBehavior="Forever"
+                                                    Storyboard.TargetName="RTF_WarteRing"
+                                                    Storyboard.TargetProperty="Angle"
+                                                    From="0"
+                                                    To="360"
+                                                    Duration="0:0:0.9" />
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </DataTrigger.EnterActions>
+                                    <DataTrigger.ExitActions>
+                                        <StopStoryboard BeginStoryboardName="SBD_Warten" />
+                                    </DataTrigger.ExitActions>
+                                </DataTrigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Control.Template>
+                </Control>
 
                 <!--  Drop-Overlay: sichtbar wenn Datei über das Bild gezogen wird  -->
                 <Border
@@ -4214,18 +4370,94 @@
                 
                 Beschriftet mit „Erw. Suche", nicht mit „Index": Was ein Index ist, weiss
                 nur, wer ihn selbst angelegt hat. Was die Leiste tut, steht damit auf dem
-                Knopf. Keine feste Breite mehr — der Text ist länger als „Index" war, und
-                der Knopf misst sich am Inhalt statt an einer Zahl.
+                Knopf.
+
+                Die Beschriftung steht dauerhaft da und klappt nicht auf wie bei den
+                Nachbarn: Dies ist ein Umschalter, und wozu er umschaltet, muss man
+                lesen können, ohne ihn zu suchen.
+
+                Die feste Breite 84 ist entfallen — der Knopf misst sich am Inhalt wie
+                „Ansicht aktualisieren" daneben. Padding 10,0 gibt ihm dieselbe Luft.
             -->
             <Button
                 x:Name="BTN_IndexSuchleiste"
+                Height="28"
+                Margin="8,0,0,0"
+                Padding="10,0"
+                Command="{Binding CommandExecuteSuchleisteToggleCommand}"
+                Style="{StaticResource SuchleisteKnopf}"
+                ToolTip="Erweiterte Suche über den Index ein-/ausblenden (Umschalt+F)">
+
+                <!--
+                    Gezeichnet, nicht als Schriftzeichen: Segoe MDL2 Assets kennt kein
+                    Fernglas.
+
+                    Ein einziger Pfad statt der früheren fünf Rechtecke im Canvas. Die
+                    Rechteck-Fassung las sich bei 16 Punkten als „H" beziehungsweise als
+                    Hantel: Okular und Rohr waren fast gleich breit, es fehlte also die
+                    Verjüngung nach oben, und die Brücke war mit 6 von 16 Punkten zu
+                    breit und sass zu tief.
+
+                    Diese Form ist gegen sechs Entwürfe ausgewählt, gerendert in echter
+                    Knopfgrösse. Drei Merkmale tragen sie, alle drei sind nötig:
+                      · Okulare oben schmal (2,6 breit), Rohre unten breit (5,8)
+                      · Rohre nach unten leicht gespreizt — die Objektive; die Spreizung
+                        bleibt bei zwei Punkten, stärker sah es nach Kopfhörer aus
+                      · Boden nur gebrochen, nicht gerundet: Radius 1,1 bei 5,8 Punkten
+                        Rohrbreite. Der erste Entwurf hatte dort 2,9 — den halben
+                        Rohrdurchmesser, also einen Halbkreis, und damit Kugeln statt
+                        Objektivfassungen. Unter 1 wird daraus ein Kasten; gemessen an
+                        Entwürfen mit 2,9 / 2,2 / 1,6 / 1,1 / 0,7
+                      · Brücke kurz und auf Schulterhöhe, nicht am oberen Rand — ganz
+                        oben ergibt die Form ein „П"
+
+                    Stretch="None", damit die Koordinaten 1:1 Punkte bleiben. Die Bindung
+                    auf den Button-Vorfahren ersetzt das frühere TemplateBinding — der
+                    Inhalt liegt jetzt ausserhalb des Templates — und nimmt weiter dessen
+                    Schriftfarbe an, auch beim Überfahren.
+                -->
+                <StackPanel x:Name="STP_IndexSuchleiste" VerticalAlignment="Center" Orientation="Horizontal">
+                    <Path
+                        x:Name="PTH_Fernglas"
+                        Width="16"
+                        Height="13"
+                        Margin="0,1,6,0"
+                        VerticalAlignment="Center"
+                        Data="M2.1,0 h2.6 a0.8,0.8 0 0 1 0.8,0.8 v2.5 h-4.2 v-2.5 a0.8,0.8 0 0 1 0.8,-0.8 z
+                              M11.3,0 h2.6 a0.8,0.8 0 0 1 0.8,0.8 v2.5 h-4.2 v-2.5 a0.8,0.8 0 0 1 0.8,-0.8 z
+                              M1.3,2.7 h4.2 l0.5,2.3 v5.2 a1.1,1.1 0 0 1 -1.1,1.1 h-3.6 a1.1,1.1 0 0 1 -1.1,-1.1 v-4.8 z
+                              M14.7,2.7 h-4.2 l-0.5,2.3 v5.2 a1.1,1.1 0 0 0 1.1,1.1 h3.6 a1.1,1.1 0 0 0 1.1,-1.1 v-4.8 z
+                              M5.7,3.5 h4.6 v2.1 h-4.6 z"
+                        Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                        Stretch="None" />
+
+                    <TextBlock
+                        x:Name="TXT_IndexSuchleiste"
+                        VerticalAlignment="Center"
+                        FontFamily="Segoe UI"
+                        FontSize="12"
+                        Text="Erw. Suche" />
+                </StackPanel>
+            </Button>
+
+            <!--
+                ABGELÖSTE FASSUNG von BTN_IndexSuchleiste, ausgeblendet stehen gelassen.
+
+                Sie trägt den alten Inline-Style aus der Zeit der über dem Bild
+                schwebenden Knöpfe: Ecken 5, Rand #33000000, graues Überfahren. Wer den
+                Vergleich sehen will, setzt Visibility auf Visible und den neuen Knopf
+                auf Collapsed. Kann weg, sobald die neue Fassung steht.
+            -->
+            <Button
+                x:Name="BTN_IndexSuchleiste_Alt"
                 Width="84"
                 Height="28"
                 Margin="8,0,0,0"
                 Padding="10,0"
                 Command="{Binding CommandExecuteSuchleisteToggleCommand}"
                 Cursor="Hand"
-                ToolTip="Erweiterte Suche über den Index ein-/ausblenden (Umschalt+F)">
+                ToolTip="Erweiterte Suche über den Index ein-/ausblenden (Umschalt+F)"
+                Visibility="Collapsed">
                 <Button.Style>
                     <Style TargetType="{x:Type Button}">
                         <Setter Property="Background" Value="Transparent" />
@@ -4476,6 +4708,101 @@
                     Text="{Binding InnerZählerCount, StringFormat=IC \{0:D\}}"
                     TextWrapping="NoWrap" />
             </Border>
+
+            <!--
+                Zahnrad: die Handvoll Schalter, die den Rechner beschreiben statt den
+                Suchlauf.
+
+                Steht am Ende der Leiste, nicht zwischen Filterfeld und Bildersuche: Was
+                hier drin liegt, gilt für die ganze Anwendung und wird selten angefasst.
+                Bis hierher stand der einzige Schalter in der Filterkarte der Bildersuche
+                und war nur zu finden, wenn man den Filter aufklappte — ein Ort für
+                Suchoptionen, nicht für Anwendungseinstellungen.
+
+                E713 aus Segoe MDL2 Assets ist das gefüllte Zahnrad; das E115 aus Segoe UI
+                Symbol daneben wäre eine Haarlinienfassung und fiele neben dem kräftigen
+                E117 des Nachbarknopfes ab.
+            -->
+            <Button
+                x:Name="BTN_Einstellungen"
+                Height="28"
+                Margin="8,0,0,0"
+                Padding="8,0"
+                Command="{Binding CommandExecuteEinstellungenToggleCommand}"
+                Cursor="Hand"
+                Style="{StaticResource RibbonKnopf}"
+                ToolTip="Einstellungen">
+                <TextBlock
+                    x:Name="IC_Einstellungen"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    FontFamily="Segoe MDL2 Assets"
+                    FontSize="14"
+                    Text="&#xE713;" />
+            </Button>
+
+            <!--
+                StaysOpen="False": Ein Klick daneben schliesst das Feld und schreibt den
+                Zustand über die TwoWay-Bindung zurück — ohne sie bliebe das ViewModel auf
+                „offen" stehen und der nächste Klick aufs Zahnrad täte nichts.
+
+                Der Rand von 10 um die Karte ist der Platz für den Schatten: Ein Popup ist
+                nur so gross wie sein Inhalt, ohne Rand würde der Schatten abgeschnitten.
+            -->
+            <Popup
+                x:Name="POP_Einstellungen"
+                AllowsTransparency="True"
+                HorizontalOffset="-8"
+                IsOpen="{Binding IsEinstellungenOffen, Mode=TwoWay}"
+                Placement="Bottom"
+                PlacementTarget="{Binding ElementName=BTN_Einstellungen}"
+                StaysOpen="False"
+                VerticalOffset="2">
+                <Border
+                    x:Name="BRD_EinstellungenKarte"
+                    Margin="10"
+                    Padding="12,10,12,12"
+                    Background="White"
+                    BorderBrush="#FFCBD5E1"
+                    BorderThickness="1"
+                    CornerRadius="8">
+                    <Border.Effect>
+                        <DropShadowEffect
+                            BlurRadius="12"
+                            Opacity="0.18"
+                            ShadowDepth="2" />
+                    </Border.Effect>
+                    <StackPanel x:Name="STP_EinstellungenFeld" MinWidth="260">
+                        <TextBlock
+                            x:Name="TXT_EinstellungenTitel"
+                            FontFamily="Segoe UI"
+                            FontSize="13"
+                            FontWeight="SemiBold"
+                            Foreground="#FF1F2937"
+                            Text="Einstellungen" />
+                        <TextBlock
+                            x:Name="TXT_EinstellungenUntertitel"
+                            Margin="0,2,0,0"
+                            FontFamily="Segoe UI"
+                            FontSize="11"
+                            Foreground="Gray"
+                            Text="Gilt für diesen Rechner und bleibt nach dem Beenden erhalten."
+                            TextWrapping="Wrap" />
+
+                        <!--  Namenssortierung: Explorer statt SpeedCommander  -->
+                        <CheckBox
+                            x:Name="CHK_SortierenWieExplorer"
+                            Margin="0,12,0,0"
+                            VerticalContentAlignment="Center"
+                            Content="Namen sortieren wie der Windows-Explorer"
+                            FontFamily="Segoe UI"
+                            FontSize="13"
+                            Foreground="#FF555555"
+                            IsChecked="{Binding SortierenWieExplorer, Mode=TwoWay}"
+                            ToolTip="Aus: Reihenfolge wie im SpeedCommander (Standard). Ein: Reihenfolge wie im Windows-Explorer – Interpunktion und führende Nullen wiegen anders." />
+                    </StackPanel>
+                </Border>
+            </Popup>
 
         </StackPanel>
 

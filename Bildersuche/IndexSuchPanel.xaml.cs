@@ -45,6 +45,23 @@ namespace TestImage.Bildersuche
             }
         }
 
+        /// <summary>
+        /// Hält die Rollposition fest, wenn eine Miniatur angeklickt wird.
+        ///
+        /// Der angeklickte Knopf bekommt den Tastaturfokus, und WPF schiebt ihn
+        /// daraufhin in den Blick. Diese Anfrage bleibt nicht in der Trefferfläche:
+        /// Sie wandert hoch bis zum Rollbereich des Suchfensters, der dann das ganze
+        /// Panel verschiebt. Bei einer Miniatur aus den unteren Reihen sprang die
+        /// Fläche deshalb weg und zeigte oben und unten angeschnittene Reihen.
+        ///
+        /// Preis: Der Fokus wandert beim Tabben weiter, die Fläche rollt ihm nur
+        /// nicht mehr nach. Die Miniaturen tragen ohnehin keinen Fokusrahmen.
+        /// </summary>
+        private void SuchErgebnisse_RequestBringIntoView(object sender, RequestBringIntoViewEventArgs e)
+        {
+            e.Handled = true;
+        }
+
         private void BegriffChip_AlleAnzeigen(object sender, RoutedEventArgs e)
         {
             if (sender is MenuItem mi &&

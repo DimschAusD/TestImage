@@ -25,7 +25,13 @@ namespace TestImage.Bildersuche
         /// <summary>
         /// False, wenn der Ordner oder seine Indexdatei nicht mehr da ist. Wird beim
         /// Einlesen gesetzt, nicht gespeichert — der Zustand kann sich jederzeit ändern.
+        ///
+        /// <c>JsonIgnore</c>, damit das auch stimmt: Ohne die Marke schrieb der
+        /// Serialisierer das Feld mit in die Datei, und ein Ordner, der beim Speichern
+        /// gerade nicht erreichbar war — abgezogene USB-Platte, getrenntes Netz —, kam
+        /// beim nächsten Start als „fehlt" zurück und blieb es bis zur nächsten Prüfung.
         /// </summary>
+        [System.Text.Json.Serialization.JsonIgnore]
         public bool Existiert { get; set; } = true;
 
         /// <summary>

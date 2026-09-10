@@ -303,10 +303,11 @@ namespace TestImage
         #region Suchbereich
 
         /// <summary>
-        /// Ordnernamen, die bei „mit Unterordnern" nicht mitgesucht werden.
+        /// Die Ablagen, die diese Anwendung selbst anlegt.
         ///
-        /// Das sind die Ablagen, die diese Anwendung selbst anlegt. Ohne diese Ausnahme
-        /// käme genau das wieder in jedes Ergebnis, was du zuvor aussortiert hast.
+        /// Dient dem Erkennen einer Ablage — etwa für „eine Ebene hoch", das nur aus
+        /// einer Ablage heraus führen darf. <b>Kein</b> Ausschluss für den Suchbereich:
+        /// Warum, steht bei <see cref="ErmittleSuchOrdner(int)"/>.
         /// </summary>
         private static readonly string[] AussortiertOrdner =
             { "kein_Fav", "KI_Fehler", "Doppelt", "Besonders", "Wasserzeichen" };
@@ -420,7 +421,7 @@ namespace TestImage
 
         /// <summary>
         /// Welche Ordner der gewählte Bereich tatsächlich umfasst — fehlende sind bereits
-        /// aussortiert, ebenso die Ablagen dieser Anwendung.
+        /// aussortiert.
         /// </summary>
         public System.Collections.Generic.List<string> ErmittleSuchOrdner()
             => ErmittleSuchOrdner(Suchbereich);
@@ -428,12 +429,29 @@ namespace TestImage
         /// <summary>
         /// Wie oben, aber für einen ausdrücklich angegebenen Bereich — damit sich die
         /// Ordnerzahlen der Menüpunkte berechnen lassen, ohne die Auswahl zu verändern.
+        ///
+        /// <b>Die Ablagen dieser Anwendung werden mitgesucht</b>, sofern sie indiziert
+        /// sind. Sie standen früher auf einer Ausschlussliste, damit nicht wieder in
+        /// jedem Ergebnis auftaucht, was zuvor aussortiert wurde. Der Ausschluss lief
+        /// jedoch ins Leere und stand zugleich im Weg: In <c>bekannt</c> steht nur, was
+        /// eine Indexdatei besitzt, und die entsteht ausschliesslich dadurch, dass der
+        /// Ordner geladen und ausdrücklich indiziert wurde. Ein <c>kein_Fav</c> kam also
+        /// nie versehentlich hinein — wer es indiziert, will die Nachlese: das noch
+        /// liegengebliebene Bild als Anfrage nehmen und seine schon weggelegten
+        /// Geschwister wiederfinden. Genau die fielen heraus, und der Zweig schrumpfte
+        /// auf den Ausgangsordner zurück.
         /// </summary>
         public System.Collections.Generic.List<string> ErmittleSuchOrdner(int bereich)
         {
             var leer = new System.Collections.Generic.List<string>();
 
-            string? heimat = AktuellerBildOrdner();
+            // Der geladene Ordner ist das Mass, nicht das gewählte Bild: Steht die
+            // Auswahl auf einem bereits verschobenen — roten — Eintrag, zeigt dessen
+            // Pfad in die Ablage. Der Zweig hinge dann unter kein_Fav statt unter dem
+            // Künstlerordner, und gesucht würde trotzdem im geladenen Ordner, weil
+            // CommandExecuteSchemaAehnlich von dort ausgeht. Dieselbe Begründung wie
+            // bei CanExecuteOrdnerEineEbeneHoch.
+            string? heimat = GeladenerOrdner() ?? AktuellerBildOrdner();
             if (string.IsNullOrEmpty(heimat))
             {
                 return leer;
@@ -444,7 +462,13 @@ namespace TestImage
                 return new System.Collections.Generic.List<string> { heimat };
             }
 
-            var bekannt = IndexOrdnerVerzeichnis.Alle()
+            // Ohne frische Existenzprüfung: Diese Methode hängt an vier Beschriftungen
+            // und wird bei jedem Ordnerwechsel mehrfach im UI-Faden ausgewertet. Die
+            // Prüfung wäre dort je Eintrag ein Gang ans Dateisystem — auf einer
+            // schlafenden USB-Platte oder einem getrennten Netzpfad Sekunden. Was hier
+            // durchrutscht, fängt die Suche selbst ab; Begründung bei
+            // IndexOrdnerVerzeichnis.Alle(bool).
+            var bekannt = IndexOrdnerVerzeichnis.Alle(pruefen: false)
                 .Where(e => e.Existiert)
                 .Select(e => e.Pfad);
 
@@ -458,14 +482,14 @@ namespace TestImage
                     || p.StartsWith(wurzel, System.StringComparison.OrdinalIgnoreCase));
             }
 
-            var ergebnis = bekannt.Where(p => !IstAussortiert(p)).ToList();
-
             // Der eigene Ordner gehört immer dazu, auch wenn er noch nicht im
-            // Verzeichnis steht – sonst fehlte ausgerechnet das Anfragebild.
-            if (!ergebnis.Contains(heimat, System.StringComparer.OrdinalIgnoreCase))
-            {
-                ergebnis.Insert(0, heimat);
-            }
+            // Verzeichnis steht – sonst fehlte ausgerechnet das Anfragebild. Und er
+            // steht vorn: SucheNachSerieInOrdnernAsync nimmt den ersten Eintrag als
+            // Heimat, wenn das Anfragebild selbst in einem Ordner ohne Index liegt.
+            var ergebnis = new System.Collections.Generic.List<string> { heimat };
+
+            ergebnis.AddRange(bekannt.Where(p =>
+                !string.Equals(p, heimat, System.StringComparison.OrdinalIgnoreCase)));
 
             return ergebnis;
         }

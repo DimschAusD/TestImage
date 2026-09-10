@@ -133,6 +133,7 @@ namespace TestImage
         /// </summary>
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteByteDublettenSuchenCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteOrdnerseitenTauschenCommand))]
         public partial string DublettenOrdner { get; set; } = string.Empty;
 
         /// <summary>Ordner, deren Dateien behalten werden (Bestand).</summary>
@@ -142,6 +143,7 @@ namespace TestImage
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteReferenzOrdnerEntfernenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteReferenzOrdnerEineEbeneHochCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteOrdnerseitenTauschenCommand))]
         public partial string? AusgewaehlterReferenzOrdner { get; set; }
 
         /// <summary>False = nur Bilddateien (Standard), True = alle Dateitypen.</summary>
@@ -164,6 +166,7 @@ namespace TestImage
         /// Kandidat meist genau ein Gegenstück übrig.
         /// </summary>
         [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(DublettenTiefenpruefungBedienbar))]
         public partial bool DublettenNurGleicherName { get; set; }
 
         /// <summary>
@@ -183,7 +186,19 @@ namespace TestImage
         {
             if (!value)
                 DublettenTiefenpruefung = true;
+
+            VerwirfSuchergebnis();
         }
+
+        /// <summary>
+        /// Ein Suchergebnis gehört zu dem Kriterium, mit dem es entstanden ist. Bleibt es
+        /// beim Umschalten stehen, behauptet die Überschrift „Gefundene Duplikate" ein
+        /// Ergebnis zu Einstellungen, die inzwischen andere sind — beim Wechsel auf den
+        /// reinen Namensvergleich sogar ein geprüftes Ergebnis, das niemand so geprüft
+        /// hat. Die Liste fällt deshalb auf den ungeprüften Ordnerinhalt zurück; für das
+        /// neue Kriterium muss ohnehin erneut gesucht werden.
+        /// </summary>
+        partial void OnDublettenTiefenpruefungChanged(bool value) => VerwirfSuchergebnis();
 
         /// <summary>
         /// Stösst das Neu-Einlesen an, sofern überhaupt ein gültiger Ordner eingestellt
@@ -204,7 +219,82 @@ namespace TestImage
         [RelayCommand(IncludeCancelCommand = true)]
         private async Task CommandExecuteDublettenOrdnerNeuLesen(CancellationToken token)
         {
+            // Wer hier ankommt, liest jetzt — ein vorgemerkter Lauf aus dem Tippfeld
+            // wäre danach nur ein zweiter Durchgang über denselben Ordner.
+            _ordnerEntpreller?.Stop();
+
             await ZeigeOrdnerInhaltAsync(DublettenOrdner, token);
+        }
+
+        /// <summary>
+        /// Wartet nach der letzten Änderung am Pfadfeld kurz ab, bevor eingelesen wird.
+        /// Der Text kommt zeichenweise an (UpdateSourceTrigger=PropertyChanged); ohne
+        /// diese Pause liefe für jeden Zwischenstand ein eigener Ordner-Durchgang.
+        /// </summary>
+        private System.Windows.Threading.DispatcherTimer? _ordnerEntpreller;
+
+        /// <summary>Merkt einen Einlesevorgang vor und schiebt einen bereits vorgemerkten nach hinten.</summary>
+        private void PlaneDublettenOrdnerNeuLesen()
+        {
+            _ordnerEntpreller ??= ErzeugeOrdnerEntpreller();
+
+            _ordnerEntpreller.Stop();
+            _ordnerEntpreller.Start();
+        }
+
+        private System.Windows.Threading.DispatcherTimer ErzeugeOrdnerEntpreller()
+        {
+            var uhr = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(700)
+            };
+
+            uhr.Tick += (_, _) =>
+            {
+                // Läuft gerade etwas, bleibt die Uhr an und versucht es beim nächsten
+                // Schlag erneut – sonst bliebe der neue Pfad ungelesen liegen.
+                if (IsDublettenAufgabeLäuft)
+                    return;
+
+                uhr.Stop();
+                PruefeDublettenOrdnerLeer();
+                LiesDublettenOrdnerNeu();
+            };
+
+            return uhr;
+        }
+
+        /// <summary>
+        /// Leert die Trefferliste und nimmt den Vermerk „gesucht" zurück.
+        ///
+        /// Nötig, sobald sich eine Eingangsgrösse ändert: Sonst stünde dort weiter ein
+        /// Ergebnis zu Pfaden, die gar nicht mehr eingestellt sind — und „Markierte
+        /// löschen" arbeitet auf den Pfaden <b>in den Treffern</b>, hätte also im alten
+        /// Ordner gelöscht, während die Ansicht längst den neuen zeigte.
+        /// </summary>
+        private void VerwirfAngezeigteTreffer()
+        {
+            if (ByteDublettenTreffer.Count > 0)
+                SetzeTreffer(Array.Empty<ByteDublettenTreffer>());
+
+            DublettenSucheGelaufen = false;
+            LeereGleichstand();
+            AktualisiereLeerHinweis();
+        }
+
+        /// <summary>
+        /// Ein Suchergebnis gilt nur für die Referenzordner, gegen die verglichen wurde.
+        /// Ändert sich diese Seite, fällt es weg und die Liste zeigt wieder den
+        /// ungeprüften Inhalt des Dubletten-Ordners. Der Ordnerinhalt selbst ist von der
+        /// Referenzseite unberührt — solange nur er dasteht, bleibt alles stehen.
+        /// </summary>
+        private void VerwirfSuchergebnis()
+        {
+            if (!DublettenSucheGelaufen || IsDublettenAufgabeLäuft)
+                return;
+
+            VerwirfAngezeigteTreffer();
+            LiesDublettenOrdnerNeu();
         }
 
         /// <summary>
@@ -222,16 +312,33 @@ namespace TestImage
         [ObservableProperty]
         public partial int DublettenOrdnerRestDateien { get; set; } = -1;
 
-        /// <summary>Text neben dem Entfernen-Knopf, wenn der Ordner noch Dateien enthält.</summary>
+        /// <summary>
+        /// Gesamtgrösse dessen, was noch im Dubletten-Ordner liegt. 0 = unbekannt oder leer.
+        /// </summary>
+        [ObservableProperty]
+        public partial long DublettenOrdnerRestBytes { get; set; }
+
+        /// <summary>
+        /// Text neben dem Entfernen-Knopf, wenn der Ordner noch Dateien enthält.
+        ///
+        /// Mit Gesamtgrösse: Die Statuszeile der Suche nennt darunter, wie viel davon
+        /// abgeglichen wird — ohne die Gesamtmenge daneben lässt sich das nicht einordnen.
+        /// </summary>
         public string DublettenOrdnerRestText => DublettenOrdnerRestDateien switch
         {
             < 0 => string.Empty,
             0 => string.Empty,
-            1 => "noch 1 Datei im Dubletten-Ordner",
-            _ => $"noch {DublettenOrdnerRestDateien} Dateien im Dubletten-Ordner"
+            1 => "noch 1 Datei im Dubletten-Ordner" + RestGroesseZusatz,
+            _ => $"noch {DublettenOrdnerRestDateien} Dateien im Dubletten-Ordner" + RestGroesseZusatz
         };
 
+        private string RestGroesseZusatz
+            => DublettenOrdnerRestBytes > 0 ? $" · {GroesseText(DublettenOrdnerRestBytes)}" : string.Empty;
+
         partial void OnDublettenOrdnerRestDateienChanged(int value)
+            => OnPropertyChanged(nameof(DublettenOrdnerRestText));
+
+        partial void OnDublettenOrdnerRestBytesChanged(long value)
             => OnPropertyChanged(nameof(DublettenOrdnerRestText));
 
         /// <summary>
@@ -252,6 +359,7 @@ namespace TestImage
             if (probe is null)
             {
                 DublettenOrdnerRestDateien = -1;
+                DublettenOrdnerRestBytes = 0;
                 DublettenOrdnerRestTooltip = string.Empty;
                 DublettenOrdnerIstLeer = false;
                 AktualisiereLeerHinweis();
@@ -261,6 +369,7 @@ namespace TestImage
             if (probe.Count == 0)
             {
                 DublettenOrdnerRestDateien = 0;
+                DublettenOrdnerRestBytes = 0;
                 DublettenOrdnerRestTooltip = string.Empty;
                 DublettenOrdnerIstLeer = true;
                 AktualisiereLeerHinweis();
@@ -268,7 +377,12 @@ namespace TestImage
             }
 
             DublettenOrdnerIstLeer = false;
-            DublettenOrdnerRestDateien = ByteDublettenService.ZaehleVerbleibendeDateien(DublettenOrdner);
+
+            // Zählen und Messen in einem Durchgang: Die Dateigrösse steht im
+            // Verzeichniseintrag und kostet keinen zusätzlichen Zugriff.
+            var stand = ByteDublettenService.MisstVerbleibendeDateien(DublettenOrdner);
+            DublettenOrdnerRestDateien = stand.Anzahl;
+            DublettenOrdnerRestBytes = stand.Bytes;
 
             var namen = probe.Select(Path.GetFileName).Take(10);
             DublettenOrdnerRestTooltip =
@@ -279,9 +393,23 @@ namespace TestImage
             AktualisiereLeerHinweis();
         }
 
-        // Auch beim blossen Setzen des Pfades prüfen: Der Ordner kann längst leer sein,
-        // etwa nach einem Aufräumen ausserhalb der Anwendung.
-        partial void OnDublettenOrdnerChanged(string value) => PruefeDublettenOrdnerLeer();
+        /// <summary>
+        /// Ein neuer Pfad macht beides hinfällig: die aufgelistete Ordnerübersicht und
+        /// ein etwaiges Suchergebnis. Beides gehörte zum vorherigen Ordner.
+        ///
+        /// Vorher blieb die Liste einfach stehen. Wer nach einer Suche die Pfade
+        /// umstellte, sah weiter die alten Treffer — die nächste Aktualisierung kam erst,
+        /// wenn zufällig ein Optionshaken angefasst wurde. Und „Markierte löschen" hätte
+        /// in diesem Zustand nach dem alten Stand gelöscht.
+        ///
+        /// Der Leerstand wird jetzt zusammen mit dem Einlesen geprüft: Beides greift auf
+        /// die Platte zu, und beim Tippen kam das bisher für jedes einzelne Zeichen.
+        /// </summary>
+        partial void OnDublettenOrdnerChanged(string value)
+        {
+            VerwirfAngezeigteTreffer();
+            PlaneDublettenOrdnerNeuLesen();
+        }
 
         private bool CanExecuteLeerenDublettenOrdnerLoeschen()
             => !IsDublettenAufgabeLäuft && DublettenOrdnerIstLeer;
@@ -404,6 +532,23 @@ namespace TestImage
         [ObservableProperty]
         public partial string DublettenStatus { get; set; } = "Dubletten-Ordner und Referenzordner wählen, dann suchen.";
 
+        /// <summary>
+        /// Text neben dem Ring, solange der Dubletten-Ordner eingelesen wird. Nennt die
+        /// bisher gefundene Menge — die Gesamtgrösse des Ordners baut sich hier auf.
+        /// </summary>
+        [ObservableProperty]
+        public partial string DublettenEinlesenHinweis { get; set; } = "liest …";
+
+        /// <summary>
+        /// Auskunft zur Statuszeile: welcher Leseplan galt und warum, welcher
+        /// Vergleichsweg getragen hat, Menge und Rate.
+        ///
+        /// Bewusst null statt leer, solange es nichts zu sagen gibt — WPF zeigt sonst ein
+        /// leeres Kästchen, sobald man die Zeile streift.
+        /// </summary>
+        [ObservableProperty]
+        public partial string? DublettenStatusAuskunft { get; set; }
+
         [ObservableProperty]
         public partial int DublettenFortschritt { get; set; }
 
@@ -423,12 +568,39 @@ namespace TestImage
 
         /// <summary>Sperrt die Commands, solange Suche oder Löschlauf aktiv ist.</summary>
         [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(DublettenOptionenBedienbar))]
+        [NotifyPropertyChangedFor(nameof(DublettenTiefenpruefungBedienbar))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteByteDublettenSuchenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteMarkierteLoeschenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteReferenzOrdnerHinzufuegenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteReferenzOrdnerEntfernenCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteReferenzOrdnerEineEbeneHochCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteDublettenOrdnerWaehlenCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteOrdnerseitenTauschenCommand))]
         public partial bool IsDublettenAufgabeLäuft { get; set; }
+
+        /// <summary>
+        /// Die vier Optionshaken sind nur bedienbar, solange nichts läuft — wie die
+        /// Knöpfe daneben, die über ihr CanExecute ohnehin gesperrt sind.
+        ///
+        /// Ohne diese Sperre liess sich mitten im Lauf umschalten. Der laufenden Suche
+        /// machte das nichts aus (sie bekommt ihre Einstellungen beim Start übergeben),
+        /// aber die Anzeige log anschliessend: „Umfang" wechselte den Haken, ohne die
+        /// Liste neu einzulesen — <see cref="LiesDublettenOrdnerNeu"/> steigt bei
+        /// laufender Aufgabe aus —, und beim „Kriterium" wurde der Ergebnissatz am Ende
+        /// aus dem <b>aktuellen</b> Stand gebildet. Wer während eines reinen
+        /// Namensvergleichs den Namenshaken löste, schaltete damit die Tiefenprüfung ein
+        /// und bekam „N Duplikate gefunden" gemeldet — eine Aussage über den Inhalt, den
+        /// niemand gelesen hatte, und das unmittelbar vor dem Löschen.
+        /// </summary>
+        public bool DublettenOptionenBedienbar => !IsDublettenAufgabeLäuft;
+
+        /// <summary>
+        /// Die Tiefenprüfung zusätzlich an den Namensvergleich gebunden: Ohne Namensbezug
+        /// bliebe „alles gleicher Grösse ist eine Dublette" übrig.
+        /// </summary>
+        public bool DublettenTiefenpruefungBedienbar
+            => DublettenNurGleicherName && !IsDublettenAufgabeLäuft;
 
         /// <summary>
         /// Anzahl der zum Löschen vorgemerkten Treffer. Nur bestätigte zählen —
@@ -525,6 +697,7 @@ namespace TestImage
             AktualisiereLeerHinweis();
 
             CommandExecuteByteDublettenSuchenCommand.NotifyCanExecuteChanged();
+            VerwirfSuchergebnis();
         }
 
         private bool CanExecuteReferenzOrdnerEntfernen()
@@ -540,6 +713,7 @@ namespace TestImage
             AusgewaehlterReferenzOrdner = null;
             AktualisiereLeerHinweis();
             CommandExecuteByteDublettenSuchenCommand.NotifyCanExecuteChanged();
+            VerwirfSuchergebnis();
         }
 
         private static string? OrdnerOderLeer(string ordner)
@@ -593,6 +767,59 @@ namespace TestImage
 
             AusgewaehlterReferenzOrdner = eltern;
             CommandExecuteByteDublettenSuchenCommand.NotifyCanExecuteChanged();
+            VerwirfSuchergebnis();
+        }
+
+        private bool CanExecuteOrdnerseitenTauschen()
+            => !IsDublettenAufgabeLäuft
+               && OrdnerOderLeer(DublettenOrdner) is not null
+               && !string.IsNullOrEmpty(AusgewaehlterReferenzOrdner)
+               && !string.Equals(DublettenOrdner, AusgewaehlterReferenzOrdner,
+                                 StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Vertauscht die beiden Seiten: Der markierte Referenzordner wird zum
+        /// Dubletten-Ordner (dort wird künftig gelöscht), der bisherige Dubletten-Ordner
+        /// rückt an dessen Stelle in die Referenzliste.
+        ///
+        /// Gedacht für den Fall, dass man beim Ziehen die Seiten verwechselt hat — ohne
+        /// den Knopf müsste man beide Pfade neu heraussuchen.
+        /// </summary>
+        [RelayCommand(CanExecute = nameof(CanExecuteOrdnerseitenTauschen))]
+        private void CommandExecuteOrdnerseitenTauschen()
+        {
+            string bisherigerLoeschOrdner = DublettenOrdner;
+            string? neuerLoeschOrdner = AusgewaehlterReferenzOrdner;
+
+            if (neuerLoeschOrdner is null || !Directory.Exists(bisherigerLoeschOrdner))
+                return;
+
+            int index = DublettenReferenzOrdner.IndexOf(neuerLoeschOrdner);
+            if (index < 0)
+                return;
+
+            // Stand der bisherige Lösch-Ordner schon in der Referenzliste, würde das
+            // Ersetzen ihn doppeln – dann fällt der markierte Eintrag nur weg.
+            if (DublettenReferenzOrdner.Contains(bisherigerLoeschOrdner, StringComparer.OrdinalIgnoreCase))
+                DublettenReferenzOrdner.RemoveAt(index);
+            else
+                DublettenReferenzOrdner[index] = bisherigerLoeschOrdner;
+
+            DublettenOrdner = neuerLoeschOrdner;
+
+            // Auf den Listeneintrag markieren, nicht auf die eigene Schreibweise: Bei
+            // abweichender Gross-/Kleinschreibung fände die ListBox sonst nichts.
+            AusgewaehlterReferenzOrdner = DublettenReferenzOrdner
+                .FirstOrDefault(o => string.Equals(o, bisherigerLoeschOrdner,
+                                                   StringComparison.OrdinalIgnoreCase));
+
+            AktualisiereLeerHinweis();
+            DublettenStatus = $"Seiten getauscht – gelöscht wird jetzt in: {neuerLoeschOrdner}";
+            CommandExecuteByteDublettenSuchenCommand.NotifyCanExecuteChanged();
+
+            // Wie beim Drop über denselben Command: genau ein Einlesevorgang, den der
+            // Abbrechen-Knopf sicher trifft.
+            CommandExecuteDublettenOrdnerNeuLesenCommand.Execute(null);
         }
 
         /// <summary>
@@ -630,6 +857,8 @@ namespace TestImage
             // Wie viele Dateien es sind, weiss erst die Auflistung selbst.
             DublettenFortschrittUnbestimmt = true;
             DublettenStatus = "Ordner wird gelesen …";
+            DublettenEinlesenHinweis = "liest …";
+            DublettenStatusAuskunft = null;
 
             // Neuer Ordnerinhalt: Ein früheres Suchergebnis gilt nicht mehr.
             DublettenSucheGelaufen = false;
@@ -647,6 +876,7 @@ namespace TestImage
 
                 var liste = new System.Collections.Generic.List<ByteDublettenTreffer>(dateien.Count);
                 var uhr = Stopwatch.StartNew();
+                long summeBisher = 0;
 
                 for (int i = 0; i < dateien.Count; i++)
                 {
@@ -655,6 +885,8 @@ namespace TestImage
                     long groesse;
                     try { groesse = new FileInfo(dateien[i]).Length; }
                     catch { groesse = 0; }
+
+                    summeBisher += groesse;
 
                     liste.Add(new ByteDublettenTreffer
                     {
@@ -670,6 +902,7 @@ namespace TestImage
                         DublettenFortschritt = i + 1;
                         DublettenStatus = $"Ordner wird gelesen … {i + 1} / {dateien.Count}"
                             + RestzeitZusatz(uhr.Elapsed, i + 1, dateien.Count);
+                        DublettenEinlesenHinweis = $"liest … {i + 1} / {dateien.Count} · {GroesseText(summeBisher)}";
                         await Task.Delay(1, token);
                     }
                 }
@@ -749,6 +982,13 @@ namespace TestImage
             DublettenFortschrittUnbestimmt = true;   // Umfang noch unbekannt
             DublettenRestzeit = string.Empty;
 
+            // Das Urteil des vorigen Laufs gilt nicht mehr, sobald neu gesucht wird.
+            LeereGleichstand();
+
+            // Die Auskunft des vorigen Laufs gilt nicht mehr — sie stünde sonst am
+            // laufenden Balken und beschriebe einen Leseplan, der gar nicht mehr gilt.
+            DublettenStatusAuskunft = null;
+
             var uhr = Stopwatch.StartNew();
 
             try
@@ -779,6 +1019,17 @@ namespace TestImage
 
                 var nichtLesbar = new System.Collections.Generic.List<string>();
 
+                // Die Schlussmeldung des Dienstes wird hier gleich überschrieben. Was er
+                // über sein eigenes Lesen zu sagen hat, kommt deshalb getrennt zurück.
+                var protokoll = new ByteDublettenService.Leseprotokoll();
+
+                // Der Ergebnissatz muss den Lauf beschreiben, der stattgefunden hat, nicht
+                // den Stand der Haken bei seinem Ende. Die Ansicht sperrt sie zwar während
+                // des Laufs; verlassen sollte sich der Satz darauf nicht.
+                bool tiefenpruefungImLauf = DublettenTiefenpruefung;
+                bool mitUnterordnernImLauf = DublettenMitUnterordnern;
+                bool alleDateitypenImLauf = DublettenAlleDateitypen;
+
                 var treffer = await ByteDublettenService.FindeByteDublettenAsync(
                     DublettenOrdner,
                     DublettenReferenzOrdner.ToList(),
@@ -788,7 +1039,8 @@ namespace TestImage
                     DublettenTiefenpruefung,
                     fortschritt,
                     token,
-                    nichtLesbar);
+                    nichtLesbar,
+                    protokoll);
 
                 token.ThrowIfCancellationRequested();
 
@@ -814,17 +1066,25 @@ namespace TestImage
                     : $" Bei {ungeprueft} davon ist das Gegenstück im Bestand unterschiedlich gross —"
                       + " gleicher Name heisst dort nicht gleicher Inhalt.";
 
-                string gefunden = DublettenTiefenpruefung
-                    ? $"{treffer.Count} Byte-Duplikate gefunden"
+                string gefunden = tiefenpruefungImLauf
+                    ? $"{treffer.Count} Duplikate gefunden"
                     : $"{treffer.Count} gleichnamige Dateien gefunden (Inhalt nicht geprüft)";
 
                 DublettenStatus = (treffer.Count == 0
-                    ? (DublettenTiefenpruefung
-                        ? "Keine Byte-Duplikate gefunden."
+                    ? (tiefenpruefungImLauf
+                        ? "Keine Duplikate gefunden."
                         : "Keine gleichnamigen Dateien gefunden.")
                     : $"{gefunden} — {DublettenMarkierteGroesseText} können frei werden.")
                     + groessenHinweis
-                    + zusatz;
+                    + zusatz
+                    + protokoll.Text;
+
+                DublettenStatusAuskunft =
+                    protokoll.Auskunft.Length == 0 ? null : protokoll.Auskunft;
+
+                BestimmeOrdnerGleichstand(
+                    treffer, protokoll, tiefenpruefungImLauf,
+                    mitUnterordnernImLauf, alleDateitypenImLauf, nichtLesbar.Count);
             }
             catch (OperationCanceledException)
             {
@@ -845,6 +1105,178 @@ namespace TestImage
                 PruefeDublettenOrdnerLeer();
             }
         }
+
+        #region Gleichstand zweier Ordner
+
+        /// <summary>
+        /// Aussage über den Vergleich der beiden Startordner nach einem Suchlauf.
+        /// Leer = keine Aussage möglich; die Zeile bleibt dann unsichtbar.
+        /// </summary>
+        [ObservableProperty]
+        public partial string DublettenGleichstandText { get; set; } = string.Empty;
+
+        /// <summary>Zweite Zeile mit den Zahlen und Einschränkungen dahinter.</summary>
+        [ObservableProperty]
+        public partial string DublettenGleichstandDetail { get; set; } = string.Empty;
+
+        /// <summary>
+        /// True = beide Startordner enthalten dieselben Dateien, auf keiner Seite bleibt
+        /// etwas übrig. Färbt die Zeile grün.
+        /// </summary>
+        [ObservableProperty]
+        public partial bool DublettenOrdnerDeckungsgleich { get; set; }
+
+        private void LeereGleichstand()
+        {
+            DublettenOrdnerDeckungsgleich = false;
+            DublettenGleichstandText = string.Empty;
+            DublettenGleichstandDetail = string.Empty;
+        }
+
+        /// <summary>
+        /// Beurteilt nach einem Suchlauf, ob Dubletten-Ordner und Referenzordner denselben
+        /// Bestand enthalten — der Ordnervergleich, wie ihn ein Dateimanager-Abgleich
+        /// liefert. Die Ordner selbst dürfen dabei verschieden heissen; verglichen wird,
+        /// was darin liegt.
+        ///
+        /// Die Trefferzahl allein reicht dafür nicht: Sie sagt nur, wie viel von der
+        /// Löschseite drüben liegt. Ob drüben <b>mehr</b> liegt, ergibt sich erst aus der
+        /// Zahl der Referenzdateien und daraus, wie viele davon überhaupt als Gegenstück
+        /// gedient haben.
+        ///
+        /// Im Zweifel wird nichts behauptet: Bleibt ein Rest unklar — gesperrte Dateien,
+        /// mehrere Referenzordner, ungeprüfter Inhalt —, nennt die Zeile den Stand, aber
+        /// keine Deckungsgleichheit.
+        /// </summary>
+        private void BestimmeOrdnerGleichstand(
+            System.Collections.Generic.IReadOnlyList<ByteDublettenTreffer> treffer,
+            ByteDublettenService.Leseprotokoll protokoll,
+            bool tiefenpruefungImLauf,
+            bool mitUnterordnernImLauf,
+            bool alleDateitypenImLauf,
+            int nichtLesbar)
+        {
+            LeereGleichstand();
+
+            int links = protokoll.KandidatenDateien;
+            int rechts = protokoll.ReferenzDateien;
+
+            // Ohne Bestand auf einer der beiden Seiten gibt es nichts zu vergleichen.
+            if (links == 0 || rechts == 0)
+                return;
+
+            // Ohne Tiefenprüfung wurde keine einzige Datei geöffnet. „Gleiche Ordner"
+            // wäre dann eine Aussage über Inhalte, die niemand gelesen hat.
+            if (!tiefenpruefungImLauf)
+            {
+                DublettenGleichstandText = $"Namensabgleich: {treffer.Count} von {links} Dateien haben drüben einen Partner";
+                DublettenGleichstandDetail =
+                    "Ob beide Ordner denselben Inhalt haben, sagt das nicht – dafür die Tiefenprüfung einschalten.";
+                return;
+            }
+
+            int ohneGegenstueck = links - treffer.Count;
+
+            // Wie viele Dateien des Bestands tatsächlich als Gegenstück gedient haben.
+            // Zwei gleiche Dateien auf der Löschseite können auf dieselbe Referenzdatei
+            // zeigen — dann bleibt drüben eine andere übrig, und genau das soll auffallen.
+            int getroffen = treffer
+                .Select(t => t.ReferenzDatei)
+                .Where(p => !string.IsNullOrEmpty(p))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count();
+
+            int nurRechts = Math.Max(0, rechts - getroffen);
+
+            // „Beide Ordner" setzt genau eine Gegenseite voraus. Gegen mehrere Ordner
+            // verglichen bleibt nur die Teilmengen-Aussage.
+            if (DublettenReferenzOrdner.Count != 1)
+            {
+                DublettenGleichstandText = ohneGegenstueck == 0
+                    ? $"Alle {links} Dateien des Dubletten-Ordners liegen im Referenzbestand"
+                    : $"{ohneGegenstueck} von {links} Dateien haben im Referenzbestand kein Gegenstück";
+
+                DublettenGleichstandDetail =
+                    "Verglichen wurde gegen mehrere Referenzordner – für den Vergleich zweier Ordner darf nur einer eingestellt sein.";
+                return;
+            }
+
+            if (ohneGegenstueck == 0 && nurRechts == 0 && nichtLesbar == 0)
+            {
+                DublettenOrdnerDeckungsgleich = true;
+                DublettenGleichstandText = $"Deckungsgleich – beide Ordner enthalten dieselben {links} Dateien";
+
+                // Der Umfang gehört an die Aussage: „Deckungsgleich" heisst nur
+                // deckungsgleich in dem, was überhaupt eingesammelt wurde. Bei „nur
+                // Bilder" oder ohne Unterordner kann drüben trotzdem einiges liegen.
+                DublettenGleichstandDetail =
+                    (AblageSatz(treffer) + " " + UmfangSatz(mitUnterordnernImLauf, alleDateitypenImLauf)).Trim();
+                return;
+            }
+
+            var teile = new System.Collections.Generic.List<string>();
+
+            if (ohneGegenstueck > 0)
+                teile.Add($"{ohneGegenstueck} nur im Dubletten-Ordner");
+
+            if (nurRechts > 0)
+                teile.Add($"{nurRechts} nur im Referenzordner");
+
+            if (nichtLesbar > 0)
+                teile.Add($"{nichtLesbar} gesperrt und ungeprüft");
+
+            DublettenGleichstandText = "Nicht deckungsgleich – " + string.Join(", ", teile);
+            DublettenGleichstandDetail =
+                $"Dubletten-Ordner {links} Dateien, Referenzordner {rechts} Dateien.";
+        }
+
+        /// <summary>
+        /// Sagt bei deckungsgleichen Ordnern zusätzlich, ob auch die Ablage übereinstimmt:
+        /// ob jede Datei drüben im selben Unterordner liegt. Verglichen wird ab der
+        /// jeweiligen Wurzel — die beiden Startordner dürfen verschieden heissen.
+        /// </summary>
+        private string AblageSatz(System.Collections.Generic.IReadOnlyList<ByteDublettenTreffer> treffer)
+        {
+            if (DublettenReferenzOrdner.Count != 1)
+                return string.Empty;
+
+            string linkeWurzel = DublettenOrdner;
+            string rechteWurzel = DublettenReferenzOrdner[0];
+
+            bool gleicheAblage = treffer.All(t =>
+                string.Equals(
+                    RelativerPfad(linkeWurzel, t.DublettenDatei),
+                    RelativerPfad(rechteWurzel, t.ReferenzDatei),
+                    StringComparison.OrdinalIgnoreCase));
+
+            return gleicheAblage
+                ? "Auch die Ablage stimmt überein – jede Datei liegt auf beiden Seiten im selben Unterordner."
+                : "Die Dateien sind dieselben, liegen drüben aber teils in anderen Unterordnern.";
+        }
+
+        /// <summary>
+        /// Nennt die Grenzen des Laufs, sobald er nicht alles erfasst hat. Ohne diesen
+        /// Zusatz läse sich „deckungsgleich" als Aussage über den ganzen Ordner, obwohl
+        /// vielleicht nur die Bilder der obersten Ebene verglichen wurden.
+        /// </summary>
+        private static string UmfangSatz(bool mitUnterordnern, bool alleDateitypen)
+        {
+            if (mitUnterordnern && alleDateitypen)
+                return string.Empty;
+
+            string was = alleDateitypen ? "alle Dateitypen" : "nur Bilddateien";
+            string wo = mitUnterordnern ? "mit allen Unterordnern" : "nur in der obersten Ebene";
+
+            return $"Verglichen wurde {was}, {wo}.";
+        }
+
+        private static string RelativerPfad(string wurzel, string datei)
+        {
+            try { return Path.GetRelativePath(wurzel, datei); }
+            catch { return datei; }
+        }
+
+        #endregion
 
         /// <summary>
         /// Restzeit aus dem bisherigen Tempo. Die Mengen sind <c>long</c>, weil hier auch
@@ -1013,6 +1445,12 @@ namespace TestImage
                 DublettenFortschritt = 0;
                 MeldeMarkierungGeaendert();
                 IsDublettenAufgabeLäuft = false;
+
+                // Der Ordnervergleich beschrieb den Stand vor dem Löschen. Sobald etwas
+                // weg ist, gilt er nicht mehr – „deckungsgleich" stünde sonst über einem
+                // Ordner, aus dem gerade alles verschwunden ist.
+                if (erledigt > 0)
+                    LeereGleichstand();
 
                 // Nach dem Löschlauf ist der Ordner womöglich leer – dann darf er weg.
                 PruefeDublettenOrdnerLeer();

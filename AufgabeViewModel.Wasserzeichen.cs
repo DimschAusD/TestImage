@@ -49,6 +49,34 @@ namespace TestImage
         public partial bool WasserzeichenAufgabeLäuft { get; set; }
 
         /// <summary>
+        /// Fortschritt des laufenden Wasserzeichen-Vorgangs in Prozent, 0 … 100.
+        ///
+        /// Lernen und Prüfen melden beide Stück für Stück — dieselben Zahlen, die in der
+        /// Statuszeile stehen. Vorher lief der Balken für beide Vorgänge als Schraffur
+        /// durch: Ein Lernlauf über einen grossen Ordner dauert Minuten, und daran war
+        /// nicht zu erkennen, ob noch ein Viertel oder noch alles vor einem liegt.
+        /// </summary>
+        [ObservableProperty]
+        public partial double WasserzeichenFortschritt { get; set; }
+
+        /// <summary>
+        /// Noch kein zählbarer Fortschritt: bis zur ersten Stückmeldung. Das Zählen der
+        /// Bilder im Ordner läuft ohne Zwischenstand, und ein Balken, der dabei auf null
+        /// steht, sieht aus wie ein Hänger.
+        /// </summary>
+        public bool WasserzeichenUnbestimmt => WasserzeichenAufgabeLäuft && WasserzeichenFortschritt <= 0;
+
+        partial void OnWasserzeichenFortschrittChanged(double value)
+        {
+            OnPropertyChanged(nameof(WasserzeichenUnbestimmt));
+            MeldeAufgabeGeaendert();
+        }
+
+        /// <summary>Meldet Stückzahlen an den Balken; <c>null</c>-sicher für Läufe ohne Gesamtzahl.</summary>
+        private Progress<(int Erledigt, int Gesamt)> WasserzeichenFortschrittMelder() =>
+            new(p => WasserzeichenFortschritt = p.Gesamt > 0 ? 100.0 * p.Erledigt / p.Gesamt : 0);
+
+        /// <summary>
         /// Ordnerauswahl beim Lernen. Vorgabe aus: Gelernt wird der Ordner des gerade
         /// angezeigten Bildes – das ist fast immer der gemeinte, und der Dialog begann
         /// ohnehin dort. Angekreuzt kommt der Dialog wieder, für Beispielordner, die
@@ -256,6 +284,7 @@ namespace TestImage
             string name = NameAusOrdner(lernOrdner);
 
             WasserzeichenAufgabeLäuft = true;
+            WasserzeichenFortschritt = 0;
             WasserzeichenStatus = $"Ordner „{ordnerName}“ wird gelesen …";
 
             try
@@ -265,8 +294,11 @@ namespace TestImage
                 var uhr = System.Diagnostics.Stopwatch.StartNew();
 
                 var fortschritt = new Progress<(int Erledigt, int Gesamt)>(p =>
+                {
                     WasserzeichenStatus = $"Ordner „{ordnerName}“ wird gelesen … {p.Erledigt}/{p.Gesamt}"
-                                          + RestzeitZusatz(uhr.Elapsed, p.Erledigt, p.Gesamt));
+                                          + RestzeitZusatz(uhr.Elapsed, p.Erledigt, p.Gesamt);
+                    WasserzeichenFortschritt = p.Gesamt > 0 ? 100.0 * p.Erledigt / p.Gesamt : 0;
+                });
 
                 // Ein Weg für beides: Trägt der Ordner dasselbe Zeichen wie ein schon
                 // gelerntes Muster, wird dieses ergänzt; sonst entsteht ein neues. Vorher
@@ -295,7 +327,7 @@ namespace TestImage
                 // Sackgasse, sondern eine Mengenangabe, und muss auch so klingen.
                 if (eintrag is { IstBelegt: false })
                 {
-                    WasserzeichenStatus = MitSpeicherhinweis(eintrag.BilderFuerBeleg is { } noetig
+                    string schwachMeldung = MitSpeicherhinweis(eintrag.BilderFuerBeleg is { } noetig
                         ? $"Muster „{musterName}“ aus {bilder} Bildern gelernt – noch schwach "
                           + $"(Trennschärfe {eintrag.TrennschaerfeText}). Es prüft ab jetzt mit, "
                           + "findet aber nur einen Teil: Das Zeichen ist da, geht im Motiv aber noch "
@@ -305,27 +337,35 @@ namespace TestImage
                           + $"nur diese Bilder selbst wieder (Trennschärfe {eintrag.TrennschaerfeText}). "
                           + "Im Ordner steckt kein Zeichen, das bei allen Bildern gleich aussieht und "
                           + "an derselben Stelle sitzt.");
+
+                    WasserzeichenStatus = schwachMeldung;
+                    await WendeGelerntesMusterAufOffenenOrdnerAn(schwachMeldung, bilder, token);
                     return;
                 }
 
-                WasserzeichenStatus = MitSpeicherhinweis(bilder switch
+                // Der Satz „Ordner neu indexieren" steht bewusst nicht mehr in den
+                // Meldungen: Ob er zutrifft, entscheidet sich erst danach — ist ein Ordner
+                // geöffnet, wird er gleich hier geprüft und muss gar nicht neu indexiert
+                // werden. Angehängt wird er deshalb unten, nur im anderen Fall.
+                string lernMeldung = MitSpeicherhinweis(bilder switch
                 {
                     0 => "Zu wenige oder unlesbare Bilder – es werden mindestens 5 gebraucht.",
 
                     _ when istNeu => $"Neues Muster „{musterName}“ aus {bilder} Bildern gelernt"
                                      + (stelle.Length > 0 ? $" – Stelle: {stelle}" : string.Empty)
                                      + $", Trennschärfe {eintrag?.TrennschaerfeText ?? "–"}."
-                                     + WasserzeichenService.LetzteLernMeldung
-                                     + " Ordner neu indexieren, um es anzuwenden.",
+                                     + WasserzeichenService.LetzteLernMeldung,
 
                     // Vorher-Nachher statt nur Endstand: „jetzt aus 156 Bildern,
                     // Trennschärfe 16,2 %" sagt nicht, ob der Ordner etwas gebracht hat.
                     // Genau das ist aber die Frage, wenn man Ordner für Ordner sammelt.
                     _ => $"Der Ordner trägt das bekannte Zeichen „{musterName}“ – Muster ergänzt: "
                          + $"{vorherBilder} → {bilder} Bilder, Trennschärfe "
-                         + $"{ProzentText(vorherTrennschaerfe)} → {eintrag?.TrennschaerfeText ?? "–"}. "
-                         + "Ordner neu indexieren, um es anzuwenden."
+                         + $"{ProzentText(vorherTrennschaerfe)} → {eintrag?.TrennschaerfeText ?? "–"}."
                 });
+
+                WasserzeichenStatus = lernMeldung;
+                await WendeGelerntesMusterAufOffenenOrdnerAn(lernMeldung, bilder, token);
             }
             catch (OperationCanceledException)
             {
@@ -338,7 +378,43 @@ namespace TestImage
             finally
             {
                 WasserzeichenAufgabeLäuft = false;
+                WasserzeichenFortschritt = 0;
             }
+        }
+
+        /// <summary>
+        /// Prüft nach einem Lernlauf den geöffneten Ordner mit den jetzt bekannten Mustern.
+        ///
+        /// Ohne das blieb die Miniaturleiste nach dem Lernen leer, und das sah aus, als
+        /// hätte das Muster nichts gefunden: Die Abzeichen stammen aus der Befunddatei des
+        /// Ordners, und die schreibt erst ein Prüflauf. Gelernt wird aber in aller Regel aus
+        /// dem Ordner, den man gerade ansieht — dort ist der Fund sofort zu erwarten, nicht
+        /// erst nach einem eigens angestossenen Indexlauf.
+        ///
+        /// Ist gar kein Ordner offen, bleibt es beim alten Hinweis: Dann gibt es nichts zu
+        /// markieren, und das Muster wirkt beim nächsten Indexieren.
+        /// </summary>
+        private async Task WendeGelerntesMusterAufOffenenOrdnerAn(
+            string lernMeldung, int bilder, CancellationToken token)
+        {
+            string? ordner = AktuellerBildOrdner() ?? OrdnerVomDropBild();
+
+            if (bilder <= 0 || ordner is null || OcAufgabens.Count == 0)
+            {
+                if (bilder > 0)
+                    WasserzeichenStatus = lernMeldung + " Ordner öffnen und indexieren, um es anzuwenden.";
+
+                return;
+            }
+
+            WasserzeichenFortschritt = 0;
+            WasserzeichenStatus = lernMeldung + " Der geöffnete Ordner wird damit geprüft …";
+
+            await PruefeWasserzeichenAsync(ordner, WasserzeichenFortschrittMelder(), token);
+
+            // Die Prüfung schreibt ihre eigene Meldung. Die Lernmeldung darf dabei nicht
+            // verlorengehen — Trennschärfe und Stelle stehen sonst nirgends mehr.
+            WasserzeichenStatus = lernMeldung + " " + WasserzeichenStatus;
         }
 
         /// <summary>Trennschärfe als Prozenttext; „–", wenn sie nicht gemessen wurde.</summary>
@@ -568,6 +644,43 @@ namespace TestImage
         /// </summary>
         private void LadeWasserzeichenBefunde(string? ordner)
         {
+            if (!BefundeVorbereiten(ordner))
+            {
+                return;
+            }
+
+            BefundeUebernehmen(WasserzeichenService.Lade(ordner!));
+        }
+
+        /// <summary>
+        /// Wie <see cref="LadeWasserzeichenBefunde"/>, liest die Befunddatei aber im
+        /// Hintergrund.
+        ///
+        /// Für den Drop-Weg: Dort lag das Lesen von <c>.bildwasserzeichen.json</c> im
+        /// UI-Faden und blockierte ihn auf einem Netzlaufwerk gemessene 184 ms am Stück —
+        /// lange genug, dass der Warte-Ring sichtbar stehenblieb.
+        ///
+        /// Das Übertragen bleibt im UI-Faden: Es setzt gebundene Eigenschaften an den
+        /// Bildchen, und die gehören dorthin.
+        /// </summary>
+        private async Task LadeWasserzeichenBefundeAsync(string? ordner)
+        {
+            if (!BefundeVorbereiten(ordner))
+            {
+                return;
+            }
+
+            var befunde = await Task.Run(() => WasserzeichenService.Lade(ordner!));
+            BefundeUebernehmen(befunde);
+        }
+
+        /// <summary>
+        /// Gemeinsamer Vorlauf beider Wege: Statuszeile zurücksetzen und den Fall „kein
+        /// brauchbarer Ordner" abhandeln.
+        /// </summary>
+        /// <returns>False, wenn schon alles erledigt ist und nichts gelesen werden muss.</returns>
+        private bool BefundeVorbereiten(string? ordner)
+        {
             // Die Statuszeile gehört zum Ordner, nicht zur Sitzung. Sie blieb bisher
             // unberührt, wenn ein anderer Ordner geladen wurde — nach einem Drop stand
             // dort also weiter das Ergebnis des vorigen: „Keine Wasserzeichen gefunden",
@@ -584,10 +697,18 @@ namespace TestImage
                 WasserzeichenTrefferAnzahl = 0;
                 _befundeDesOrdners = null;
                 AktualisiereWasserzeichenBefundAnzeige();
-                return;
+                return false;
             }
 
-            var befunde = WasserzeichenService.Lade(ordner);
+            return true;
+        }
+
+        /// <summary>
+        /// Übernimmt gelesene Befunde in die Anzeige. Zeile für Zeile der bisherige
+        /// Rumpf von <see cref="LadeWasserzeichenBefunde"/> ab dem Lesen.
+        /// </summary>
+        private void BefundeUebernehmen(System.Collections.Generic.Dictionary<string, WasserzeichenBefund> befunde)
+        {
             _befundeDesOrdners = befunde;
 
             if (befunde.Count == 0)
