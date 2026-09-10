@@ -33,7 +33,18 @@ namespace TestImage
         // v2x.0.70.881 Beta 2026-09-02 (.NETCore net10.0)   
         // v2x.0.70.751 Beta 2026-09-03 (.NETCore net10.0)
         [ObservableProperty]
-        public partial string Version { get; set; } = "v2x.0.70.751 Beta 2026-09-03 (.NETCore net10.0)";
+        public partial string Version { get; set; } = "v2x.0.57.870 Beta 2026-09-10 (.NETCore net10.0)";
+
+
+
+
+
+
+
+
+
+
+
 
 
         [ObservableProperty]
@@ -1109,7 +1120,10 @@ namespace TestImage
                     if (!string.Equals(folgeVorher[i], folgeNachher[i], StringComparison.Ordinal))
                     {
                         abweichungen++;
-                        if (ersteAbweichung < 0) ersteAbweichung = i;
+                        if (ersteAbweichung < 0)
+                        {
+                            ersteAbweichung = i;
+                        }
                     }
                 }
 
