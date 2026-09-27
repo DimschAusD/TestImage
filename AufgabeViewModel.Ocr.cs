@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using TestImage.Ansichten;
 using TestImage.Bildersuche;
 
 namespace TestImage
@@ -24,6 +25,12 @@ namespace TestImage
     ///
     /// Die Treffer landen in derselben Ergebnisliste wie die Begriffssuche. Damit
     /// funktionieren „Treffer öffnen" und „In Liste übernehmen" ohne Zutun mit.
+    ///
+    /// <b>Schräge Schrift kommt aus einem Plugin</b>, wenn eines eingelegt ist: Die
+    /// Windows-OCR kennt je Bild nur einen Textwinkel und scheitert deshalb an
+    /// Kartenbeschriftung. Das Kreuzchen dafür ist ab Werk aus, weil jedes Bild damit
+    /// rund eine Sekunde mehr kostet — siehe <see cref="OcrSchraegMitlesen"/> und
+    /// <c>lib\LIESMICH.md</c>.
     /// </summary>
     public partial class AufgabeViewModel
     {
@@ -37,6 +44,64 @@ namespace TestImage
 
         /// <summary>Sprache der Erkennung, für die Anzeige in der Karte.</summary>
         public string OcrSprache => OcrDienst.Sprache;
+
+        /// <summary>
+        /// True, wenn das optionale Plugin für schräge Schrift eingelegt und geladen ist.
+        /// Sperrt das Kreuzchen in der Karte, solange es fehlt.
+        /// </summary>
+        public bool OcrPluginVerfuegbar => PluginOcrDienst.IstVerfuegbar;
+
+        /// <summary>Name und Fassung des Plugins — oder der Hinweis, dass keines daliegt.</summary>
+        public string OcrPluginVermerk =>
+            OcrPluginVerfuegbar ? PluginOcrDienst.Beschreibung : "Plugin nicht eingelegt";
+
+        /// <summary>
+        /// True, wenn zusätzlich die schrägen Zeilen des Plugins mitgelesen werden — in
+        /// beiden Schriftarten, siehe <see cref="LiesTextMitPluginAsync"/>.
+        ///
+        /// <b>Ab Werk aus, und das mit Absicht:</b> Ein Bild kostet damit rund zwei
+        /// Sekunden mehr — bei einem Ordnerlauf über viele Bilder ein Vielfaches der
+        /// bisherigen Zeit. Der Gewinn liegt bei Karten und Luftbildern: schräge
+        /// Beschriftung, an der die Windows-OCR im ganzen Bild scheitert, weil sie je
+        /// Bild nur einen Textwinkel kennt.
+        ///
+        /// Wird das Kreuzchen gesetzt, gelten schon gelesene Bilder als veraltet und
+        /// werden beim nächsten Lauf noch einmal vorgenommen — siehe
+        /// <see cref="OcrEintrag.SchraegStufe"/>.
+        /// </summary>
+        [ObservableProperty]
+        public partial bool OcrSchraegMitlesen { get; set; } = false;
+
+        /// <summary>Das gewählte Bild neu lesen, sobald das Kreuzchen umgelegt wird.</summary>
+        partial void OnOcrSchraegMitlesenChanged(bool value) => OcrVolltextAnfordern();
+
+        /// <summary>
+        /// Die Ansicht braucht nur die Windows-OCR: Ohne Plugin zeigt sie eben die
+        /// Standardsuche allein — wo sie ihre Wörter gefunden hat und welchen
+        /// Textwinkel sie für das Bild angenommen hat.
+        /// </summary>
+        private bool CanExecuteOcrRahmenAnsicht() => OcrVerfuegbar;
+
+        /// <summary>
+        /// Öffnet die Rahmenansicht für das angezeigte Bild: beide Suchen als Rahmen
+        /// übereinander, daneben je Ebene das Gelesene, beim Überfahren der Ausschnitt.
+        ///
+        /// <b>Die Ansicht rechnet selbst.</b> Rahmen und Ausschnitte stehen in keinem
+        /// Cache, sie entstehen bei jedem Öffnen neu — das kostet die beiden Läufe und
+        /// zeigt dafür, was die Verfahren heute finden.
+        /// </summary>
+        [RelayCommand(CanExecute = nameof(CanExecuteOcrRahmenAnsicht))]
+        private void CommandExecuteOcrRahmenAnsicht()
+        {
+            string? pfad = SelectedBildchen?.BName;
+            if (string.IsNullOrEmpty(pfad))
+            {
+                OcrStatus = "Kein Bild gewählt — die Rahmenansicht gilt immer für das angezeigte Bild.";
+                return;
+            }
+
+            OcrTextAnsicht.Zeige(pfad);
+        }
 
         /// <summary>
         /// True, wenn der Inhalt der OCR-Karte ausgeklappt ist.
@@ -122,6 +187,87 @@ namespace TestImage
                 : $"{_ocrCache.Anzahl} Bilder gelesen.";
         }
 
+        /// <summary>
+        /// Liest ein Bild: Windows-OCR auf das ganze Bild, dazu auf Wunsch die schrägen
+        /// Zeilen des Plugins. <c>null</c>, wenn das Bild gar nicht lesbar war.
+        ///
+        /// <b>Die Zeilen werden angehängt, nicht ersetzt</b> — damit wirken sie ohne
+        /// weiteres Zutun in „Ordner lesen", in der Suche und im Volltextfeld.
+        ///
+        /// <b>Beide Schriftarten, zwei Läufe.</b> Ein Lauf des Plugins sucht entweder
+        /// helle Schrift auf dunklem Grund (Karte, Luftbild) oder dunkle auf hellem
+        /// (Dokument, Bildschirmfoto), nie beides. Welche Art in einem Bild steckt,
+        /// weiss vorher niemand — und wer beim Lesen eines Ordners die falsche Hälfte
+        /// auslässt, merkt es nie, weil ein fehlender Fund nichts hinterlässt.
+        ///
+        /// <b>Ab Plugin 0.0.5 ist es ein Lauf statt zweier</b>: Das Plugin sucht beide
+        /// Schriftfarben selbst und führt sie zusammen, zum gleichen Preis wie zwei
+        /// getrennte Läufe. Der Rest dieses Absatzes gilt für ältere Plugins.
+        ///
+        /// <b>Der zweite Lauf kostet weniger als der erste</b>, solange er nichts
+        /// findet: Er sucht zwar durch das ganze Bild, hat danach aber keine Zeile
+        /// vorzulegen, und die Erkennung je Zeile ist der teure Teil. Am
+        /// Kartenausschnitt gemessen — 1637 ms für den hellen Durchgang mit 12 Zeilen,
+        /// 364 ms für den dunklen mit keiner. Bei einem Bild, in dem beide Arten
+        /// vorkommen, summiert es sich entsprechend auf.
+        ///
+        /// <b>Doppeltes fliegt raus</b> — sowohl was die Windows-OCR im ganzen Bild schon
+        /// gefunden hat als auch Wiederholungen unter den Zeilen selbst, quer über beide
+        /// Läufe. Das Plugin findet dieselbe Beschriftung regelmässig mehrfach; am
+        /// Kartenausschnitt kam derselbe Strassenname dreimal. Für die Suche wäre das
+        /// gleichgültig, im Volltextfeld stünde er dreimal da. Verglichen wird nur der
+        /// ganze Text einer Zeile: Zwei Fassungen mit unterschiedlichen Lesefehlern (ein
+        /// vertauschter Buchstabe genügt) bleiben beide stehen — welche die richtige ist,
+        /// weiss an dieser Stelle niemand.
+        /// </summary>
+        private static async Task<string?> LiesTextMitPluginAsync(
+            string pfad, bool mitSchraeg, CancellationToken token)
+        {
+            string? text = await OcrDienst.LiesTextAsync(pfad).ConfigureAwait(true);
+
+            if (!mitSchraeg || text is null)
+            {
+                return text;
+            }
+
+            var gesehen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var neu = new List<string>();
+
+            // Ab Plugin 0.0.5 genügt ein Lauf für beide Schriftfarben: Das Plugin sucht
+            // hell und dunkel selbst, wirft Doppelte weg und verbindet Zeilen, die über
+            // einen Farbwechsel laufen — das kann ein Zusammenführen hinterher nicht.
+            // Ältere Plugins übergehen die Einstellung, deshalb dort weiter zwei Läufe.
+            bool beideAufEinmal = PluginOcrDienst.KannBeideSchriftfarben;
+
+            // Helle Schrift zuerst: Bei ihr liegt der belegte Gewinn, und bricht der
+            // Lauf zwischen den beiden ab, ist der wichtigere Teil schon getan.
+            bool[] schriftarten = beideAufEinmal ? [false] : [false, true];
+
+            foreach (bool dunklerTextAufHell in schriftarten)
+            {
+                IReadOnlyList<string>? zeilen = await PluginOcrDienst
+                    .LiesZeilenAsync(pfad, dunklerTextAufHell, token, beideSchriftfarben: beideAufEinmal)
+                    .ConfigureAwait(true);
+
+                if (zeilen is null)
+                {
+                    continue;
+                }
+
+                foreach (string zeile in zeilen)
+                {
+                    if (!text.Contains(zeile, StringComparison.OrdinalIgnoreCase) && gesehen.Add(zeile))
+                    {
+                        neu.Add(zeile);
+                    }
+                }
+            }
+
+            return neu.Count == 0
+                ? text
+                : text + Environment.NewLine + string.Join(Environment.NewLine, neu);
+        }
+
         private bool CanExecuteOcrOrdnerLesen() =>
             OcrVerfuegbar && !OcrLaeuft && !IndexLaeuft && !PrüfungLäuft && OcAufgabens.Count > 0;
 
@@ -152,6 +298,11 @@ namespace TestImage
                 .Where(p => !string.IsNullOrEmpty(p) && File.Exists(p))
                 .ToList();
 
+            // Einmal festgehalten und nicht je Bild neu gefragt: Ein Kreuzchen, das
+            // mitten im Lauf umgelegt wird, hinterliesse sonst einen Ordner, in dem die
+            // eine Hälfte der Bilder mit und die andere ohne schräge Zeilen gelesen ist.
+            bool schraeg = OcrSchraegMitlesen && PluginOcrDienst.IstVerfuegbar;
+
             OcrLaeuft = true;
             OcrFortschritt = 0;
             OcrFortschrittMax = Math.Max(1, bilder.Count);
@@ -172,19 +323,19 @@ namespace TestImage
                     token.ThrowIfCancellationRequested();
                     OcrFortschritt++;
 
-                    if (_ocrCache.IstAktuell(bild))
+                    if (_ocrCache.IstAktuell(bild, schraeg))
                     {
                         uebersprungen++;
                         continue;
                     }
 
-                    string? text = await OcrDienst.LiesTextAsync(bild).ConfigureAwait(true);
+                    string? text = await LiesTextMitPluginAsync(bild, schraeg, token).ConfigureAwait(true);
                     if (text is null)
                     {
                         continue;   // unlesbar oder unbekanntes Format
                     }
 
-                    _ocrCache.Setze(bild, text, OcrSprache);
+                    _ocrCache.Setze(bild, text, OcrSprache, schraeg ? OcrCache.SchraegStufeVoll : 0);
                     gelesen++;
 
                     if (text.Length == 0)
@@ -221,7 +372,8 @@ namespace TestImage
 
                 var dauer = DateTime.Now - begonnen;
                 OcrStatus = $"Fertig in {dauer.TotalSeconds:F0} Sek: {gelesen} gelesen, "
-                          + $"davon {ohneText} ohne Text. {uebersprungen} waren schon gelesen.";
+                          + $"davon {ohneText} ohne Text. {uebersprungen} waren schon gelesen."
+                          + (schraeg ? "  Schräge Zeilen mitgelesen, hell und dunkel." : string.Empty);
             }
             catch (OperationCanceledException)
             {
@@ -411,7 +563,9 @@ namespace TestImage
                 // einem Hintergrundfaden und nur für das Bild, bei dem man stehen bleibt.
                 //
                 // Stimmt er, ist nichts zu tun: Angezeigt wird er schon.
-                if (await Task.Run(() => _ocrCache.IstAktuell(pfad), token).ConfigureAwait(true))
+                bool schraeg = OcrSchraegMitlesen && PluginOcrDienst.IstVerfuegbar;
+
+                if (await Task.Run(() => _ocrCache.IstAktuell(pfad, schraeg), token).ConfigureAwait(true))
                 {
                     return;
                 }
@@ -421,7 +575,9 @@ namespace TestImage
                 // Ab hier wird wirklich gelesen. Steht noch ein Text aus einem früheren
                 // Stand der Datei in der Karte, gehört er nicht mehr dorthin.
                 OcrVolltext = string.Empty;
-                OcrVolltextKopf = $"{name} — wird gelesen …";
+                OcrVolltextKopf = schraeg
+                    ? $"{name} — wird gelesen, mit schrägen Zeilen …"
+                    : $"{name} — wird gelesen …";
 
                 // Während der Ordnerlauf arbeitet, nicht dazwischenfunken: Er kommt
                 // ohnehin an diesem Bild vorbei.
@@ -431,7 +587,7 @@ namespace TestImage
                     return;
                 }
 
-                string? text = await OcrDienst.LiesTextAsync(pfad).ConfigureAwait(true);
+                string? text = await LiesTextMitPluginAsync(pfad, schraeg, token).ConfigureAwait(true);
                 token.ThrowIfCancellationRequested();
 
                 if (text is null)
@@ -441,7 +597,7 @@ namespace TestImage
                     return;
                 }
 
-                _ocrCache.Setze(pfad, text, OcrSprache);
+                _ocrCache.Setze(pfad, text, OcrSprache, schraeg ? OcrCache.SchraegStufeVoll : 0);
 
                 string? ordner = Path.GetDirectoryName(pfad);
                 if (!string.IsNullOrEmpty(ordner))

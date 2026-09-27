@@ -1920,6 +1920,70 @@
                         </StackPanel>
 
                         <!--
+                            Schräge Schrift — nur mit eingelegtem Plugin (lib\LIESMICH.md).
+
+                            Steht über „Ordner lesen", weil es den nächsten Lauf betrifft:
+                            Angekreuzt gelten schon gelesene Bilder als veraltet und werden
+                            noch einmal vorgenommen. Ab Werk aus, denn jedes Bild kostet
+                            damit rund eine Sekunde mehr.
+
+                            Gesperrt ohne Plugin, mit ShowOnDisabled — ein gesperrtes
+                            Kreuzchen zeigt in WPF von sich aus keinen Tooltip und sähe
+                            sonst aus wie ein Fehler. Der Vermerk daneben sagt es
+                            zusätzlich: Name und Fassung des Plugins, oder dass keines
+                            daliegt.
+                        -->
+                        <StackPanel
+                            x:Name="STP_OcrSchraegReihe"
+                            Margin="0,10,0,0"
+                            Orientation="Horizontal">
+                            <CheckBox
+                                x:Name="CHK_OcrSchraeg"
+                                VerticalAlignment="Center"
+                                VerticalContentAlignment="Center"
+                                Content="Schräge Schrift mitlesen (hell und dunkel)"
+                                FontFamily="Segoe UI"
+                                FontSize="11"
+                                Foreground="#FF555555"
+                                IsChecked="{Binding OcrSchraegMitlesen, Mode=TwoWay}"
+                                IsEnabled="{Binding OcrPluginVerfuegbar}"
+                                ToolTipService.ShowOnDisabled="True"
+                                ToolTip="Findet Textzeilen in beliebiger Neigung und gibt jede geradegerückt an die Texterkennung — für Karten und Luftbilder, wo die Beschriftung schräg auf unruhigem Grund liegt. Es laufen zwei Durchgänge, einer für helle Schrift auf dunklem Grund und einer für dunkle auf hellem; am gemessenen Kartenausschnitt kostet das zusammen rund zwei Sekunden je Bild. Braucht das eingelegte Plugin. Bereits gelesene Bilder werden dadurch einmal neu gelesen." />
+
+                            <TextBlock
+                                x:Name="TXT_OcrPluginVermerk"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"
+                                d:Text="Plugin nicht eingelegt"
+                                FontFamily="Segoe UI"
+                                FontSize="11"
+                                Foreground="Gray"
+                                Text="{Binding OcrPluginVermerk}" />
+                        </StackPanel>
+
+                        <!--
+                            Nachsehen, was wo gefunden wurde.
+
+                            Öffnet ein eigenes Fenster: Die Ansicht braucht Bildfläche,
+                            einen Streifen darunter und die Listen daneben. Sie rechnet
+                            bei jedem Öffnen neu — Rahmen und Ausschnitte passen in
+                            keinen Cache, dort steht nur Text.
+
+                            Auch ohne Plugin sinnvoll: Dann zeigt sie die Standardsuche
+                            allein. Gesperrt ist der Knopf nur, wenn auf diesem Rechner
+                            gar keine Texterkennung vorhanden ist.
+                        -->
+                        <Button
+                            x:Name="BTN_OcrRahmenAnsicht"
+                            Margin="0,8,0,0"
+                            HorizontalAlignment="Left"
+                            Command="{Binding CommandExecuteOcrRahmenAnsichtCommand}"
+                            Content="Was wo gefunden wurde …"
+                            Style="{StaticResource OutlineButtonStyle}"
+                            ToolTipService.ShowOnDisabled="True"
+                            ToolTip="Zeigt das angezeigte Bild mit den Fundstellen beider Suchen als Rahmen: türkis die Wörter der Standardsuche, gelb die Zeilen des Plugins. Beim Überfahren wird der Rahmen hervorgehoben und der Ausschnitt darunter gezeigt — daran sieht man, was die Texterkennung wirklich zu lesen bekam. Jede Ebene lässt sich einzeln ausblenden." />
+
+                        <!--
                             Lesen und Abbrechen. Der Abbrechen-Knopf steht nur da, solange
                             gelesen wird — ein dauerhaft sichtbarer, meist gesperrter Knopf
                             nähme Platz, ohne je etwas zu sagen.

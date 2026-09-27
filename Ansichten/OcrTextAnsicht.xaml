@@ -1,0 +1,667 @@
+<Window
+    x:Class="TestImage.Ansichten.OcrTextAnsicht"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ansichten="clr-namespace:TestImage.Ansichten"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    Title="Text mit Rahmen"
+    Width="1280"
+    Height="820"
+    MinWidth="700"
+    MinHeight="460"
+    d:DataContext="{d:DesignInstance Type=ansichten:OcrTextAnsichtViewModel}"
+    Background="#FF1B1B1B"
+    PreviewKeyDown="Fenster_TasteGedrueckt"
+    ResizeMode="CanResize"
+    ShowInTaskbar="False"
+    SnapsToDevicePixels="True"
+    TextOptions.TextFormattingMode="Display"
+    UseLayoutRounding="True"
+    WindowStartupLocation="CenterOwner"
+    mc:Ignorable="d">
+
+    <!--
+        Sucht von selbst, sobald das Fenster da ist. Ein Fenster, das erst nach einem
+        Klick auf „Suchen" etwas zeigt, hätte man auch gleich mit dem Ergebnis öffnen
+        können — und die Läufe dauern zu lange, um sie vor dem Öffnen abzuwarten.
+    -->
+    <i:Interaction.Triggers>
+        <i:EventTrigger EventName="Loaded">
+            <i:InvokeCommandAction Command="{Binding CommandExecuteSuchenCommand}" />
+        </i:EventTrigger>
+    </i:Interaction.Triggers>
+
+    <Window.Resources>
+        <!--
+            Ein Rahmen über dem Bild — Grundform für beide Ebenen.
+
+            Gelb im Normalzustand: Es gibt keine Farbe, die auf jedem Bild auffällt,
+            aber Gelb schlägt sich auf Karten, Luftbildern und Schwarzweiss gleich gut.
+            Hervorgehoben wird auf Weiss mit leichter Füllung umgestellt — Weiss, weil
+            es auch dort noch trägt, wo das Bild selbst gelb ist.
+
+            Zeilen ohne gelesenen Text bekommen einen gestrichelten Rand. Sie sind die
+            Fehlfunde: gefunden, aber nichts darin. Eine dritte Farbe wäre eine
+            Bedeutung mehr, als das Bild verträgt.
+
+            Fill="Transparent" ist nötig, nicht Zierde: Ohne Füllung ist die Fläche
+            eines Polygons nicht trefferfähig, und das Überfahren im Bild fiele aus.
+        -->
+        <Style x:Key="RahmenBasisStyle" TargetType="Polygon">
+            <Setter Property="Stroke" Value="#FFFFD60A" />
+            <Setter Property="StrokeThickness" Value="{Binding DataContext.Strichstaerke, RelativeSource={RelativeSource AncestorType=Window}}" />
+            <Setter Property="Fill" Value="Transparent" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HatText}" Value="False">
+                    <Setter Property="StrokeDashArray" Value="3 2" />
+                    <Setter Property="Stroke" Value="#FFFF9F0A" />
+                </DataTrigger>
+
+                <!--  Gelesen, aber als Scheinzeile verworfen: zählt nicht, also wie ohne Text.  -->
+                <DataTrigger Binding="{Binding IstScheinzeile}" Value="True">
+                    <Setter Property="StrokeDashArray" Value="3 2" />
+                    <Setter Property="Stroke" Value="#FFFF9F0A" />
+                </DataTrigger>
+
+                <!--  Steht zuletzt: Hervorheben soll alles darüber überschreiben.  -->
+                <DataTrigger Binding="{Binding IstHervorgehoben}" Value="True">
+                    <Setter Property="Stroke" Value="#FFFFFFFF" />
+                    <Setter Property="StrokeDashArray" Value="{x:Null}" />
+                    <Setter Property="StrokeThickness" Value="{Binding DataContext.StrichstaerkeStark, RelativeSource={RelativeSource AncestorType=Window}}" />
+                    <Setter Property="Fill" Value="#33FFFFFF" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--
+            Die Standardsuche in Türkis, das Plugin in Gelb. Die Form unterscheidet die
+            beiden schon (achsenparallel gegen gedreht), aber auf einem unruhigen Bild
+            ist eine zweite Farbe schneller zu lesen als eine zweite Form.
+        -->
+        <Style
+            x:Key="WortRahmenStyle"
+            BasedOn="{StaticResource RahmenBasisStyle}"
+            TargetType="Polygon">
+            <Setter Property="Stroke" Value="#FF00E5FF" />
+        </Style>
+
+        <!--  Ein Rahmen der Plugin-Ebene. Gelb aus der Grundform.  -->
+        <Style
+            x:Key="ZeilenRahmenStyle"
+            BasedOn="{StaticResource RahmenBasisStyle}"
+            TargetType="Polygon" />
+
+        <!--  Eine Zeile in den Listen rechts. Heller Grund, dunkle Schrift — wie die Karten der Anwendung.  -->
+        <Style x:Key="FundEintragStyle" TargetType="Border">
+            <Setter Property="Margin" Value="0,0,0,4" />
+            <Setter Property="Padding" Value="8,6,8,6" />
+            <Setter Property="Background" Value="#FFF8FAFC" />
+            <Setter Property="BorderBrush" Value="#FFE5E7EB" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IstHervorgehoben}" Value="True">
+                    <Setter Property="Background" Value="#FFFFF7D6" />
+                    <Setter Property="BorderBrush" Value="#FFFFD60A" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--
+            Ein Eintrag, für beide Listen derselbe. Das Überfahren meldet den Fund am
+            ViewModel; dasselbe tut der Rahmen im Bild, und beide Seiten heben sich
+            dadurch gegenseitig hervor.
+        -->
+        <DataTemplate x:Key="FundEintragTemplate">
+            <Border x:Name="BRD_Fundeintrag" Style="{StaticResource FundEintragStyle}">
+                <i:Interaction.Triggers>
+                    <i:EventTrigger EventName="MouseEnter">
+                        <i:InvokeCommandAction
+                            Command="{Binding DataContext.CommandExecuteZeileHervorhebenCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                            CommandParameter="{Binding}" />
+                    </i:EventTrigger>
+
+                    <!--  Ohne CommandParameter bekommt der Befehl null und löscht die Hervorhebung.  -->
+                    <i:EventTrigger EventName="MouseLeave">
+                        <i:InvokeCommandAction Command="{Binding DataContext.CommandExecuteZeileHervorhebenCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                    </i:EventTrigger>
+                </i:Interaction.Triggers>
+
+                <Grid x:Name="GRD_Fundeintrag">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition x:Name="COL_Nummer" Width="Auto" />
+                        <ColumnDefinition x:Name="COL_Inhalt" Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock
+                        x:Name="TXT_Nummer"
+                        Width="22"
+                        Margin="0,1,6,0"
+                        VerticalAlignment="Top"
+                        FontFamily="Segoe UI"
+                        FontSize="11"
+                        Foreground="#FF9A9A9A"
+                        Text="{Binding Nummer}" />
+
+                    <StackPanel x:Name="STP_Fundinhalt" Grid.Column="1">
+                        <TextBlock
+                            x:Name="TXT_Fundtext"
+                            d:Text="Kranichstraße"
+                            FontFamily="Segoe UI"
+                            FontSize="13"
+                            Foreground="#FF1F2937"
+                            Text="{Binding Text}"
+                            TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Style.Triggers>
+                                        <!--
+                                            Gefunden, aber nichts gelesen: Wegrand, Gitter,
+                                            Signatur. Der Platz bleibt belegt, damit die
+                                            Nummern der Liste zu den Rahmen im Bild passen.
+                                        -->
+                                        <DataTrigger Binding="{Binding HatText}" Value="False">
+                                            <Setter Property="Text" Value="— nichts gelesen —" />
+                                            <Setter Property="FontStyle" Value="Italic" />
+                                            <Setter Property="Foreground" Value="#FFA0A0A0" />
+                                        </DataTrigger>
+
+                                        <!--
+                                            Gelesen, aber verworfen: Der Text bleibt lesbar,
+                                            durchgestrichen — so sieht man, was der Filter wegnimmt.
+                                        -->
+                                        <DataTrigger Binding="{Binding IstScheinzeile}" Value="True">
+                                            <Setter Property="TextDecorations" Value="Strikethrough" />
+                                            <Setter Property="Foreground" Value="#FFA0A0A0" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <TextBlock
+                            x:Name="TXT_Kennzahlen"
+                            Margin="0,2,0,0"
+                            d:Text="38,2°   14 Zeichen   212 × 18 px"
+                            FontFamily="Segoe UI"
+                            FontSize="10"
+                            Foreground="#FF9A9A9A"
+                            Text="{Binding Kennzahlen}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid x:Name="GRD_Wurzel">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition x:Name="COL_Bild" Width="*" />
+            <ColumnDefinition x:Name="COL_Liste" Width="360" />
+        </Grid.ColumnDefinitions>
+
+        <!--
+            Bühne für das Bild: dunkler Grund, wie in der Vollbildansicht. Ein helles
+            Feld drumherum würde die Helligkeit der Beschriftung verfälschen, und genau
+            die ist hier die Frage.
+        -->
+        <Grid x:Name="GRD_Buehne" Background="#FF111111">
+            <Grid.RowDefinitions>
+                <RowDefinition x:Name="ROW_Bild" Height="*" />
+
+                <!--
+                    Feste Höhe, immer belegt — auch wenn kein Ausschnitt zu zeigen ist.
+
+                    Vorher klappte der Streifen beim Überfahren auf. Das nahm dem Bild
+                    Höhe, die Viewbox passte es neu ein, und der Rahmen unter der Maus
+                    rutschte weg: Das Bild sprang, und bei einem Rahmen am unteren Rand
+                    sprang es im Wechsel auf und zu, weil die Maus ihn dabei verlor.
+
+                    Deshalb steht die Fläche fest da und füllt sich nur. Die Höhe ist
+                    die Summe ihres Inhalts (Kopfzeile, Ausschnitt, gelesener Text samt
+                    Abständen). Der Ausschnitt hat eine feste Höhe, Kopfzeile und Text
+                    bleiben auf einer Zeile (CharacterEllipsis) — damit kann kein Inhalt
+                    diese Summe sprengen. Die paar Punkte Zugabe fangen die Zeilenhöhe
+                    der Schrift ab, die je nach Anzeige leicht abweicht.
+                -->
+                <RowDefinition x:Name="ROW_Streifen" Height="186" />
+            </Grid.RowDefinitions>
+
+            <!--
+                Bild und Rahmen liegen in einem Gitter von der Größe des Bildes in
+                Bildpunkten, und die Viewbox passt alles gemeinsam ein.
+
+                Das ist der Grund, warum die Rahmen sitzen: Sie werden in
+                Bildkoordinaten gezeichnet und mit demselben Faktor skaliert wie das
+                Bild. Eine eigene Umrechnung gibt es nicht — also auch keine, die
+                daneben liegen kann.
+
+                Die Windows-Ebene liegt unten, die Plugin-Ebene darüber: Wortkästen sind
+                viele und klein, Zeilenrahmen wenige und gross.
+            -->
+            <Viewbox x:Name="VBX_Bild" Margin="16" Stretch="Uniform">
+                <!--
+                    d:Width und d:Height sind im Entwurf nötig, nicht Zierde: Die
+                    Bindungen an Bild.PixelWidth/-Height liefern dort nichts, das Gitter
+                    wäre also grössenlos und der Platzhalter unsichtbar. Die Maße sind
+                    die des Platzhalterbildes.
+                -->
+                <Grid
+                    x:Name="GRD_Bildflaeche"
+                    Width="{Binding Bild.PixelWidth}"
+                    Height="{Binding Bild.PixelHeight}"
+                    d:Width="1026"
+                    d:Height="607">
+                    <Image
+                        x:Name="IMG_Bild"
+                        d:Source="/Images/OcrVorschauKarte.png"
+                        RenderOptions.BitmapScalingMode="HighQuality"
+                        Source="{Binding Bild}"
+                        Stretch="Fill" />
+
+                    <ItemsControl
+                        x:Name="IC_Wortkaesten"
+                        ItemsSource="{Binding WindowsFunde}"
+                        Visibility="{Binding ZeigeWindows, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <!--
+                                    Canvas, damit jedes Polygon dort liegt, wo seine
+                                    eigenen Punkte hinzeigen. Jedes andere Panel würde
+                                    die Rahmen der Reihe nach anordnen.
+                                -->
+                                <Canvas x:Name="CNV_Wortkaesten" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Polygon
+                                    x:Name="PLG_Wortkasten"
+                                    Points="{Binding Ecken}"
+                                    Style="{StaticResource WortRahmenStyle}"
+                                    ToolTip="{Binding Text}">
+                                    <i:Interaction.Triggers>
+                                        <i:EventTrigger EventName="MouseEnter">
+                                            <i:InvokeCommandAction
+                                                Command="{Binding DataContext.CommandExecuteZeileHervorhebenCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}" />
+                                        </i:EventTrigger>
+                                        <i:EventTrigger EventName="MouseLeave">
+                                            <i:InvokeCommandAction Command="{Binding DataContext.CommandExecuteZeileHervorhebenCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                        </i:EventTrigger>
+                                    </i:Interaction.Triggers>
+                                </Polygon>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <ItemsControl
+                        x:Name="IC_Zeilenrahmen"
+                        ItemsSource="{Binding PluginFunde}"
+                        Visibility="{Binding ZeigePlugin, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <Canvas x:Name="CNV_Zeilenrahmen" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Polygon
+                                    x:Name="PLG_Zeilenrahmen"
+                                    Points="{Binding Ecken}"
+                                    Style="{StaticResource ZeilenRahmenStyle}"
+                                    ToolTip="{Binding Text}">
+                                    <i:Interaction.Triggers>
+                                        <!--
+                                            Im Bild überfahren hebt denselben Eintrag in
+                                            der Liste hervor — die Gegenrichtung zum
+                                            Überfahren der Liste.
+                                        -->
+                                        <i:EventTrigger EventName="MouseEnter">
+                                            <i:InvokeCommandAction
+                                                Command="{Binding DataContext.CommandExecuteZeileHervorhebenCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}" />
+                                        </i:EventTrigger>
+                                        <i:EventTrigger EventName="MouseLeave">
+                                            <i:InvokeCommandAction Command="{Binding DataContext.CommandExecuteZeileHervorhebenCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                        </i:EventTrigger>
+                                    </i:Interaction.Triggers>
+                                </Polygon>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Grid>
+            </Viewbox>
+
+            <!--
+                Der Ausschnitt des Fundes unter der Maus — das Bild, das die
+                Texterkennung wirklich zu lesen bekam. Beim Plugin geradegerückt, bei
+                der Standardsuche nur ausgeschnitten; der Unterschied ist der Vergleich.
+
+                Stretch="None" und waagerechte Rollleiste: Der Streifen ist bis
+                sechsfach vergrössert, und genau diese Grösse ist der Punkt. Eingepasst
+                wäre er wieder so klein wie im Gesamtbild und würde nichts zeigen.
+
+                Ohne Fund unter der Maus bleibt die Fläche leer stehen und sagt, wofür
+                sie da ist — siehe die Begründung an ROW_Streifen.
+            -->
+            <Border
+                x:Name="BRD_Streifen"
+                Grid.Row="1"
+                Background="#FF181818"
+                BorderBrush="#FF303030"
+                BorderThickness="0,1,0,0">
+                <Grid x:Name="GRD_Streifen">
+                    <TextBlock
+                        x:Name="TXT_StreifenHinweis"
+                        Margin="16"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        d:Visibility="Collapsed"
+                        FontFamily="Segoe UI"
+                        FontSize="12"
+                        Foreground="#FF6A6A6A"
+                        Text="Auf einen Rahmen im Bild oder einen Eintrag in der Liste zeigen — hier erscheint der Ausschnitt, den die Texterkennung zu lesen bekam."
+                        TextAlignment="Center"
+                        TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ZeileUnterMaus}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <!--  Im Entwurf umgekehrt: gefüllter Streifen statt Hinweis.  -->
+                    <StackPanel
+                        x:Name="STP_Streifen"
+                        Margin="16,10,16,12"
+                        d:Visibility="Visible">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ZeileUnterMaus}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+
+                        <TextBlock
+                            x:Name="TXT_StreifenKopf"
+                            d:Text="Plugin   Nr. 3   38,2°   14 Zeichen   212 × 18 px"
+                            FontFamily="Segoe UI"
+                            FontSize="11"
+                            Foreground="#FF9A9A9A"
+                            Text="{Binding ZeileUnterMaus.KennzahlenMitNummer}"
+                            TextTrimming="CharacterEllipsis" />
+
+                        <!--
+                            Feste Höhe statt MaxHeight: Ein Ausschnitt ist mal 50 und mal
+                            110 Punkte hoch, und jede Änderung darunter würde die
+                            Gesamthöhe verschieben — genau das, was hier nicht passieren
+                            darf. Oben ausgerichtet, damit flache Streifen nicht wandern.
+
+                            Stretch="None" und waagerechte Rollleiste: Der Ausschnitt ist
+                            bis sechsfach vergrössert, und genau diese Grösse ist der
+                            Punkt. Eingepasst wäre er wieder so klein wie im Gesamtbild.
+                        -->
+                        <ScrollViewer
+                            x:Name="SCV_Streifen"
+                            Height="110"
+                            Margin="0,8,0,0"
+                            HorizontalScrollBarVisibility="Auto"
+                            VerticalScrollBarVisibility="Disabled">
+                            <Image
+                                x:Name="IMG_Streifen"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Top"
+                                d:Source="/Images/OcrVorschauStreifen.png"
+                                RenderOptions.BitmapScalingMode="HighQuality"
+                                Source="{Binding ZeileUnterMaus.Streifen}"
+                                Stretch="None" />
+                        </ScrollViewer>
+
+                        <TextBlock
+                            x:Name="TXT_StreifenText"
+                            Margin="0,8,0,0"
+                            d:Text="Kranichstraße"
+                            FontFamily="Segoe UI"
+                            FontSize="14"
+                            Foreground="White"
+                            Text="{Binding ZeileUnterMaus.Text}"
+                            TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!--  Heller Streifen rechts: Kopf, Umschalter, Zustand, die beiden Listen.  -->
+        <Border
+            x:Name="BRD_Seitenfeld"
+            Grid.Column="1"
+            Background="White"
+            BorderBrush="#FFCBD5E1"
+            BorderThickness="1,0,0,0">
+            <Grid x:Name="GRD_Seitenfeld" Margin="12,10,12,12">
+                <Grid.RowDefinitions>
+                    <RowDefinition x:Name="ROW_Kopf" Height="Auto" />
+                    <RowDefinition x:Name="ROW_Bedienung" Height="Auto" />
+                    <RowDefinition x:Name="ROW_Status" Height="Auto" />
+                    <RowDefinition x:Name="ROW_Fortschritt" Height="Auto" />
+                    <RowDefinition x:Name="ROW_Listen" Height="*" />
+                </Grid.RowDefinitions>
+
+                <StackPanel x:Name="STP_Kopf" Grid.Row="0">
+                    <TextBlock
+                        x:Name="TXT_Titel"
+                        FontFamily="Segoe UI"
+                        FontSize="13"
+                        FontWeight="SemiBold"
+                        Foreground="#FF1F2937"
+                        Text="Was wo gefunden wurde" />
+
+                    <TextBlock
+                        x:Name="TXT_Dateiname"
+                        Margin="0,4,0,0"
+                        d:Text="Screenshot 2026-09-09 183140.png"
+                        FontFamily="Segoe UI"
+                        FontSize="11"
+                        Foreground="Gray"
+                        Text="{Binding Dateiname}"
+                        TextWrapping="Wrap" />
+
+                    <TextBlock
+                        x:Name="TXT_PluginVermerk"
+                        Margin="0,2,0,0"
+                        d:Text="Ocr.Core — Zeilensuche in beliebiger Neigung (1.0.0.0)"
+                        FontFamily="Segoe UI"
+                        FontSize="11"
+                        Foreground="Gray"
+                        Text="{Binding PluginVermerk}"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+
+                <StackPanel x:Name="STP_Bedienung" Grid.Row="1" Margin="0,12,0,0">
+                    <TextBlock
+                        x:Name="TXT_ModusTitel"
+                        FontFamily="Segoe UI"
+                        FontSize="11"
+                        Foreground="#FF7A7A7A"
+                        Text="Das Plugin sucht je Durchgang eine Schriftart:" />
+
+                    <!--
+                        „Beide" ist die Vorgabe, weil das Lesen es genauso macht — die
+                        Ansicht soll zeigen, was der Ordnerlauf findet. Die einzelnen
+                        Durchgänge bleiben wählbar: Für die Fehlersuche ist es der
+                        Unterschied, ob eine Zeile aus dem hellen oder dem dunklen
+                        Durchgang stammt.
+                    -->
+                    <RadioButton
+                        x:Name="RBT_BeideSchriftarten"
+                        Margin="0,6,0,0"
+                        Content="beide (wie beim Lesen)"
+                        FontFamily="Segoe UI"
+                        FontSize="12"
+                        Foreground="#FF555555"
+                        GroupName="Schriftart"
+                        IsChecked="{Binding ModusBeide, Mode=TwoWay}"
+                        IsEnabled="{Binding KannModusWaehlen}" />
+
+                    <RadioButton
+                        x:Name="RBT_HelleSchrift"
+                        Margin="0,4,0,0"
+                        Content="nur hell auf dunkel (Karte, Luftbild)"
+                        FontFamily="Segoe UI"
+                        FontSize="12"
+                        Foreground="#FF555555"
+                        GroupName="Schriftart"
+                        IsChecked="{Binding ModusHell, Mode=TwoWay}"
+                        IsEnabled="{Binding KannModusWaehlen}" />
+
+                    <RadioButton
+                        x:Name="RBT_DunkleSchrift"
+                        Margin="0,4,0,0"
+                        Content="nur dunkel auf hell (Dokument, Foto)"
+                        FontFamily="Segoe UI"
+                        FontSize="12"
+                        Foreground="#FF555555"
+                        GroupName="Schriftart"
+                        IsChecked="{Binding ModusDunkel, Mode=TwoWay}"
+                        IsEnabled="{Binding KannModusWaehlen}" />
+
+                    <StackPanel x:Name="STP_Knoepfe" Margin="0,10,0,0" Orientation="Horizontal">
+                        <Button
+                            x:Name="BTN_NeuSuchen"
+                            Command="{Binding CommandExecuteSuchenCommand}"
+                            Content="Neu suchen"
+                            Style="{StaticResource OutlineButtonStyle}"
+                            ToolTip="Dasselbe Bild noch einmal durchsuchen — etwa nach einem Wechsel der Schriftart." />
+
+                        <Button
+                            x:Name="BTN_Abbrechen"
+                            Margin="6,0,0,0"
+                            Command="{Binding CommandExecuteSuchenCancelCommand}"
+                            Content="Abbrechen"
+                            Foreground="#FFB03030"
+                            Style="{StaticResource OutlineButtonStyle}"
+                            ToolTip="Den Lauf anhalten. Was bis dahin gefunden wurde, bleibt stehen."
+                            Visibility="{Binding IsEineAufgabeLäuft, Converter={StaticResource CLconverterVisiblityBoolian}}" />
+                    </StackPanel>
+                </StackPanel>
+
+                <TextBlock
+                    x:Name="TXT_Status"
+                    Grid.Row="2"
+                    Margin="0,10,0,0"
+                    d:Text="8 Zeilen hat nur das Plugin gefunden."
+                    FontFamily="Segoe UI"
+                    FontSize="11"
+                    Foreground="#FF888888"
+                    Text="{Binding Status}"
+                    TextWrapping="Wrap" />
+
+                <!--
+                    Nur während das Plugin sucht. Die Standardsuche davor ist zu kurz
+                    für einen Balken; das Plugin braucht auf einer Scanseite Sekunden.
+                -->
+                <StackPanel
+                    x:Name="STP_PluginFortschritt"
+                    Grid.Row="3"
+                    Margin="0,8,0,0"
+                    Visibility="{Binding PluginSucht, Converter={StaticResource CLconverterVisiblityBoolian}}">
+                    <ProgressBar
+                        x:Name="PGB_Plugin"
+                        Height="6"
+                        Background="#FFE2E8F0"
+                        BorderThickness="0"
+                        Foreground="#FF64748B"
+                        Maximum="1"
+                        Minimum="0"
+                        Value="{Binding PluginFortschritt, Mode=OneWay}" />
+
+                    <TextBlock
+                        x:Name="TXB_PluginFortschritt"
+                        Margin="0,4,0,0"
+                        d:Text="helle Schrift · Zuschnitt: 42 % – noch ca. 3 s"
+                        FontFamily="Segoe UI"
+                        FontSize="11"
+                        Foreground="Gray"
+                        Text="{Binding PluginFortschrittText}"
+                        TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+
+                <!--
+                    Beide Listen in einer Rollfläche statt zwei nebeneinander: Zwei
+                    eigene Rollleisten auf 360 Punkten Breite nehmen mehr Platz weg, als
+                    sie Übersicht bringen.
+
+                    Die Kopfzeile ist gleich der Schalter für die Ebene — sie nennt die
+                    Zahlen und schaltet die Rahmen im Bild ab, wenn man die andere Ebene
+                    allein sehen will.
+                -->
+                <ScrollViewer
+                    x:Name="SCV_Listen"
+                    Grid.Row="4"
+                    Margin="0,10,0,0"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+                    <StackPanel x:Name="STP_Listen">
+                        <CheckBox
+                            x:Name="CHK_ZeigeWindows"
+                            Foreground="#FF1F2937"
+                            IsChecked="{Binding ZeigeWindows, Mode=TwoWay}"
+                            ToolTip="Die Kästen der Standardsuche im Bild ein- und ausblenden. Türkis und achsenparallel.">
+                            <TextBlock
+                                x:Name="TXT_WindowsKopf"
+                                d:Text="Windows-OCR, ganzes Bild — 5 Wörter, Textwinkel 0,3°, 96 ms"
+                                FontFamily="Segoe UI"
+                                FontSize="11"
+                                FontWeight="SemiBold"
+                                Text="{Binding WindowsKopf}"
+                                TextWrapping="Wrap" />
+                        </CheckBox>
+
+                        <ItemsControl
+                            x:Name="IC_WindowsFunde"
+                            Margin="0,6,0,0"
+                            ItemTemplate="{StaticResource FundEintragTemplate}"
+                            ItemsSource="{Binding WindowsFunde}"
+                            Visibility="{Binding ZeigeWindows, Converter={StaticResource CLconverterVisiblityBoolian}}" />
+
+                        <CheckBox
+                            x:Name="CHK_ZeigePlugin"
+                            Margin="0,10,0,0"
+                            Foreground="#FF1F2937"
+                            IsChecked="{Binding ZeigePlugin, Mode=TwoWay}"
+                            ToolTip="Die Zeilenrahmen des Plugins im Bild ein- und ausblenden. Gelb und gedreht; gestrichelt, wenn nichts darin gelesen wurde.">
+                            <TextBlock
+                                x:Name="TXT_PluginKopf"
+                                d:Text="Plugin, schräge Zeilen — 12 Zeilen, 11 mit Text, 8 davon neu, 1637 ms"
+                                FontFamily="Segoe UI"
+                                FontSize="11"
+                                FontWeight="SemiBold"
+                                Text="{Binding PluginKopf}"
+                                TextWrapping="Wrap" />
+                        </CheckBox>
+
+                        <ItemsControl
+                            x:Name="IC_PluginFunde"
+                            Margin="0,6,0,0"
+                            ItemTemplate="{StaticResource FundEintragTemplate}"
+                            ItemsSource="{Binding PluginFunde}"
+                            Visibility="{Binding ZeigePlugin, Converter={StaticResource CLconverterVisiblityBoolian}}" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

@@ -958,6 +958,7 @@
             d:ItemsSource="{d:SampleData ItemCount=4}"
             local:HorizontalListBoxBehavior.CenterSelectedItem="True"
             local:HorizontalListBoxBehavior.EnableHorizontalMouseWheel="True"
+            local:HorizontalListBoxBehavior.RechtsklickOhneAuswahl="True"
             FocusVisualStyle="{x:Null}"
             IsSynchronizedWithCurrentItem="True"
             ItemsSource="{Binding AufgabenView}"
@@ -981,10 +982,17 @@
                 </Style>
             </ListBox.Style>
 
-            <!--  Kontextmenü  -->
+            <!--
+                Kontextmenü. Gilt der Miniatur unter der Maus, nicht dem angezeigten Bild —
+                wie in der Vollbildansicht, siehe RechtsklickOhneAuswahl.
+            -->
             <ListBox.ContextMenu>
-                <ContextMenu>
-                    <MenuItem Command="{Binding CommandExecuteDateiImExplorerÖffnenCommand}" Header="Explorer öffnen" />
+                <ContextMenu x:Name="CTM_MiniaturBilder">
+                    <MenuItem
+                        x:Name="MNI_MiniaturExplorerÖffnen"
+                        Command="{Binding CommandExecuteDateiImExplorerÖffnenCommand}"
+                        CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType={x:Type ContextMenu}}}"
+                        Header="Explorer öffnen" />
                 </ContextMenu>
             </ListBox.ContextMenu>
 
@@ -1866,7 +1874,9 @@
                                             <MultiDataTrigger.EnterActions>
                                                 <BeginStoryboard>
                                                     <Storyboard>
+                                                        <!--  Verzögert wie bei BTN_OrdnerÖffnen, Begründung dort.  -->
                                                         <DoubleAnimation
+                                                            BeginTime="0:0:0.5"
                                                             Storyboard.TargetProperty="Width"
                                                             To="95"
                                                             Duration="0:0:0.18">
@@ -1971,10 +1981,22 @@
                                                 <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" Value="True" />
                                                 <Condition Binding="{Binding IsEnabled, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" Value="True" />
                                             </MultiDataTrigger.Conditions>
+                                            <!--
+                                                BeginTime 0,5 s: Der Knopf steht am Weg der Maus,
+                                                und ohne Verzögerung klappte er schon beim blossen
+                                                Überstreichen auf. Verzögern statt verlangsamen —
+                                                wer wirklich darauf zeigt, soll nicht zusätzlich
+                                                dem Aufklappen zusehen müssen.
+
+                                                Verlässt die Maus den Knopf vor Ablauf, ersetzt die
+                                                ExitAction dieses Storyboard (SnapshotAndReplace),
+                                                der wartende Start fällt also weg.
+                                            -->
                                             <MultiDataTrigger.EnterActions>
                                                 <BeginStoryboard>
                                                     <Storyboard>
                                                         <DoubleAnimation
+                                                            BeginTime="0:0:0.5"
                                                             Storyboard.TargetProperty="Width"
                                                             To="157"
                                                             Duration="0:0:0.18">
@@ -2439,9 +2461,7 @@
                     KeyTip="→"
                     MouseOverBackground="#FFB7F393"
                     MouseOverBorderBrush="{DynamicResource {x:Static SystemColors.ActiveCaptionBrushKey}}"
-                    PressedBackground="#FFCACFFE"
-                    ToolTip="Nächstes Bild (→)"
-                    ToolTipService.InitialShowDelay="20000" />
+                    PressedBackground="#FFCACFFE" />
 
                 <!--  Sichtbares Icon  -->
                 <Image
@@ -4222,14 +4242,26 @@
                     </RibbonButton.ContextMenu>
 
                 </RibbonButton>
-                <Button
-                    x:Name="BTN_AbbrechenGrauAbgleich"
+                <!--
+                    Wie RDBTN_AbbrechenByteAbgleich: nur sichtbar, solange der Abgleich läuft,
+                    und orange wie dort — beide vergleichen mit dem einen angezeigten Bild.
+                    Die roten Knöpfe gehören zu den Abgleichen über den ganzen Ordner.
+                -->
+                <RibbonButton
+                    x:Name="RDBTN_AbbrechenGrauAbgleich"
                     Width="22"
                     Height="22"
                     Margin="2,0,2,0"
+                    d:Visibility="Visible"
+                    Background="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}"
+                    BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkDarkBrushKey}}"
                     Command="{Binding CommandExecuteSuchenUngefährGleichesBildCancelCommand, Mode=OneWay}"
-                    Content="X"
-                    Foreground="Red" />
+                    MouseOverBackground="#FFB7F393"
+                    MouseOverBorderBrush="{DynamicResource {x:Static SystemColors.ActiveCaptionBrushKey}}"
+                    PressedBackground="#FFCACFFE"
+                    SmallImageSource="{StaticResource di_AbbrechenOrange}"
+                    ToolTip="Grau-Abgleich abbrechen"
+                    Visibility="{Binding CommandExecuteSuchenUngefährGleichesBildCommand.IsRunning, Converter={StaticResource CLconverterVisiblityBoolian}, Mode=OneWay}" />
 
                 <!--
                     Tastensteuerung: Die Übersicht liegt im Fenster (BRD_TastenHilfe) und
@@ -4324,7 +4356,9 @@
                                         <MultiDataTrigger.EnterActions>
                                             <BeginStoryboard>
                                                 <Storyboard>
+                                                    <!--  Verzögert wie bei BTN_OrdnerÖffnen, Begründung dort.  -->
                                                     <DoubleAnimation
+                                                        BeginTime="0:0:0.5"
                                                         Storyboard.TargetProperty="Width"
                                                         To="123"
                                                         Duration="0:0:0.18">

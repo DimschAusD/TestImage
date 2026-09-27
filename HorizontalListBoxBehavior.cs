@@ -540,6 +540,80 @@ namespace TestImage
 
         #endregion
 
+        #region RechtsklickOhneAuswahl
+
+        /// <summary>
+        /// Rechtsklick auf eine Miniatur wählt sie nicht aus; das Kontextmenü gilt ihr
+        /// trotzdem.
+        ///
+        /// <b>Warum.</b> Von Haus aus wählt eine ListBox beim Rechtsklick das Element aus.
+        /// In der Miniaturleiste heisst Auswählen aber Hinspringen: Das grosse Bild wechselt,
+        /// und die Leiste rollt das neue Bild in die Mitte — unter der Maus liegt danach
+        /// eine andere Miniatur als die angeklickte. Welches Bild „Explorer öffnen" dann
+        /// zeigte, war eine Überraschung. Jetzt bleibt alles stehen, und das Menü bekommt
+        /// die angeklickte Miniatur als <c>ContextMenu.Tag</c> mit; die Menüeinträge reichen
+        /// sie als CommandParameter weiter.
+        ///
+        /// Ohne Miniatur unter der Maus (leerer Rand) oder mit der Menütaste geöffnet ist
+        /// der Tag leer, und die Befehle nehmen wie bisher das angezeigte Bild.
+        /// </summary>
+        public static readonly DependencyProperty RechtsklickOhneAuswahlProperty =
+            DependencyProperty.RegisterAttached(
+                "RechtsklickOhneAuswahl",
+                typeof(bool),
+                typeof(HorizontalListBoxBehavior),
+                new PropertyMetadata(false, OnRechtsklickOhneAuswahlChanged));
+
+        public static bool GetRechtsklickOhneAuswahl(DependencyObject d) =>
+            (bool)d.GetValue(RechtsklickOhneAuswahlProperty);
+
+        public static void SetRechtsklickOhneAuswahl(DependencyObject d, bool value) =>
+            d.SetValue(RechtsklickOhneAuswahlProperty, value);
+
+        private static void OnRechtsklickOhneAuswahlChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is not ListBox lb) return;
+
+            lb.PreviewMouseRightButtonDown -= OnRechtsklickVorschau;
+            lb.ContextMenuClosing -= OnKontextmenueSchliesst;
+
+            if ((bool)e.NewValue)
+            {
+                lb.PreviewMouseRightButtonDown += OnRechtsklickVorschau;
+                lb.ContextMenuClosing += OnKontextmenueSchliesst;
+            }
+        }
+
+        private static void OnRechtsklickVorschau(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not ListBox lb || lb.ContextMenu is null) return;
+
+            var behaelter = ItemsControl.ContainerFromElement(lb, e.OriginalSource as DependencyObject);
+            if (behaelter is null)
+            {
+                lb.ContextMenu.Tag = null;
+                return;
+            }
+
+            lb.ContextMenu.Tag = lb.ItemContainerGenerator.ItemFromContainer(behaelter);
+
+            // Nur das Drücken abfangen: Das hält die ListBox vom Auswählen ab. Das Menü
+            // öffnet WPF erst beim Loslassen, und das bleibt unberührt.
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// Tag leeren, damit ein später mit der Menütaste geöffnetes Menü nicht noch die
+        /// zuletzt angeklickte Miniatur meint.
+        /// </summary>
+        private static void OnKontextmenueSchliesst(object sender, ContextMenuEventArgs e)
+        {
+            if (sender is ListBox { ContextMenu: not null } lb)
+                lb.ContextMenu.Tag = null;
+        }
+
+        #endregion
+
         #region CenterNow (manuell aufrufbar)
 
         /// <summary>

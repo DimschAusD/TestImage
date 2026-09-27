@@ -79,6 +79,7 @@ namespace TestImage
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteBildInsKIFehlerVerschiebenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteBildInsBesondersVerschiebenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteAlleBilderMiteinanderAufByteGleichheitPrüfenCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CommandExecuteAlleBilderSHA256AbgleichPrüfenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteAlleBilderNeuEinlesenCommand))]
         [NotifyCanExecuteChangedFor(nameof(CommandExecuteOrdnerEineEbeneHochCommand))]
         // Gegenstück zur Sperre im Indexieren: Läuft ein Abgleich, ist der Index-Knopf aus.
@@ -228,6 +229,21 @@ namespace TestImage
         [ObservableProperty]
         public partial bool IsBluetoothWarnung { get; set; }
 
+        /// <summary>
+        /// Der Treiber des eigenen Adapters ist alt — der kleine rote Punkt am Feld, wie
+        /// eine Benachrichtigung unter Android: „im Tooltip steht etwas". Unabhängig von
+        /// <see cref="IsBluetoothAktiv"/>, denn das betrifft den Chip, nicht ein Gerät.
+        /// </summary>
+        [ObservableProperty]
+        public partial bool IsBluetoothTreiberAlt { get; set; }
+
+        /// <summary>
+        /// Bluetooth ist ausgeschaltet. Dann wird der Punkt grau: Der alte Treiber ist
+        /// bekannt, aber ein abgeschalteter Funk ist von aussen nicht erreichbar.
+        /// </summary>
+        [ObservableProperty]
+        public partial bool IsBluetoothAus { get; set; }
+
         /// <summary>Was genau hängt dran – steht im Tooltip des Feldes.</summary>
         [ObservableProperty]
         public partial string BluetoothHinweis { get; set; } = "Bluetooth";
@@ -256,6 +272,10 @@ namespace TestImage
 
             IsBluetoothAktiv = stand.HatGeraete;
             IsBluetoothWarnung = stand.HatWarnung;
+            IsBluetoothTreiberAlt = IstTreiberAlt(stand.Adapter);
+            IsBluetoothAus = stand.IstAusgeschaltet;
+
+            string adapterZeile = AdapterZeile(stand.Adapter, stand.IstAusgeschaltet);
 
             if (stand.HatWarnung)
             {
@@ -263,7 +283,8 @@ namespace TestImage
                     "Achtung: seit dem Start neu angemeldetes Eingabegerät\n"
                     + Aufzaehlung(stand.NeueEingabegeraete)
                     + "\nEin solches Gerät kann tippen und klicken. War das nicht du, "
-                    + "Bluetooth abschalten und die Kopplungen durchsehen.";
+                    + "Bluetooth abschalten und die Kopplungen durchsehen."
+                    + adapterZeile;
                 return;
             }
 
@@ -273,9 +294,15 @@ namespace TestImage
                 return;
             }
 
+            if (stand.IstAusgeschaltet)
+            {
+                BluetoothHinweis = "Bluetooth — ausgeschaltet" + adapterZeile;
+                return;
+            }
+
             if (!stand.HatGeraete)
             {
-                BluetoothHinweis = "Bluetooth — an, kein Gerät angemeldet";
+                BluetoothHinweis = "Bluetooth — an, kein Gerät angemeldet" + adapterZeile;
                 return;
             }
 
@@ -287,7 +314,59 @@ namespace TestImage
                 BluetoothHinweis += "\nEingabegerät darunter (kann tippen und klicken): "
                                     + string.Join(", ", stand.Eingabegeraete);
             }
+
+            BluetoothHinweis += adapterZeile;
         }
+
+        /// <summary>
+        /// Schlusszeilen des Tooltips zum eigenen Adapter: Bluetooth-Version und
+        /// Treiberdatum, bei altem Treiber mit Hinweis.
+        ///
+        /// Die Version allein sagt über die Sicherheit wenig — KNOB, BIAS und BLUFFS stecken
+        /// im Protokoll und treffen 4.2 bis 5.4 gleichermassen. Was ein alter Chip hat, ein
+        /// neuer nicht: Der Hersteller liefert keine Firmware mehr, und die kommt nur mit
+        /// dem Treiber. Deshalb schlägt der Hinweis am Treiberdatum an, nicht an der Version.
+        /// Die Fläche und das Zeichen bleiben für „was hängt dran" reserviert; den alten
+        /// Treiber meldet nur der kleine Punkt, rot bei eingeschaltetem, grau bei
+        /// ausgeschaltetem Bluetooth.
+        /// </summary>
+        private static string AdapterZeile(BluetoothAdapter? adapter, bool ausgeschaltet)
+        {
+            if (adapter is null)
+                return string.Empty;
+
+            var teile = new System.Collections.Generic.List<string> { adapter.Name };
+
+            if (adapter.Version is not null)
+                teile.Add("Bluetooth " + adapter.Version);
+
+            if (adapter.TreiberDatum is DateTime datum)
+                teile.Add($"Treiber vom {datum:dd.MM.yyyy}");
+
+            string zeile = "\n\nAdapter: " + string.Join(" · ", teile);
+
+            if (IstTreiberAlt(adapter) && ausgeschaltet)
+            {
+                zeile += "\nDer Treiber ist über zwei Jahre alt. Solange Bluetooth ausgeschaltet "
+                         + "ist, spielt das keine Rolle.";
+            }
+            else if (IstTreiberAlt(adapter))
+            {
+                zeile += "\nDer Treiber ist über zwei Jahre alt. Sicherheitskorrekturen für den "
+                         + "Funkchip kommen nur mit dem Treiber — beim Hersteller nachsehen, ob es "
+                         + "einen neueren gibt. Gibt es keinen mehr, Bluetooth ausgeschaltet lassen, "
+                         + "solange es nicht gebraucht wird.";
+            }
+
+            return zeile;
+        }
+
+        /// <summary>
+        /// Treiber älter als zwei Jahre. Unterstützte Chips bekommen mehrmals im Jahr neue
+        /// Treiber; wer zwei Jahre keinen bekommen hat, bekommt meist keinen mehr.
+        /// </summary>
+        private static bool IstTreiberAlt(BluetoothAdapter? adapter) =>
+            adapter?.TreiberDatum is DateTime datum && datum < DateTime.Today.AddYears(-2);
 
         /// <summary>
         /// Geräteliste für den Tooltip: je Zeile eines, höchstens sechs.
@@ -893,14 +972,38 @@ namespace TestImage
                 // Vor dem Überschreiben von DropDateiName prüfen, ob der Ordner wechselt.
                 // Nur dann sind die alten Suchtreffer hinfällig; beim erneuten Drop aus
                 // demselben Ordner bleiben sie brauchbar.
-                if (verwerfeSuchtreffer)
-                {
-                    string? alterOrdner = string.IsNullOrEmpty(DropDateiName)
-                        ? null : Path.GetDirectoryName(DropDateiName);
-                    string? neuerOrdner = Path.GetDirectoryName(fullDateiName);
+                string? alterOrdner = string.IsNullOrEmpty(DropDateiName)
+                    ? null : Path.GetDirectoryName(DropDateiName);
+                string? neuerOrdner = Path.GetDirectoryName(fullDateiName);
+                bool ordnerWechselt = !string.Equals(alterOrdner, neuerOrdner, StringComparison.OrdinalIgnoreCase);
 
-                    if (!string.Equals(alterOrdner, neuerOrdner, StringComparison.OrdinalIgnoreCase))
+                if (ordnerWechselt)
+                {
+                    // Die Meldungen im IndexSuchPanel gehören zum Ordner, nicht zur Sitzung.
+                    // Nach dem Indexieren von kein_Fav und BTN_OrdnerEineEbeneHoch stand
+                    // über dem nicht indexierten Ordner darüber weiter „Fertig: 93 Bilder
+                    // indexiert." — Wasserzeichen und OCR ziehen ihre Zeile schon selbst
+                    // nach (BefundeVorbereiten, MeldeOcrBestand), diese drei nicht.
+                    //
+                    // Die Indexzeilen auch bei internen Aufrufen (Suchtreffer aus einem
+                    // anderen Ordner öffnen): Der Indexbefund des vorigen Ordners stimmt
+                    // dort ebenso wenig.
+                    //
+                    // Nicht während des Indexierens: Dann ist IndexFortschrittText der
+                    // laufende Fortschritt und steht zugleich in der Kopfleiste.
+                    if (!IndexLaeuft)
                     {
+                        IndexFortschrittText = string.Empty;
+                        IndexAnzahlText = string.Empty;
+                    }
+
+                    // SucheStatus dagegen nur auf dem öffentlichen Weg: Intern bleibt die
+                    // Trefferliste stehen, und „12 Treffer für …" gehört zu ihr.
+                    // Vor VerwerfeSuchtreffer, das bei vorhandenen Treffern seinen eigenen
+                    // Hinweis „Suche bitte wiederholen" setzt — der soll stehen bleiben.
+                    if (verwerfeSuchtreffer)
+                    {
+                        SucheStatus = string.Empty;
                         VerwerfeSuchtreffer();
                     }
                 }
@@ -1565,6 +1668,14 @@ namespace TestImage
         {
             AlleBilderVerschoben = OcAufgabens.Count > 0
                 && !OcAufgabens.Any(b => b.BildFürLinks == false);
+
+            // CanExecuteCommandAlleBilderNeuEinlesen fragt BildFürLinks ab, und das ist
+            // keine Eigenschaft, die einen Befehl benachrichtigt. Neu ausgewertet wurde
+            // nur beim Umschalten von PrüfungLäuft — und das fällt im finally zurück,
+            // BEVOR BildFürLinks gesetzt wird. Ausgewertet wurde also der alte Stand.
+            // Nach dem letzten Bild kam keine weitere Verschiebung, die das nachholte:
+            // BTN_BilderAktualisieren blieb gesperrt, obwohl es etwas einzulesen gab.
+            CommandExecuteAlleBilderNeuEinlesenCommand.NotifyCanExecuteChanged();
         }
 
         #region Command Bild ins kein_Fav Verzeichnis verschieben
@@ -2197,16 +2308,23 @@ namespace TestImage
             return true;
         }
 
+        /// <param name="bild">
+        /// Die mit Rechtsklick angeklickte Miniatur (siehe
+        /// HorizontalListBoxBehavior.RechtsklickOhneAuswahl). Ohne sie — Taste E, Menütaste,
+        /// leerer Rand der Leiste — das angezeigte Bild.
+        /// </param>
         [RelayCommand(CanExecute = nameof(CanExecuteDateiImExplorerÖffnen))]
-        private void CommandExecuteDateiImExplorerÖffnen()
+        private void CommandExecuteDateiImExplorerÖffnen(MeinBildchen? bild)
         {
-            if (SelectedBildchen == null)
+            var ziel = bild ?? SelectedBildchen;
+
+            if (ziel == null)
             {
                 return;
             }
-            if (File.Exists(SelectedBildchen.BName))
+            if (File.Exists(ziel.BName))
             {
-                string argument = "/select, \"" + SelectedBildchen.BName + "\"";
+                string argument = "/select, \"" + ziel.BName + "\"";
                 Process.Start("explorer.exe", argument);
             }
         }
@@ -3143,6 +3261,14 @@ namespace TestImage
         [RelayCommand(CanExecute = nameof(CanExecuteSuchenUngefährGleichesBild), IncludeCancelCommand = true)]
         private async Task CommandExecuteSuchenUngefährGleichesBild(CancellationToken token)
         {
+            // Ohne gewähltes Bild ergab der Hash 0, und fast die ganze Liste wurde
+            // aussortiert. Vor dem try, damit das finally die Meldung nicht überschreibt.
+            if (SelectedBildchen is null)
+            {
+                LabelDropContent = "Kein Bild gewählt — der Grau-Abgleich vergleicht mit dem angezeigten Bild.";
+                return;
+            }
+
             var sw = Stopwatch.StartNew();
             try
             {
@@ -3157,6 +3283,7 @@ namespace TestImage
             finally
             {
                 PrüfungLäuft = false;
+                PercentageValueVerschieben = 0.0;
                 LabelDropContent = sw.Elapsed.TotalSeconds.ToString("F2") + " Sek";
                 AufgabenView.Refresh();
             }
@@ -3179,6 +3306,15 @@ namespace TestImage
             {
                 // Paralleler Vergleich mit Hamming Distance:
                 ulong hash2 = await MieneServices.GetImageHash(SelectedBildchen?.BName, token);
+
+                // Hash 0 heisst „nicht lesbar": Ein lesbares Bild hat immer mindestens ein
+                // Feld, das nicht dunkler als der Durchschnitt ist. Ist das Vergleichsbild
+                // unlesbar, gibt es keinen Massstab — dann nichts aussortieren.
+                if (hash2 == 0)
+                {
+                    return;
+                }
+
                 var pcCount = Environment.ProcessorCount;
                 var results = new ConcurrentBag<string>();
 
@@ -3192,7 +3328,9 @@ namespace TestImage
                         ulong hash1 = await MieneServices.GetImageHash(filep.BName, token);
                         // ulong hash2 = await MieneServices.GetImageHash(SelectedBildchen?.BName);
                         int distance = await MieneServices.HammingDistance(hash1, hash2, token);
-                        if (distance > 10)
+
+                        // Unlesbare Bilder (Hash 0) bleiben: Über sie lässt sich nichts sagen.
+                        if (hash1 != 0 && distance > 10)
                         {
                             results.Add(filep.BName);
                         }
@@ -3218,6 +3356,12 @@ namespace TestImage
                 // Einzen prüfen, langsam, da jedes Bild nacheinander geprüft wird
                 ulong hash2 = await MieneServices.GetImageHash(SelectedBildchen?.BName, token);
 
+                // Unlesbares Vergleichsbild: kein Massstab, nichts aussortieren (siehe oben).
+                if (hash2 == 0)
+                {
+                    return;
+                }
+
                 foreach (var item in bilder)
                 {
                     var pgs = new CLProgressStückzahl(started, gszähler, zähler++, false);
@@ -3233,7 +3377,8 @@ namespace TestImage
 
                         int distance = await MieneServices.HammingDistance(hash1, hash2, token);
 
-                        if (distance > 10)
+                        // Unlesbare Bilder (Hash 0) bleiben: Über sie lässt sich nichts sagen.
+                        if (hash1 != 0 && distance > 10)
                         {
                             // Bildchen aus der Collection entfernen
                             OcAufgabens.Remove(item);
@@ -3338,82 +3483,100 @@ namespace TestImage
                 var pcCount = Environment.ProcessorCount;
                 var results = new ConcurrentBag<string>();
 
+                // Bilder, die sich nicht lesen liessen (verschoben, gesperrt). Sie bleiben in
+                // der Liste: Über sie lässt sich nichts sagen.
+                var nichtLesbar = new ConcurrentBag<string>();
+
                 int total = (int)((gszähler * gszähler) + gszähler);
                 object progressLock = new object();
                 int lastPercent = 0;
 
 
-                try
+                foreach (var item1 in bilder)
                 {
-                    foreach (var item1 in bilder)
+                    // Jede Aufgabe öffnet item1 selbst, statt einen gemeinsamen Stream zu teilen.
+                    // IsFileGleich2Async liest den übergebenen Stream ab seiner aktuellen
+                    // Position und spult nie zurück: Nach dem ersten Vergleich stand er am
+                    // Ende oder mittendrin, alle weiteren galten als „nicht gleich". Dazu
+                    // lasen mehrere Aufgaben gleichzeitig aus demselben Stream.
+                    await Parallel.ForEachAsync(bilder, new ParallelOptions { MaxDegreeOfParallelism = pcCount }, async (filep, _) =>
                     {
-                        using var stream1 = await Task.Run(() => new FileStream(item1.BName, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024, true));
-
-                        await Parallel.ForEachAsync(bilder, new ParallelOptions { MaxDegreeOfParallelism = pcCount }, async (filep, _) =>
+                        if (item1.BName != filep.BName)
                         {
-                            if (item1.BName != filep.BName)
+                            if (File.Exists(item1.BName) & File.Exists(filep.BName))
                             {
-                                if (File.Exists(item1.BName) & File.Exists(filep.BName))
+                                // Zwischen File.Exists und dem Öffnen kann eine Datei verschwinden
+                                // oder gesperrt werden. Das brach vorher den ganzen Lauf ab, und
+                                // das leere catch im Befehl schluckte es. Welche der beiden Dateien
+                                // es war, sagt die Ausnahme nicht verlässlich — beide behalten ist
+                                // besser als ein Bild zu Unrecht auszusortieren.
+                                bool gleich2;
+                                try
                                 {
-                                    //var gleich = await MieneServices.IsFileGleichAsync(item1.BName, item2.BName, token);
+                                    gleich2 = await MieneServices.IsFileGleichAsync(item1.BName, filep.BName, token);
+                                }
+                                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                                {
+                                    nichtLesbar.Add(item1.BName);
+                                    nichtLesbar.Add(filep.BName);
+                                    gleich2 = false;
+                                }
 
-                                    var gleich2 = await MieneServices.IsFileGleich2Async(stream1, filep.BName, token);
-                                    if (gleich2)
-                                    {
-                                        results.Add(item1.BName);
-                                    }
+                                if (gleich2)
+                                {
+                                    results.Add(item1.BName);
                                 }
                             }
-
-
-                            //zähler++;
-
-                            // Vom Copilot gelöstes Problem mit der Progress Anzeige, da die Bilder parallel geprüft werden
-                            // und somit die Fortschrittsanzeige nicht mehr linear ist,
-                            // sondern je nach Geschwindigkeit der einzelnen Tasks variiert.
-                            // Daher wird hier der Fortschritt anhand der Anzahl der geprüften Bilder berechnet und angezeigt.
-                            // Kommentar ein bischen blödsinnig
-                            int current = Interlocked.Increment(ref zähler);
-                            int percent = (int)((double)current / (double)total * 100);
-
-                            bool shouldReport = false;
-                            lock (progressLock)
-                            {
-                                if (percent > lastPercent)
-                                {
-                                    lastPercent = percent;
-                                    shouldReport = true;
-                                }
-                            }
-
-                            if (shouldReport)
-                            {
-                                CountInnerZählerTest++;
-                                var pgs = new CLProgressStückzahl(started, total, current, false);
-                                progressStück?.Report(pgs);
-                                await Application.Current.Dispatcher.InvokeAsync(() =>
-                                {
-                                    LabelDropContent = "Rest " + pgs.Restzeit + "  ( " + pgs.StückPerSecond.ToString("F0") + " Stk/Sek )";
-                                });
-                            }
-
-                        });
-                    }
-
-                }
-                finally
-                {
-                    // Bildchen aus der Collection entfernen
-
-                    // Rückwärts durchlaufen, damit Indizes nicht verschoben werden
-                    for (int i = OcAufgabens.Count - 1; i >= 0; i--)
-                    {
-                        MeinBildchen? item = OcAufgabens[i];
-                        if (!results.Contains(item.BName))
-                        {
-                            // Bildchen aus der Collection entfernen
-                            OcAufgabens.Remove(item);
                         }
+
+
+                        //zähler++;
+
+                        // Vom Copilot gelöstes Problem mit der Progress Anzeige, da die Bilder parallel geprüft werden
+                        // und somit die Fortschrittsanzeige nicht mehr linear ist,
+                        // sondern je nach Geschwindigkeit der einzelnen Tasks variiert.
+                        // Daher wird hier der Fortschritt anhand der Anzahl der geprüften Bilder berechnet und angezeigt.
+                        // Kommentar ein bischen blödsinnig
+                        int current = Interlocked.Increment(ref zähler);
+                        int percent = (int)((double)current / (double)total * 100);
+
+                        bool shouldReport = false;
+                        lock (progressLock)
+                        {
+                            if (percent > lastPercent)
+                            {
+                                lastPercent = percent;
+                                shouldReport = true;
+                            }
+                        }
+
+                        if (shouldReport)
+                        {
+                            CountInnerZählerTest++;
+                            var pgs = new CLProgressStückzahl(started, total, current, false);
+                            progressStück?.Report(pgs);
+                            await Application.Current.Dispatcher.InvokeAsync(() =>
+                            {
+                                LabelDropContent = "Rest " + pgs.Restzeit + "  ( " + pgs.StückPerSecond.ToString("F0") + " Stk/Sek )";
+                            });
+                        }
+
+                    });
+                }
+
+                // Aussortiert wird nur nach vollständigem Durchlauf, nicht mehr im finally.
+                // Dort lief es auch beim Abbrechen: results war dann erst angefangen, und
+                // jedes noch nicht geprüfte Bild flog aus der Liste — nach einem frühen
+                // Abbruch war sie leer.
+
+                // Rückwärts durchlaufen, damit Indizes nicht verschoben werden
+                for (int i = OcAufgabens.Count - 1; i >= 0; i--)
+                {
+                    MeinBildchen? item = OcAufgabens[i];
+                    if (!results.Contains(item.BName) && !nichtLesbar.Contains(item.BName))
+                    {
+                        // Bildchen aus der Collection entfernen
+                        OcAufgabens.Remove(item);
                     }
                 }
             }
@@ -3423,11 +3586,28 @@ namespace TestImage
 
                 //List<MeinBildchen> li= new List<MeinBildchen>();
                 var results = new ConcurrentBag<MeinBildchen>();
+
+                // Bilder, die sich nicht lesen liessen — bleiben in der Liste (wie im Multi-Zweig).
+                var nichtLesbar = new ConcurrentBag<string>();
+
                 foreach (var item1 in bilder)
                 {
                     await Task.Run(async () =>
                     {
-                        using var stream1 = new FileStream(item1.BName, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024, true);
+                        // Eine verschwundene oder gesperrte Datei brach vorher schon hier den
+                        // ganzen Lauf ab — ohne Meldung, mit halb aussortierter Liste.
+                        FileStream stream1;
+                        try
+                        {
+                            stream1 = new FileStream(item1.BName, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024, true);
+                        }
+                        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                        {
+                            nichtLesbar.Add(item1.BName);
+                            return;
+                        }
+
+                        using var stream1Freigabe = stream1;
                         foreach (var item2 in bilder)
                         {
                             var pgs = new CLProgressStückzahl(started, gszähler * gszähler - gszähler, zähler++, false);
@@ -3440,7 +3620,18 @@ namespace TestImage
                                 {
                                     //var gleich = await MieneServices.IsFileGleichAsync(item1.BName, item2.BName, token);
 
-                                    var gleich2 = await MieneServices.IsFileGleich2Async(stream1, item2.BName, token);
+                                    // stream1 ist schon offen — schlägt es fehl, liegt es an item2.
+                                    bool gleich2;
+                                    try
+                                    {
+                                        gleich2 = await MieneServices.IsFileGleich2Async(stream1, item2.BName, token);
+                                    }
+                                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                                    {
+                                        nichtLesbar.Add(item2.BName);
+                                        gleich2 = false;
+                                    }
+
                                     if (gleich2)
                                     {
                                         results.Add(item1);
@@ -3448,7 +3639,11 @@ namespace TestImage
                                         // Position anpassen, damit die Bilder neben einander liegen, da sie gleich sind
                                         var index1 = OcAufgabens.IndexOf(item1);
                                         var index2 = OcAufgabens.IndexOf(item2);
-                                        if (index1 != index2 & (OcAufgabens.Count > index1 + 1))
+                                        // Nur ein Duplikat weiter hinten heranholen. Jedes Paar wird
+                                        // zweimal gefunden (A–B, dann B–A); beim zweiten Mal steht es
+                                        // schon davor, und Move(index2, index1 + 1) riss es wieder
+                                        // auseinander: [B, A, X] → [A, X, B].
+                                        if (index2 > index1 + 1)
                                         {
                                             Application.Current.Dispatcher.Invoke(() =>
                                             {
@@ -3465,13 +3660,14 @@ namespace TestImage
                                 }
                             }
 
-                            Version = pgs.StückPerSecond.ToString("F0") + " Stk/Sek";
+                            // Hier stand „Version = … Stk/Sek": Das überschrieb die angezeigte
+                            // Versionsnummer der App bis zum Neustart.
                         }
 
                     }, token);
 
 
-                    if (!results.Contains(item1))
+                    if (!results.Contains(item1) && !nichtLesbar.Contains(item1.BName))
                     {
                         OcAufgabens.Remove(item1);
 
@@ -3589,6 +3785,11 @@ namespace TestImage
             MoveToNextNichtLinkesBild();
 
             AufgabenView.Refresh();
+
+            // Nicht über UpdateAlleBilderVerschoben: Das schaltet auch den roten
+            // Hintergrund, und der gehört bisher allein zu kein_Fav. Begründung des
+            // Nachmeldens dort.
+            CommandExecuteAlleBilderNeuEinlesenCommand.NotifyCanExecuteChanged();
 
         }
 
@@ -3708,6 +3909,9 @@ namespace TestImage
             MoveToNextNichtLinkesBild();
 
             AufgabenView.Refresh();
+
+            // Wie bei K: nachmelden, ohne den roten Hintergrund anzufassen.
+            CommandExecuteAlleBilderNeuEinlesenCommand.NotifyCanExecuteChanged();
         }
 
         #endregion
@@ -3763,7 +3967,10 @@ namespace TestImage
             int zähler = 0;
             CountInnerZählerTest = 1;
 
-            if (MultiByteParallelGleichheit)
+            // Früher stand hier „if (MultiByteParallelGleichheit)" ohne else — ohne Multi
+            // lief gar nichts. Die Checkbox steuert jetzt nur noch, wie viele Dateien
+            // gleichzeitig gelesen werden: Laut ihrem Tooltip lohnt Parallelität nur bei
+            // einer schnellen Platte, auf einer langsamen liest eine nach der anderen.
             {
                 //  return;
                 //
@@ -3771,8 +3978,12 @@ namespace TestImage
                 // Alle Bilder in der Collection mit dem ausgewählten Bild vergleichen und die Bilder entfernen,
                 // die nicht gleich sind. Fortschrittsanzeige mit Prozent und Restzeit.
 
-                var pcCount = Environment.ProcessorCount;
+                var pcCount = MultiByteParallelGleichheit ? Environment.ProcessorCount : 1;
                 var results = new ConcurrentBag<CLSHA256Bild>();
+
+                // Dateien, die sich nicht lesen liessen (verschoben, gesperrt). Sie bleiben in
+                // der Liste: Über sie lässt sich nichts sagen.
+                var nichtLesbar = new ConcurrentBag<string>();
 
 
                 int total = (int)bilder.Count;
@@ -3784,12 +3995,30 @@ namespace TestImage
                 await Parallel.ForEachAsync(bilder, new ParallelOptions { MaxDegreeOfParallelism = pcCount }, async (filep, _) =>
                 {
 
-                    string hash2 = await MieneServices.GetFileHashSHA256Async(filep.BName, token);
-                    var cl = new CLSHA256Bild();
-                    cl.Name = filep.BName;
-                    cl.Hash = hash2;
-                    cl.PositionAnzeige = AufgabenView.IndexOf(filep);
-                    results.Add(cl);
+                    // Eine fehlende oder gesperrte Datei brach vorher den ganzen Lauf ab, und
+                    // das leere catch im Befehl schluckte es. Abbrechen (OperationCanceled)
+                    // wird bewusst nicht gefangen.
+                    string hash2;
+                    try
+                    {
+                        hash2 = await MieneServices.GetFileHashSHA256Async(filep.BName, token);
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        nichtLesbar.Add(filep.BName);
+                        hash2 = string.Empty;
+                    }
+
+                    // PositionAnzeige wird nicht mehr gesetzt: Sie wurde nirgends gelesen, und
+                    // AufgabenView.IndexOf lief hier parallel aus Hintergrund-Fäden auf der
+                    // Ansicht der Oberfläche — bei n Bildern n × n Schritte.
+                    if (hash2.Length > 0)
+                    {
+                        var cl = new CLSHA256Bild();
+                        cl.Name = filep.BName;
+                        cl.Hash = hash2;
+                        results.Add(cl);
+                    }
 
 
                     int current = Interlocked.Increment(ref zähler);
@@ -3827,6 +4056,10 @@ namespace TestImage
                 {
                     foreach (var item in results)
                     {
+                        // Der Token an Task.Run wird nur vor dem Start geprüft. Ohne diese
+                        // Zeile liefe der Hash-Vergleich nach dem Abbrechen zu Ende, und
+                        // danach würde trotzdem aussortiert.
+                        token.ThrowIfCancellationRequested();
 
                         // Leider ohne Fortschrittsanzeige
                         //await Parallel.ForEachAsync(results, new ParallelOptions { MaxDegreeOfParallelism = pcCount-1 }, async (cl, _) =>
@@ -3903,7 +4136,7 @@ namespace TestImage
                     MeinBildchen item = OcAufgabens.ElementAt(i);
                     var gh = item.BName;
 
-                    if (!results2.Any(r => r.Name == gh))
+                    if (!results2.Any(r => r.Name == gh) && !nichtLesbar.Contains(gh))
                     {
                         // Bildchen aus der Collection entfernen
                         OcAufgabens.Remove(item);

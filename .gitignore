@@ -376,3 +376,11 @@ cvextern.dll
 # 335 MB und 242 MB gross. Woher man sie bekommt, steht in models\LIESMICH.md.
 # Die kleinen Begleitdateien (clip-vocab.json, clip-merges.txt) liegen im Repo.
 models/*.onnx
+
+# OCR-Plugin aus dem Projekt OcrTestClaude. Bleibt privat: lib\Ocr.Vertrag.dll
+# (Schnittstellen), lib\Plugins\Ocr.Core.dll (Verfahren). Der Einbau in
+# TestImage.csproj haengt an Exists() — ohne die Dateien baut das Projekt
+# unveraendert, nur ohne das Mitlesen schraeger Schrift. Erklaerung: lib\LIESMICH.md
+lib/*.dll
+lib/*.xml
+lib/Plugins/

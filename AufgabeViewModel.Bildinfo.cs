@@ -46,6 +46,18 @@ namespace TestImage
         [RelayCommand]
         private void CommandExecuteBildinfoToggle() => IsBildinfoSichtbar = !IsBildinfoSichtbar;
 
+        /// <summary>
+        /// Erklärfeld unten im Eigenschaften-Feld eingeklappt; überdauert den Neustart.
+        /// Eingeklappt erscheinen die Tooltips der Vollbildansicht wieder wie früher.
+        /// </summary>
+        [ObservableProperty]
+        public partial bool IsErklärungEingeklappt { get; set; } = Einstellungen.ErklärungEingeklappt;
+
+        partial void OnIsErklärungEingeklapptChanged(bool value) => Einstellungen.ErklärungEingeklappt = value;
+
+        [RelayCommand]
+        private void CommandExecuteErklärungToggle() => IsErklärungEingeklappt = !IsErklärungEingeklappt;
+
         // Erst beim Einblenden lesen: Solange das Feld zu ist, soll das Blättern keine
         // einzige Datei zusätzlich anfassen.
         partial void OnIsBildinfoSichtbarChanged(bool value)

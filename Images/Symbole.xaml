@@ -141,79 +141,76 @@
     </DrawingImage>
 
     <!--
-        ===== Abbrechen: Kreuz =====
+        ===== Abbrechen: X im Kreis =====
 
-        Zwei gedrehte Rechtecke statt eines Polygons mit zwölf Punkten — so bleiben die
-        Armbreite (92) und die abgerundeten Ecken (18) an einer Stelle änderbar.
+        Gefüllter Kreis mit weissem X. Vorher waren es zwei gedrehte Balken in einer
+        GeometryGroup — deren FillRule ist in WPF standardmässig EvenOdd, und wo sich
+        die Balken überlagerten, blieb eine ausgestanzte Raute leer.
+
+        Der Kreis trägt die Farbe mit viel Fläche: Rot (Abgleich über den ganzen Ordner)
+        und Orange (Abgleich mit dem angezeigten Bild) bleiben auch bei 16 Pixeln
+        unterscheidbar. Das X ist als Linie mit runden Enden gezogen, nicht als Fläche —
+        Striche werden nicht nach FillRule gefüllt, es kann nichts ausgestanzt werden.
     -->
 
     <DrawingImage x:Key="di_Abbrechen">
         <DrawingImage.Drawing>
-            <GeometryDrawing Brush="#FFE04358">
-                <GeometryDrawing.Pen>
-                    <Pen Brush="#FF101010" Thickness="16" />
-                </GeometryDrawing.Pen>
-                <GeometryDrawing.Geometry>
-                    <GeometryGroup>
-                        <RectangleGeometry
-                            RadiusX="18"
-                            RadiusY="18"
-                            Rect="210,72,92,368">
-                            <RectangleGeometry.Transform>
-                                <RotateTransform
-                                    Angle="45"
-                                    CenterX="256"
-                                    CenterY="256" />
-                            </RectangleGeometry.Transform>
-                        </RectangleGeometry>
-                        <RectangleGeometry
-                            RadiusX="18"
-                            RadiusY="18"
-                            Rect="210,72,92,368">
-                            <RectangleGeometry.Transform>
-                                <RotateTransform
-                                    Angle="-45"
-                                    CenterX="256"
-                                    CenterY="256" />
-                            </RectangleGeometry.Transform>
-                        </RectangleGeometry>
-                    </GeometryGroup>
-                </GeometryDrawing.Geometry>
-            </GeometryDrawing>
+            <DrawingGroup>
+                <GeometryDrawing Brush="#FFE04358">
+                    <GeometryDrawing.Geometry>
+                        <EllipseGeometry
+                            Center="256,256"
+                            RadiusX="236"
+                            RadiusY="236" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen
+                            Brush="White"
+                            EndLineCap="Round"
+                            StartLineCap="Round"
+                            Thickness="56" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <GeometryGroup>
+                            <LineGeometry StartPoint="176,176" EndPoint="336,336" />
+                            <LineGeometry StartPoint="336,176" EndPoint="176,336" />
+                        </GeometryGroup>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingGroup>
         </DrawingImage.Drawing>
     </DrawingImage>
 
-    <!--  Zweite Fassung ohne Rand, kräftiges Orange — löst Abbrechenn.png ab  -->
+    <!--  Orange Fassung, gleiche Form — löst Abbrechenn.png ab  -->
     <DrawingImage x:Key="di_AbbrechenOrange">
         <DrawingImage.Drawing>
-            <GeometryDrawing Brush="#FFF04A1E">
-                <GeometryDrawing.Geometry>
-                    <GeometryGroup>
-                        <RectangleGeometry
-                            RadiusX="18"
-                            RadiusY="18"
-                            Rect="210,72,92,368">
-                            <RectangleGeometry.Transform>
-                                <RotateTransform
-                                    Angle="45"
-                                    CenterX="256"
-                                    CenterY="256" />
-                            </RectangleGeometry.Transform>
-                        </RectangleGeometry>
-                        <RectangleGeometry
-                            RadiusX="18"
-                            RadiusY="18"
-                            Rect="210,72,92,368">
-                            <RectangleGeometry.Transform>
-                                <RotateTransform
-                                    Angle="-45"
-                                    CenterX="256"
-                                    CenterY="256" />
-                            </RectangleGeometry.Transform>
-                        </RectangleGeometry>
-                    </GeometryGroup>
-                </GeometryDrawing.Geometry>
-            </GeometryDrawing>
+            <DrawingGroup>
+                <GeometryDrawing Brush="#FFF04A1E">
+                    <GeometryDrawing.Geometry>
+                        <EllipseGeometry
+                            Center="256,256"
+                            RadiusX="236"
+                            RadiusY="236" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen
+                            Brush="White"
+                            EndLineCap="Round"
+                            StartLineCap="Round"
+                            Thickness="56" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <GeometryGroup>
+                            <LineGeometry StartPoint="176,176" EndPoint="336,336" />
+                            <LineGeometry StartPoint="336,176" EndPoint="176,336" />
+                        </GeometryGroup>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingGroup>
         </DrawingImage.Drawing>
     </DrawingImage>
 
@@ -463,6 +460,70 @@
                 -->
                 <GeometryDrawing Brush="#FF101010" Geometry="M 256,48 L 310.1,193.6 L 465.2,200 L 343.5,296.4 L 385.3,446 L 256,360 L 126.7,446 L 168.5,296.4 L 46.8,200 L 201.9,193.6 Z" />
                 <GeometryDrawing Brush="#FFF08A1E" Geometry="M 256,130 L 290.1,221.1 L 387.2,225.4 L 311.2,285.9 L 337.1,379.6 L 256,326 L 174.9,379.6 L 200.8,285.9 L 124.8,225.4 L 221.9,221.1 Z" />
+            </DrawingGroup>
+        </DrawingImage.Drawing>
+    </DrawingImage>
+
+    <!--
+        ===== Maus: Mausrad, linke und rechte Taste =====
+
+        Hell (#FFE4E4E4) für den dunklen Grund des Erklärfelds in der Vollbildansicht,
+        dieselbe Farbe wie dessen Text. Gebraucht woanders auf hellem Grund, bekäme es
+        eine eigene dunkle Fassung mit eigenem Schlüssel.
+
+        Gemeinsamer Körper: aussen 128..384 breit, oben ein Halbkreis um (256,192),
+        unten einer um (256,360), Radius 128. Die Tastenfelder trennt eine Linie bei
+        y = 236, die Tasten untereinander eine senkrechte bei x = 256. Beim Mausrad liegt
+        die Trennlinie tiefer (277), damit oben Platz für den Doppelpfeil bleibt.
+
+        Die durchsichtige Fläche über das ganze Feld hält die Grenzen aller drei
+        Zeichnungen gleich — sonst bestimmten die Klickstriche die Grösse, und die
+        drei Mäuse stünden neben Text verschieden gross und verschieden hoch.
+    -->
+    <Pen
+        x:Key="pen_MausKontur"
+        Brush="#FFE4E4E4"
+        EndLineCap="Round"
+        LineJoin="Round"
+        StartLineCap="Round"
+        Thickness="34" />
+
+    <PathGeometry x:Key="geo_MausKörper" Figures="M 128,192 A 128,128 0 0 1 384,192 L 384,360 A 128,128 0 0 1 128,360 Z" />
+
+    <DrawingImage x:Key="di_MausRad">
+        <DrawingImage.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Brush="Transparent" Geometry="M 0,0 L 512,0 L 512,512 L 0,512 Z" />
+                <GeometryDrawing Geometry="{StaticResource geo_MausKörper}" Pen="{StaticResource pen_MausKontur}" />
+                <GeometryDrawing Geometry="M 128,277 L 384,277" Pen="{StaticResource pen_MausKontur}" />
+                <!--  Doppelpfeil: rollen geht in beide Richtungen  -->
+                <GeometryDrawing Geometry="M 256,111 L 256,230 M 218,149 L 256,111 L 294,149 M 218,192 L 256,230 L 294,192" Pen="{StaticResource pen_MausKontur}" />
+            </DrawingGroup>
+        </DrawingImage.Drawing>
+    </DrawingImage>
+
+    <DrawingImage x:Key="di_MausLinks">
+        <DrawingImage.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Brush="Transparent" Geometry="M 0,0 L 512,0 L 512,512 L 0,512 Z" />
+                <!--  Linke Taste gefüllt, darüber links drei Klickstriche  -->
+                <GeometryDrawing Brush="#FFE4E4E4" Geometry="M 128,236 L 128,192 A 128,128 0 0 1 256,64 L 256,236 Z" />
+                <GeometryDrawing Geometry="{StaticResource geo_MausKörper}" Pen="{StaticResource pen_MausKontur}" />
+                <GeometryDrawing Geometry="M 128,236 L 384,236 M 256,64 L 256,236" Pen="{StaticResource pen_MausKontur}" />
+                <GeometryDrawing Geometry="M 90,17 L 90,49 M 30,41 L 53,64 M 13,102 L 45,102" Pen="{StaticResource pen_MausKontur}" />
+            </DrawingGroup>
+        </DrawingImage.Drawing>
+    </DrawingImage>
+
+    <DrawingImage x:Key="di_MausRechts">
+        <DrawingImage.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Brush="Transparent" Geometry="M 0,0 L 512,0 L 512,512 L 0,512 Z" />
+                <!--  Spiegelbild von di_MausLinks: rechte Taste gefüllt, Klickstriche rechts  -->
+                <GeometryDrawing Brush="#FFE4E4E4" Geometry="M 384,236 L 384,192 A 128,128 0 0 0 256,64 L 256,236 Z" />
+                <GeometryDrawing Geometry="{StaticResource geo_MausKörper}" Pen="{StaticResource pen_MausKontur}" />
+                <GeometryDrawing Geometry="M 128,236 L 384,236 M 256,64 L 256,236" Pen="{StaticResource pen_MausKontur}" />
+                <GeometryDrawing Geometry="M 422,17 L 422,49 M 482,41 L 459,64 M 499,102 L 467,102" Pen="{StaticResource pen_MausKontur}" />
             </DrawingGroup>
         </DrawingImage.Drawing>
     </DrawingImage>

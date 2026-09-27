@@ -46,6 +46,103 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+
+        <!--
+            Grundtext des Erklärfelds für das Bild und alles, was keine eigene Erklärung
+            hat. Zwei Fassungen, weil das Bild vergrössert anders bedient wird; welche gilt,
+            setzt ZoomZustandAnwenden an der Wurzel.
+        -->
+        <ansichten:ErklärungMausZeigt x:Key="MausZeigt" />
+        <ansichten:ErklärungTasten x:Key="Tasten" />
+
+        <!--
+            Tastenkappe für eine Taste aus Erklärung.Taste: dunkel gefüllt mit hellerem
+            Rand, wie eine echte Taste. Die Pfeile sind gezeichnet, nicht geschrieben — als
+            Schriftzeichen in 11 pt liess sich der Pfeil nur erahnen. Shift bekommt den
+            Pfeil nach oben und das Wort, alles andere (I, F11) steht als Text darin.
+            Ein einzelnes „+" zwischen zwei Tasten zeigt eine Kombination an.
+
+            Gemeinsam für das Erklärfeld und die Beschriftung an den Blätterpfeilen.
+        -->
+        <DataTemplate x:Key="DT_Taste">
+            <Border
+                x:Name="BRD_Kappe"
+                MinWidth="18"
+                Height="18"
+                Margin="4,0,0,0"
+                Padding="4,0"
+                Background="#FF2E2E2E"
+                BorderBrush="#FF6A6A6A"
+                BorderThickness="1.5"
+                CornerRadius="3">
+                <StackPanel
+                    x:Name="STP_Kappe"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal">
+                    <Path
+                        x:Name="PTH_KappePfeil"
+                        Width="10"
+                        Height="10"
+                        VerticalAlignment="Center"
+                        Stroke="White"
+                        StrokeEndLineCap="Round"
+                        StrokeLineJoin="Round"
+                        StrokeStartLineCap="Round"
+                        StrokeThickness="1.6"
+                        Visibility="Collapsed" />
+                    <TextBlock
+                        x:Name="TXT_KappeText"
+                        VerticalAlignment="Center"
+                        FontSize="11"
+                        FontWeight="SemiBold"
+                        Foreground="White"
+                        Text="{Binding}" />
+                </StackPanel>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding}" Value="←">
+                    <Setter TargetName="PTH_KappePfeil" Property="Data" Value="M 9,5 L 1,5 M 4.5,1.5 L 1,5 L 4.5,8.5" />
+                    <Setter TargetName="PTH_KappePfeil" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="TXT_KappeText" Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding}" Value="→">
+                    <Setter TargetName="PTH_KappePfeil" Property="Data" Value="M 1,5 L 9,5 M 5.5,1.5 L 9,5 L 5.5,8.5" />
+                    <Setter TargetName="PTH_KappePfeil" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="TXT_KappeText" Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding}" Value="↑">
+                    <Setter TargetName="PTH_KappePfeil" Property="Data" Value="M 5,9 L 5,1 M 1.5,4.5 L 5,1 L 8.5,4.5" />
+                    <Setter TargetName="PTH_KappePfeil" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="TXT_KappeText" Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding}" Value="↓">
+                    <Setter TargetName="PTH_KappePfeil" Property="Data" Value="M 5,1 L 5,9 M 1.5,5.5 L 5,9 L 8.5,5.5" />
+                    <Setter TargetName="PTH_KappePfeil" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="TXT_KappeText" Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding}" Value="Shift">
+                    <Setter TargetName="PTH_KappePfeil" Property="Data" Value="M 5,9.5 L 5,1 M 1.5,4.5 L 5,1 L 8.5,4.5" />
+                    <Setter TargetName="PTH_KappePfeil" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="TXT_KappeText" Property="Margin" Value="4,0,0,0" />
+                    <Setter TargetName="BRD_Kappe" Property="Padding" Value="5,0,6,0" />
+                </DataTrigger>
+                <!--
+                    „+" verbindet zwei Tasten zu einer Kombination (Shift + ↓) und ist
+                    selbst keine Taste: ohne Kappe, nur das Zeichen, eng an den Nachbarn.
+                -->
+                <DataTrigger Binding="{Binding}" Value="+">
+                    <Setter TargetName="BRD_Kappe" Property="Background" Value="Transparent" />
+                    <Setter TargetName="BRD_Kappe" Property="BorderThickness" Value="0" />
+                    <Setter TargetName="BRD_Kappe" Property="MinWidth" Value="0" />
+                    <Setter TargetName="BRD_Kappe" Property="Padding" Value="0" />
+                    <Setter TargetName="TXT_KappeText" Property="Foreground" Value="#FFB0B0B0" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <sys:String x:Key="ErklärungBildEingepasst">Mausrad vergrössert an der Stelle unter der Maus. ← und → blättern, ↓ sortiert aus, Shift + ↓ legt das Bild nach „Besonders", ↑ holt es zurück oder macht die letzte Verschiebung rückgängig. F1 zeigt alle Tasten. Links und rechts am Rand liegen die Blätterzonen, am unteren Rand erscheint die Miniaturleiste.</sys:String>
+        <sys:String x:Key="ErklärungBildVergrössert">Ziehen mit gedrückter linker Maustaste verschiebt den Ausschnitt, Doppelklick passt das Bild wieder ein, Mausrad ändert die Stufe. Solange das Bild vergrössert ist, sind Blätterzonen und Miniaturleiste aus.</sys:String>
     </UserControl.Resources>
 
     <!--
@@ -72,7 +169,20 @@
         MouseWheel="Vollbild_MouseWheel"
         PreviewMouseLeftButtonDown="Vollbild_ZiehenStart"
         PreviewMouseLeftButtonUp="Vollbild_ZiehenEnde"
-        PreviewMouseMove="Vollbild_Ziehen">
+        PreviewMouseMove="Vollbild_Ziehen"
+        ansichten:Erklärung.Anzeige="{Binding ElementName=BRD_Erklärung}"
+        ansichten:Erklärung.PopupsAus="{Binding IsVisible, ElementName=SCV_Erklärung}"
+        ansichten:Erklärung.Maus="Rad"
+        ansichten:Erklärung.Taste="← → ↓ Shift + ↓ ↑"
+        ansichten:Erklärung.Text="{StaticResource ErklärungBildEingepasst}"
+        ansichten:Erklärung.Titel="Bild">
+
+        <!--
+            Erklärfeld: Die Wurzel nennt das Feld (unten im Eigenschaften-Feld) und trägt
+            den Grundtext, den alles ohne eigene Erklärung erbt — siehe Erklärung.cs.
+            Solange der Inhalt des Feldes sichtbar ist, schweigen die Tooltips der
+            Elemente, die es erklärt.
+        -->
 
         <!--
             Zwei Spalten: links das Bild samt aller Überlagerungen, rechts das
@@ -142,21 +252,38 @@
             Panel.ZIndex="10"
             Background="Transparent"
             BorderThickness="0"
+            ansichten:Erklärung.Maus="Links"
+            ansichten:Erklärung.Taste="←"
+            ansichten:Erklärung.Text="Klick blättert zurück. Bereits verschobene Bilder werden übersprungen. Ist in dieser Richtung kein Bild mehr, bleibt der Pfeil blass und der Klick tut nichts."
+            ansichten:Erklärung.Titel="Vorheriges Bild"
             Command="{Binding CommandExecuteBildLinksCommand}"
             Cursor="Arrow"
-            FocusVisualStyle="{x:Null}"
-            ToolTip="Vorheriges Bild (bereits verschobene werden übersprungen)">
+            FocusVisualStyle="{x:Null}">
+            <!--
+                Kein Tooltip: Die Zone ist so hoch wie der Bildschirm, die Maus liegt
+                ständig darauf, und jedes Mal sprang ein Popup über das Bild. Was sie tut,
+                sagt die Beschriftung unter dem Pfeil; die ausführliche Erklärung steht im
+                Erklärfeld.
+            -->
             <Button.Template>
                 <ControlTemplate TargetType="{x:Type Button}">
                     <Border x:Name="BRD_ZoneLinks" Background="Transparent">
+                        <!--
+                            Pfeil und Beschriftung blenden gemeinsam ein; die Trigger unten
+                            steuern deshalb die Deckkraft dieses Stapels.
+                        -->
+                        <StackPanel
+                            x:Name="STP_PfeilLinks"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            IsHitTestVisible="False"
+                            Opacity="0"
+                            d:Opacity="0.85">
                         <Grid
                             x:Name="GRD_PfeilLinks"
                             Width="48"
                             Height="48"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            IsHitTestVisible="False"
-                            Opacity="0">
+                            HorizontalAlignment="Center">
                             <Path x:Name="PTH_FüllungLinks" Data="M 35,4 L 11,24 L 35,44 Z" Fill="#FF101010" />
                             <!--
                                 Kontur als sechs Halbstrecken, jede beginnt an einer Ecke und
@@ -174,10 +301,39 @@
                                 StrokeStartLineCap="Round"
                                 StrokeThickness="3" />
                         </Grid>
+
+                            <!--
+                                Beschriftung: Titel und Taste aus der Erklärung des Knopfes,
+                                damit sie nur an einer Stelle stehen.
+                            -->
+                            <Border
+                                x:Name="BRD_BeschriftungLinks"
+                                Margin="0,6,0,0"
+                                Padding="7,3"
+                                HorizontalAlignment="Center"
+                                Background="#99000000"
+                                CornerRadius="5">
+                                <StackPanel x:Name="STP_BeschriftungLinks" Orientation="Horizontal">
+                                    <TextBlock
+                                        x:Name="TXT_BeschriftungLinks"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="#FFEEEEEE"
+                                        Text="{Binding (ansichten:Erklärung.Titel), RelativeSource={RelativeSource TemplatedParent}}" />
+                                    <ContentControl
+                                        x:Name="CC_TasteLinks"
+                                        Margin="2,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Content="{Binding (ansichten:Erklärung.Taste), RelativeSource={RelativeSource TemplatedParent}}"
+                                        ContentTemplate="{StaticResource DT_Taste}"
+                                        Focusable="False" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="GRD_PfeilLinks" Property="Opacity" Value="0.85" />
+                            <Setter TargetName="STP_PfeilLinks" Property="Opacity" Value="0.85" />
                             <Trigger.EnterActions>
                                 <BeginStoryboard x:Name="SB_KonturLinks">
                                     <Storyboard>
@@ -201,14 +357,14 @@
                         </Trigger>
                         <!--  Kein Bild mehr in dieser Richtung: nur schwach andeuten.  -->
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="GRD_PfeilLinks" Property="Opacity" Value="0" />
+                            <Setter TargetName="STP_PfeilLinks" Property="Opacity" Value="0" />
                         </Trigger>
                         <MultiTrigger>
                             <MultiTrigger.Conditions>
                                 <Condition Property="IsMouseOver" Value="True" />
                                 <Condition Property="IsEnabled" Value="False" />
                             </MultiTrigger.Conditions>
-                            <Setter TargetName="GRD_PfeilLinks" Property="Opacity" Value="0.2" />
+                            <Setter TargetName="STP_PfeilLinks" Property="Opacity" Value="0.2" />
                         </MultiTrigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -224,21 +380,29 @@
             Panel.ZIndex="10"
             Background="Transparent"
             BorderThickness="0"
+            ansichten:Erklärung.Maus="Links"
+            ansichten:Erklärung.Taste="→"
+            ansichten:Erklärung.Text="Klick blättert weiter. Bereits verschobene Bilder werden übersprungen. Ist in dieser Richtung kein Bild mehr, bleibt der Pfeil blass und der Klick tut nichts."
+            ansichten:Erklärung.Titel="Nächstes Bild"
             Command="{Binding CommandExecuteBildNachRechtsCommand}"
             Cursor="Arrow"
-            FocusVisualStyle="{x:Null}"
-            ToolTip="Nächstes Bild (bereits verschobene werden übersprungen)">
+            FocusVisualStyle="{x:Null}">
+            <!--  Kein Tooltip, aus demselben Grund wie links.  -->
             <Button.Template>
                 <ControlTemplate TargetType="{x:Type Button}">
                     <Border x:Name="BRD_ZoneRechts" Background="Transparent">
+                        <StackPanel
+                            x:Name="STP_PfeilRechts"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            IsHitTestVisible="False"
+                            Opacity="0"
+                            d:Opacity="0.85">
                         <Grid
                             x:Name="GRD_PfeilRechts"
                             Width="48"
                             Height="48"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            IsHitTestVisible="False"
-                            Opacity="0">
+                            HorizontalAlignment="Center">
                             <Path x:Name="PTH_FüllungRechts" Data="M 13,4 L 37,24 L 13,44 Z" Fill="#FF101010" />
                             <Path
                                 x:Name="PTH_KonturRechts"
@@ -250,10 +414,35 @@
                                 StrokeStartLineCap="Round"
                                 StrokeThickness="3" />
                         </Grid>
+
+                            <Border
+                                x:Name="BRD_BeschriftungRechts"
+                                Margin="0,6,0,0"
+                                Padding="7,3"
+                                HorizontalAlignment="Center"
+                                Background="#99000000"
+                                CornerRadius="5">
+                                <StackPanel x:Name="STP_BeschriftungRechts" Orientation="Horizontal">
+                                    <TextBlock
+                                        x:Name="TXT_BeschriftungRechts"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="#FFEEEEEE"
+                                        Text="{Binding (ansichten:Erklärung.Titel), RelativeSource={RelativeSource TemplatedParent}}" />
+                                    <ContentControl
+                                        x:Name="CC_TasteRechts"
+                                        Margin="2,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Content="{Binding (ansichten:Erklärung.Taste), RelativeSource={RelativeSource TemplatedParent}}"
+                                        ContentTemplate="{StaticResource DT_Taste}"
+                                        Focusable="False" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="GRD_PfeilRechts" Property="Opacity" Value="0.85" />
+                            <Setter TargetName="STP_PfeilRechts" Property="Opacity" Value="0.85" />
                             <Trigger.EnterActions>
                                 <BeginStoryboard x:Name="SB_KonturRechts">
                                     <Storyboard>
@@ -275,14 +464,14 @@
                             </Trigger.ExitActions>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="GRD_PfeilRechts" Property="Opacity" Value="0" />
+                            <Setter TargetName="STP_PfeilRechts" Property="Opacity" Value="0" />
                         </Trigger>
                         <MultiTrigger>
                             <MultiTrigger.Conditions>
                                 <Condition Property="IsMouseOver" Value="True" />
                                 <Condition Property="IsEnabled" Value="False" />
                             </MultiTrigger.Conditions>
-                            <Setter TargetName="GRD_PfeilRechts" Property="Opacity" Value="0.2" />
+                            <Setter TargetName="STP_PfeilRechts" Property="Opacity" Value="0.2" />
                         </MultiTrigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -294,11 +483,16 @@
             x:Name="Listbox_SchwebeMiniaturen"
             Height="110"
             VerticalAlignment="Bottom"
+            ansichten:Erklärung.Maus="Links Rad Rechts"
+            ansichten:Erklärung.Taste="← →"
+            ansichten:Erklärung.Text="Klick springt zum Bild, das Mausrad schiebt die Leiste seitwärts, ← und → blättern Bild für Bild. Orange umrandet ist das angezeigte Bild. Rechtsklick öffnet das Menü für die Miniatur unter der Maus, ohne zu ihr zu wechseln."
+            ansichten:Erklärung.Titel="Miniaturleiste"
             FocusVisualStyle="{x:Null}"
             d:ItemsSource="{d:SampleData ItemCount=8}"
             d:Visibility="Visible"
             local:HorizontalListBoxBehavior.CenterSelectedItem="True"
             local:HorizontalListBoxBehavior.EnableHorizontalMouseWheel="True"
+            local:HorizontalListBoxBehavior.RechtsklickOhneAuswahl="True"
             IsSynchronizedWithCurrentItem="True"
             ItemsSource="{Binding AufgabenView}"
             ScrollViewer.HorizontalScrollBarVisibility="Auto"
@@ -391,6 +585,14 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter Property="Visibility" Value="Visible" />
                         </Trigger>
+                        <!--
+                            Kontextmenü offen: sichtbar bleiben. Das Menü ist ein eigenes
+                            Fenster; sobald es aufgeht, liegt die Maus nicht mehr über der
+                            Leiste, und sie klappte samt der angeklickten Miniatur weg.
+                        -->
+                        <DataTrigger Binding="{Binding ContextMenu.IsOpen, RelativeSource={RelativeSource Self}}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
                     </Style.Triggers>
                 </Style>
             </ListBox.Style>
@@ -401,9 +603,17 @@
                 </i:EventTrigger>
             </i:Interaction.Triggers>
 
+            <!--
+                Das Menü gilt der Miniatur unter der Maus, nicht dem angezeigten Bild:
+                RechtsklickOhneAuswahl legt sie als Tag ans Menü, ohne sie auszuwählen.
+            -->
             <ListBox.ContextMenu>
-                <ContextMenu>
-                    <MenuItem Command="{Binding CommandExecuteDateiImExplorerÖffnenCommand}" Header="Explorer öffnen" />
+                <ContextMenu x:Name="CTM_SchwebeMiniaturen">
+                    <MenuItem
+                        x:Name="MNI_SchwebeExplorerÖffnen"
+                        Command="{Binding CommandExecuteDateiImExplorerÖffnenCommand}"
+                        CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType={x:Type ContextMenu}}}"
+                        Header="Explorer öffnen" />
                 </ContextMenu>
             </ListBox.ContextMenu>
 
@@ -468,7 +678,10 @@
                         </Rectangle>
                         <!--  Badge: Datei verschoben  -->
                         <Border
+                            x:Name="BRD_VerschobenBadgeVollbild"
                             Width="18"
+                            ansichten:Erklärung.Text="Dieses Bild wurde bereits weggelegt. Beim Blättern wird es übersprungen."
+                            ansichten:Erklärung.Titel="Schon verschoben"
                             Height="18"
                             Margin="0,4,4,0"
                             HorizontalAlignment="Right"
@@ -499,9 +712,10 @@
                             Margin="4,4,0,0"
                             HorizontalAlignment="Left"
                             VerticalAlignment="Top"
+                            ansichten:Erklärung.Text="{Binding WasserzeichenGrund}"
+                            ansichten:Erklärung.Titel="Wasserzeichen gefunden"
                             Background="#DDD97706"
                             CornerRadius="9"
-                            ToolTip="{Binding WasserzeichenGrund}"
                             Visibility="{Binding HatWasserzeichen, Converter={StaticResource CLconverterVisiblityBoolian}}">
                             <Border.Effect>
                                 <DropShadowEffect
@@ -597,6 +811,10 @@
             x:Name="BRD_HoverZoneUnten"
             Height="150"
             VerticalAlignment="Bottom"
+            ansichten:Erklärung.Maus=""
+            ansichten:Erklärung.Taste=""
+            ansichten:Erklärung.Text="Hier am unteren Rand fährt die Leiste mit allen Bildern des Ordners hoch."
+            ansichten:Erklärung.Titel="Miniaturleiste"
             Background="Transparent"
             IsHitTestVisible="True" />
 
@@ -872,6 +1090,8 @@
             HorizontalAlignment="Right"
             VerticalAlignment="Top"
             Panel.ZIndex="200"
+            ansichten:Erklärung.Maus=""
+            ansichten:Erklärung.Taste=""
             Orientation="Horizontal">
 
             <ansichten:IndikatorLeiste x:Name="CTL_Indikatoren" VerticalAlignment="Center" Margin="0,0,20,0" />
@@ -886,6 +1106,10 @@
                 Height="28"
                 Margin="0,0,6,0"
                 VerticalAlignment="Center"
+                ansichten:Erklärung.Maus="Links"
+                ansichten:Erklärung.Taste="I"
+                ansichten:Erklärung.Text="Blendet rechts neben dem Bild das Feld mit Dateiname, Ordner und den Angaben aus der Datei ein und aus. Unten darin steht diese Erklärung."
+                ansichten:Erklärung.Titel="Eigenschaften"
                 Command="{Binding CommandExecuteBildinfoToggleCommand}"
                 Content="&#xE946;"
                 Cursor="Hand"
@@ -900,6 +1124,10 @@
                 Width="28"
                 Height="28"
                 VerticalAlignment="Center"
+                ansichten:Erklärung.Maus="Links"
+                ansichten:Erklärung.Taste="F11"
+                ansichten:Erklärung.Text="Zurück zur Normalansicht."
+                ansichten:Erklärung.Titel="Bildmodus verlassen"
                 Command="{Binding CommandExecuteImageMaximierenToggleCommand}"
                 Content="&#xE73F;"
                 Cursor="Hand"
@@ -955,9 +1183,14 @@
             x:Name="BRD_Bildinfo"
             Grid.Column="1"
             Width="300"
+            ansichten:Erklärung.Maus=""
+            ansichten:Erklärung.Taste=""
+            ansichten:Erklärung.Text="Dateiname, Ordner und die Angaben aus der Datei selbst. Gelesen wird nur, solange dieses Feld offen ist, und beim schnellen Blättern erst, wenn ein Bild einen Moment stehen bleibt."
+            ansichten:Erklärung.Titel="Eigenschaften"
             Background="#FF1B1B1B"
             BorderBrush="#FF303030"
             BorderThickness="1,0,0,0"
+            d:Visibility="Visible"
             Visibility="Collapsed">
             <Border.RenderTransform>
                 <TranslateTransform x:Name="TTF_Bildinfo" />
@@ -967,6 +1200,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition x:Name="ROW_BildinfoKopf" Height="Auto" />
                     <RowDefinition x:Name="ROW_BildinfoListe" Height="*" />
+                    <RowDefinition x:Name="ROW_BildinfoErklärung" Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <StackPanel x:Name="STP_BildinfoKopf" Grid.Row="0">
@@ -1015,7 +1249,10 @@
                     Grid.Row="1"
                     HorizontalScrollBarVisibility="Disabled"
                     VerticalScrollBarVisibility="Auto">
-                    <ItemsControl x:Name="IC_Bildinfo" ItemsSource="{Binding BildinfoZeilen}">
+                    <ItemsControl
+                        x:Name="IC_Bildinfo"
+                        d:ItemsSource="{d:SampleData ItemCount=6}"
+                        ItemsSource="{Binding BildinfoZeilen}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <!--
@@ -1051,6 +1288,173 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </ScrollViewer>
+
+                <!--
+                    Erklärfeld: sagt, was die Stelle unter der Maus tut. Die Texte binden an
+                    die Erklärung des Elements, das Erklärung.cs als Quelle an dieses Feld
+                    hängt — als Bindung, nicht als Kopie, damit wechselnde Texte (Bluetooth,
+                    Bild beim Vergrössern) live mitlaufen.
+
+                    Die Höhe ist fest: Mit einer wachsenden Höhe sprang die Eigenschaften-Liste
+                    darüber bei jedem Wechsel auf und ab. Bemessen ist sie auf den längsten
+                    üblichen Text, den des Bluetooth-Zeichens mit ein paar angemeldeten
+                    Geräten; was darüber hinausgeht, scrollt. Liegt die Maus hier im Feld, bleibt der
+                    Text stehen, sonst liesse er sich nicht scrollen. Ebenso auf dem Weg
+                    hierher, solange die Maus auf das Feld zuläuft (Anflug in Erklärung.cs).
+
+                    Einklappbar über die Kopfzeile; der Zustand überdauert den Neustart.
+                    Eingeklappt erscheinen die Tooltips wieder (siehe Erklärung.PopupsAus
+                    an der Wurzel, gebunden an die Sichtbarkeit von SCV_Erklärung).
+                -->
+                <Border
+                    x:Name="BRD_Erklärung"
+                    Grid.Row="2"
+                    Margin="0,8,0,0"
+                    Padding="0,8,0,0"
+                    BorderBrush="#FF303030"
+                    BorderThickness="0,1,0,0">
+                    <StackPanel x:Name="STP_Erklärung">
+                        <Button
+                            x:Name="BTN_ErklärungToggle"
+                            HorizontalContentAlignment="Stretch"
+                            Command="{Binding CommandExecuteErklärungToggleCommand}"
+                            Cursor="Hand"
+                            Focusable="False">
+                            <Button.Template>
+                                <ControlTemplate TargetType="{x:Type Button}">
+                                    <Border x:Name="BRD_ErklärungKopf" Background="Transparent">
+                                        <ContentPresenter />
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                            <Grid x:Name="GRD_ErklärungKopf">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition x:Name="COL_ErklärungTitel" Width="*" />
+                                    <ColumnDefinition x:Name="COL_ErklärungPfeil" Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    x:Name="TXT_ErklärungKopf"
+                                    FontSize="11"
+                                    Foreground="#FF8A8A8A"
+                                    Text="Erklärung" />
+                                <!--
+                                    Winkel zeigt, was der Klick tut — wie bei den Karten im
+                                    Suchpanel: offen E70E (nach oben = einklappen), zu E70D
+                                    (nach unten = aufklappen).
+                                -->
+                                <TextBlock
+                                    x:Name="IC_ErklärungPfeil"
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="10">
+                                    <TextBlock.Style>
+                                        <Style TargetType="{x:Type TextBlock}">
+                                            <Setter Property="Text" Value="&#xE70E;" />
+                                            <Setter Property="Foreground" Value="#FF8A8A8A" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsErklärungEingeklappt}" Value="True">
+                                                    <Setter Property="Text" Value="&#xE70D;" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsMouseOver, ElementName=BTN_ErklärungToggle}" Value="True">
+                                                    <Setter Property="Foreground" Value="White" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </Button>
+
+                        <ScrollViewer
+                            x:Name="SCV_Erklärung"
+                            Height="260"
+                            Margin="0,6,0,0"
+                            d:Visibility="Visible"
+                            HorizontalScrollBarVisibility="Disabled"
+                            VerticalScrollBarVisibility="Auto">
+                            <ScrollViewer.Style>
+                                <Style TargetType="{x:Type ScrollViewer}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsErklärungEingeklappt}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ScrollViewer.Style>
+                            <StackPanel x:Name="STP_ErklärungInhalt">
+                                <StackPanel x:Name="STP_ErklärungTitel" Orientation="Horizontal">
+                                    <TextBlock
+                                        x:Name="TXT_ErklärungTitel"
+                                        VerticalAlignment="Center"
+                                        d:Text="Nächstes Bild"
+                                        FontSize="13"
+                                        FontWeight="SemiBold"
+                                        Foreground="White"
+                                        Text="{Binding Path=(ansichten:Erklärung.Quelle).(ansichten:Erklärung.Titel), ElementName=BRD_Erklärung, FallbackValue=''}" />
+
+                                    <!--
+                                        Maussymbole: je Wort aus Erklärung.Maus eines, in
+                                        fester Reihenfolge links, Rad, rechts — wie die
+                                        Teile an der Maus selbst.
+                                    -->
+                                    <Image
+                                        x:Name="IMG_ErklärungMausLinks"
+                                        Width="16"
+                                        Height="16"
+                                        Margin="8,0,0,0"
+                                        VerticalAlignment="Center"
+                                        d:Visibility="Visible"
+                                        Source="{StaticResource di_MausLinks}"
+                                        Visibility="{Binding Path=(ansichten:Erklärung.Quelle).(ansichten:Erklärung.Maus), ElementName=BRD_Erklärung, Converter={StaticResource MausZeigt}, ConverterParameter=Links, FallbackValue=Collapsed}" />
+                                    <Image
+                                        x:Name="IMG_ErklärungMausRad"
+                                        Width="16"
+                                        Height="16"
+                                        Margin="6,0,0,0"
+                                        VerticalAlignment="Center"
+                                        d:Visibility="Visible"
+                                        Source="{StaticResource di_MausRad}"
+                                        Visibility="{Binding Path=(ansichten:Erklärung.Quelle).(ansichten:Erklärung.Maus), ElementName=BRD_Erklärung, Converter={StaticResource MausZeigt}, ConverterParameter=Rad, FallbackValue=Collapsed}" />
+                                    <Image
+                                        x:Name="IMG_ErklärungMausRechts"
+                                        Width="16"
+                                        Height="16"
+                                        Margin="6,0,0,0"
+                                        VerticalAlignment="Center"
+                                        d:Visibility="Visible"
+                                        Source="{StaticResource di_MausRechts}"
+                                        Visibility="{Binding Path=(ansichten:Erklärung.Quelle).(ansichten:Erklärung.Maus), ElementName=BRD_Erklärung, Converter={StaticResource MausZeigt}, ConverterParameter=Rechts, FallbackValue=Collapsed}" />
+
+                                    <!--  Je Taste aus Erklärung.Taste eine Kappe (DT_Taste).  -->
+                                    <ItemsControl
+                                        x:Name="IC_ErklärungTasten"
+                                        Margin="4,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Focusable="False"
+                                        ItemTemplate="{StaticResource DT_Taste}"
+                                        ItemsSource="{Binding Path=(ansichten:Erklärung.Quelle).(ansichten:Erklärung.Taste), ElementName=BRD_Erklärung, Converter={StaticResource Tasten}}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Orientation="Horizontal" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                    </ItemsControl>
+                                </StackPanel>
+
+                                <TextBlock
+                                    x:Name="TXT_ErklärungText"
+                                    Margin="0,4,0,0"
+                                    d:Text="Klick blättert weiter. Bereits verschobene Bilder werden übersprungen."
+                                    FontSize="12"
+                                    Foreground="#FFE4E4E4"
+                                    Text="{Binding Path=(ansichten:Erklärung.Quelle).(ansichten:Erklärung.Text), ElementName=BRD_Erklärung, FallbackValue='Mit der Maus auf eine Stelle zeigen – hier steht dann, was sie tut.'}"
+                                    TextWrapping="Wrap" />
+                            </StackPanel>
+                        </ScrollViewer>
+                    </StackPanel>
+                </Border>
             </Grid>
         </Border>
     </Grid>

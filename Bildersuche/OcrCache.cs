@@ -21,6 +21,27 @@ namespace TestImage.Bildersuche
 
         /// <summary>Sprache, in der erkannt wurde — für den Fall, dass sie später wechselt.</summary>
         public string Sprache { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Wie weit das Plugin für schräge Zeilen beteiligt war:
+        /// <list type="bullet">
+        /// <item><b>0</b> — nicht; im Text steht allein, was die Windows-OCR im ganzen Bild fand.</item>
+        /// <item><b>1</b> — nur helle Schrift auf dunklem Grund (frühere Fassung, wird neu gelesen).</item>
+        /// <item><b>2</b> — beide Schriftarten, die Zeilen von der Windows-OCR gelesen (Plugin vor 0.0.3, wird neu gelesen).</item>
+        /// <item><b>3</b> — beide Schriftarten, die Zeilen vom Plugin selbst gelesen, Scheinzeilen verworfen (Plugin 0.0.4).</item>
+        /// <item><b>4</b> — dazu die Leserichtung je Zeile (keine auf dem Kopf stehenden Wörter mehr) und beide Schriftfarben in einem Lauf (ab 0.0.5). Das ist der heutige Stand.</item>
+        /// </list>
+        ///
+        /// <b>Deshalb keine neue Dateiversion:</b> Einträge aus früheren Läufen haben
+        /// das Feld nicht, und ein fehlendes Feld liest System.Text.Json als <c>0</c> —
+        /// sie werden also nachgelesen, sobald man mit Plugin liest. Ein Versionssprung
+        /// hätte dagegen den gesamten schon gelesenen Text verworfen.
+        ///
+        /// Eine Zahl und kein Kennzeichen je Schriftart: Die Stufen bauen aufeinander
+        /// auf, und <see cref="OcrCache.IstAktuell"/> muss nur „mindestens so weit"
+        /// fragen. Käme später eine dritte Ebene hinzu, wäre das eine 3.
+        /// </summary>
+        public int SchraegStufe { get; set; }
     }
 
     /// <summary>
@@ -132,9 +153,22 @@ namespace TestImage.Bildersuche
         /// Stand passt. Grösse und Änderungszeit müssen übereinstimmen — sonst wurde das
         /// Bild seither bearbeitet und der Text ist hinfällig.
         /// </summary>
-        internal bool IstAktuell(string bildPfad)
+        /// <param name="bildPfad">Die Bilddatei.</param>
+        /// <param name="mitSchraeg">
+        /// True, wenn nur ein Text zählt, in dem auch die schrägen Zeilen des Plugins
+        /// stehen — beide Schriftarten, also <see cref="OcrEintrag.SchraegStufe"/>
+        /// mindestens <see cref="SchraegStufeVoll"/>. Ein älterer Eintrag darunter gilt
+        /// dann als veraltet und wird neu gelesen — sonst bliebe nach dem Ankreuzen in
+        /// einem längst gelesenen Ordner alles, wie es war.
+        /// </param>
+        internal bool IstAktuell(string bildPfad, bool mitSchraeg = false)
         {
             if (!_eintraege.TryGetValue(bildPfad, out OcrEintrag? e))
+            {
+                return false;
+            }
+
+            if (mitSchraeg && e.SchraegStufe < SchraegStufeVoll)
             {
                 return false;
             }
@@ -156,8 +190,19 @@ namespace TestImage.Bildersuche
         internal string? Hole(string bildPfad) =>
             _eintraege.TryGetValue(bildPfad, out OcrEintrag? e) ? e.Text : null;
 
+        /// <summary>
+        /// Stufe, die ein Text erreicht, in dem die schrägen Zeilen beider Schriftarten
+        /// stehen, vom Plugin selbst gelesen. An einer Stelle festgelegt, damit Schreiben
+        /// und Prüfen nicht auseinanderlaufen können. Ändert eine neue Plugin-Fassung
+        /// den gelesenen Text, hier hochzählen — dann wird mit Kreuzchen neu gelesen.
+        /// </summary>
+        internal const int SchraegStufeVoll = 4;
+
         /// <summary>Nimmt einen erkannten Text auf. Ein vorhandener Eintrag wird ersetzt.</summary>
-        internal void Setze(string bildPfad, string text, string sprache)
+        /// <param name="schraegStufe">
+        /// Wie weit das Plugin beteiligt war — siehe <see cref="OcrEintrag.SchraegStufe"/>.
+        /// </param>
+        internal void Setze(string bildPfad, string text, string sprache, int schraegStufe = 0)
         {
             try
             {
@@ -169,7 +214,8 @@ namespace TestImage.Bildersuche
                     Dateigroesse = info.Length,
                     AenderungTicks = info.LastWriteTimeUtc.Ticks,
                     Text = text,
-                    Sprache = sprache
+                    Sprache = sprache,
+                    SchraegStufe = schraegStufe
                 };
             }
             catch (Exception)

@@ -251,22 +251,59 @@ namespace TestImage.Ansichten
 
         private const double ZoomMax = 8.0;
 
-        /// <summary>Faktor je vollem Rasterschritt des Mausrads (Delta 120).</summary>
-        private const double ZoomSchritt = 1.2;
+        /// <summary>
+        /// Faktor je vollem Rasterschritt des Mausrads (Delta 120). 1,15 statt 1,2:
+        /// kleinere Schritte lassen sich genauer treffen, und der Weg dorthin ist kürzer,
+        /// also auch früher fertig.
+        /// </summary>
+        private const double ZoomSchritt = 1.15;
 
         /// <summary>
-        /// Zeitkonstante des Nachlaufs in Sekunden: Nach dieser Zeit ist rund zwei Drittel
-        /// der Strecke zurückgelegt, nach dem Dreifachen praktisch alles. Kleiner wirkt
-        /// härter, grösser träger.
+        /// Fahrzeit in Sekunden: die Zeit, nach der das Bild wieder steht. <b>Die eine
+        /// Stellschraube für das Gefühl.</b>
+        ///
+        /// <b>Gefedert, nicht gleichmässig:</b> Gefahren wird als kritisch gedämpfte Feder —
+        /// aus dem Stand beschleunigen, vor dem Ziel abbremsen, nicht überschwingen. Die
+        /// Zwischenstufe mit unveränderlicher Geschwindigkeit war schlechter: Sie beginnt und
+        /// endet hart, und gerade das Anhalten sieht man.
+        ///
+        /// 0,35 s: getragen, aber noch am Rad. Kurze Fahrten (0,09–0,20 s) wirken hastig;
+        /// das Weiche daran war nie die Dauer, sondern das unscharfe Zwischenbild, siehe
+        /// <see cref="SchnelleSkalierungWaehrendDerBewegung"/>. 0,45 s war der Schritt davor
+        /// und lief einen Tick länger nach.
         /// </summary>
-        private const double NachlaufZeitkonstante = 0.070;
+        private const double Fahrzeit = 0.35;
 
         /// <summary>
-        /// Grösster Radausschlag, der in einem Ereignis gewertet wird. Ein Rasterschritt
-        /// meldet 120; schnelles Rollen fasst zusammen. Ein defektes Rad meldet gelegentlich
-        /// ein Vielfaches — ohne Deckel spränge die Ansicht davon einmal an den Anschlag.
+        /// Geschwindigkeit der Feder: Zoom in Log-Einheiten je Sekunde, Verschiebung in
+        /// Bildschirmpunkten je Sekunde.
+        ///
+        /// Sie ist der Zustand, der eine Fahrt zusammenhält. Ein Radschritt mitten in der
+        /// Bewegung biegt sie nur um, statt sie neu zu beginnen — ohne diesen Zustand gäbe
+        /// es bei jedem Schritt einen Knick, und mehrere Rastungen würden nicht zu einer
+        /// durchgehenden Fahrt verschmelzen.
         /// </summary>
-        private const int MaxDeltaJeSchritt = 240;
+        private double _zoomGeschw, _panGeschwX, _panGeschwY;
+
+        /// <summary>
+        /// Gilt der Zeigeranker? Gesetzt beim Rollen, gelöscht beim Ziehen und beim
+        /// Zurücksetzen — dort bestimmt die Verschiebung jemand anderes.
+        /// </summary>
+        private bool _ankerGilt;
+
+        /// <summary>
+        /// Der Punkt, an dem das Rollen angesetzt hat: <see cref="_ankerSchirmX"/> in
+        /// Bildschirmpunkten von der Mitte aus, <see cref="_ankerBildX"/> derselbe Punkt
+        /// im unskalierten Bild.
+        ///
+        /// <b>Warum das nötig ist:</b> Die Verschiebung hängt <b>multiplikativ</b> an der
+        /// Vergrösserung. Lässt man beide getrennt nachlaufen — so war es —, stimmt die
+        /// Rechnung nur am Anfang und am Ende; dazwischen wandert der Bildpunkt unter dem
+        /// Zeiger weg und kommt erst am Ziel zurück. Genau das sieht man als Davonrutschen.
+        /// Deshalb wird die Verschiebung während der Fahrt nicht angenähert, sondern in
+        /// jedem Bild aus der aktuellen Stufe neu gerechnet.
+        /// </summary>
+        private double _ankerSchirmX, _ankerSchirmY, _ankerBildX, _ankerBildY;
 
         /// <summary>
         /// Angestrebte Vergrösserung. Massgeblich ist dieser Wert, nicht ScaleX: der
@@ -311,26 +348,34 @@ namespace TestImage.Ansichten
 
             // Stufenlos statt fester Rasterschritte: Räder mit feiner Rasterung und
             // Touchpads liefern Bruchteile von 120 und zoomen damit entsprechend fein.
-            // Nach oben gedeckelt, siehe MaxDeltaJeSchritt.
-            double ausschlag = Math.Clamp(e.Delta, -MaxDeltaJeSchritt, MaxDeltaJeSchritt);
-            double faktor = Math.Pow(ZoomSchritt, ausschlag / 120.0);
+            // Ungedeckelt: Schnelles Rollen fasst mehrere Rasterschritte in ein Ereignis
+            // zusammen und soll dann auch entsprechend weit zoomen. Der frühere Deckel
+            // fing die Ausreisser eines defekten Rades ab; gegen zu grosse Sprünge
+            // arbeitet ohnehin der Nachlauf, der jede Änderung ausfährt statt zu springen.
+            double faktor = Math.Pow(ZoomSchritt, e.Delta / 120.0);
             double neu = Math.Clamp(_zoomZiel * faktor, ZoomMin, ZoomMax);
 
             if (Math.Abs(neu - _zoomZiel) < 0.0001)
                 return;
 
             // Zum Mauszeiger hin vergrössern: Der Bildpunkt unter dem Zeiger soll dort
-            // bleiben, wo er ist. Skaliert wird um die Mitte, also muss die Verschiebung
-            // den Rest ausgleichen — mit q als Verhältnis neuer zu bisheriger Stufe:
-            // t' = m - q * (m - t), gemessen von der Mitte aus.
-            double q = neu / _zoomZiel;
+            // bleiben, wo er ist. Gemerkt wird er als Punkt im unskalierten Bild, und zwar
+            // aus dem *angezeigten* Stand — das ist der, den man gerade sieht und trifft.
+            // Ab hier hält ihn AnkerAnwenden in jedem Bild fest, statt ihn nur am Ziel
+            // wieder stimmen zu lassen.
             var m = e.GetPosition(GRD_VollbildWurzel);
-            double mx = m.X - imgVollbild.ActualWidth / 2;
-            double my = m.Y - imgVollbild.ActualHeight / 2;
+            _ankerSchirmX = m.X - imgVollbild.ActualWidth / 2;
+            _ankerSchirmY = m.Y - imgVollbild.ActualHeight / 2;
+            _ankerBildX = (_ankerSchirmX - _panIstX) / _zoomIst;
+            _ankerBildY = (_ankerSchirmY - _panIstY) / _zoomIst;
+            _ankerGilt = true;
 
             _zoomZiel = neu;
-            _panZielX = mx - q * (mx - _panZielX);
-            _panZielY = my - q * (my - _panZielY);
+
+            // Das Ziel gleich mitführen: Steht der Nachlauf, muss die Verschiebung
+            // dieselbe sein, die der Anker errechnet — sonst zuckt es zum Schluss.
+            _panZielX = _ankerSchirmX - _ankerBildX * _zoomZiel;
+            _panZielY = _ankerSchirmY - _ankerBildY * _zoomZiel;
             PanBegrenzen();
 
             SchnelleSkalierungWaehrendDerBewegung();
@@ -368,6 +413,11 @@ namespace TestImage.Ansichten
 
             _nachlaufLaeuft = false;
             CompositionTarget.Rendering -= AufNeuesBildschirmbild;
+
+            // Erst jetzt beginnt die Wartezeit bis zur feinen Skalierung. Sonst liefe sie
+            // schon während der Fahrt ab — die Zeitkonstante ist länger als die Wartezeit —
+            // und die teure Fant-Skalierung stocherte mitten in die Bewegung hinein.
+            SchnelleSkalierungWaehrendDerBewegung();
         }
 
         /// <summary>
@@ -397,25 +447,77 @@ namespace TestImage.Ansichten
             double dt = Math.Clamp((daten.RenderingTime - _letzteBildzeit).TotalSeconds, 0, 0.1);
             _letzteBildzeit = daten.RenderingTime;
 
-            double anteil = 1 - Math.Exp(-dt / NachlaufZeitkonstante);
+            // Der Zoom wird in Log-Einheiten gefahren, weil ein Radschritt ein Faktor ist
+            // und kein Betrag: Von 100 auf 200 % soll gleich lange dauern wie von 400 auf
+            // 800 %. Linear gefahren schliche der untere Bereich und der obere risse davon.
+            _zoomIst = Math.Exp(Feder(Math.Log(_zoomIst), Math.Log(_zoomZiel), ref _zoomGeschw, dt));
 
-            _zoomIst += (_zoomZiel - _zoomIst) * anteil;
-            _panIstX += (_panZielX - _panIstX) * anteil;
-            _panIstY += (_panZielY - _panIstY) * anteil;
+            if (_ankerGilt)
+            {
+                AnkerAnwenden();
+            }
+            else
+            {
+                _panIstX = Feder(_panIstX, _panZielX, ref _panGeschwX, dt);
+                _panIstY = Feder(_panIstY, _panZielY, ref _panGeschwY, dt);
+            }
 
-            // Angekommen, wenn der Rest unter einem Bildpunkt liegt. Ohne Abbruch näherte
-            // sich die Rechnung endlos an und der Haken bliebe für immer am Bildtakt.
-            if (Math.Abs(_zoomZiel - _zoomIst) < 0.0005
+            // Angekommen, wenn der Rest unter einem Bildpunkt liegt und die Feder zur Ruhe
+            // gekommen ist. Die Geschwindigkeit gehört in die Frage: Mitten in der Fahrt
+            // kommt der Stand am Ziel vorbei, und ohne sie hielte die Bewegung dort an.
+            // Ohne Abbruch wiederum näherte sich die Rechnung endlos an und der Haken
+            // bliebe für immer am Bildtakt.
+            if (Math.Abs(_zoomZiel - _zoomIst) < 0.0005 && Math.Abs(_zoomGeschw) < 0.002
                 && Math.Abs(_panZielX - _panIstX) < 0.05
                 && Math.Abs(_panZielY - _panIstY) < 0.05)
             {
                 _zoomIst = _zoomZiel;
-                _panIstX = _panZielX;
-                _panIstY = _panZielY;
+                _zoomGeschw = 0;
+
+                if (_ankerGilt)
+                {
+                    // Auf der Zielstufe sitzt der Anker dort, wo die Begrenzung ihn lässt.
+                    AnkerAnwenden();
+                    _panZielX = _panIstX;
+                    _panZielY = _panIstY;
+                }
+                else
+                {
+                    _panIstX = _panZielX;
+                    _panIstY = _panZielY;
+                }
+
+                _panGeschwX = 0;
+                _panGeschwY = 0;
                 NachlaufAnhalten();
             }
 
             StandAnwenden();
+        }
+
+        /// <summary>
+        /// Ein Schritt einer kritisch gedämpften Feder: Sie zieht den Wert zum Ziel,
+        /// beschleunigt aus dem Stand, bremst davor ab und schiesst nicht darüber hinaus.
+        /// <paramref name="geschwindigkeit"/> wird mitgeführt — sie ist der Grund, warum
+        /// mehrere Radschritte zu einer einzigen Fahrt verschmelzen.
+        ///
+        /// Die Näherung für die Dämpfung ist die übliche (Game Programming Gems 4): über
+        /// den hier vorkommenden Bereich genau genug und ohne <c>Math.Exp</c> je Bild.
+        /// </summary>
+        private static double Feder(double ist, double ziel, ref double geschwindigkeit, double dt)
+        {
+            // 2 / Fahrzeit: Nach dieser Zeit ist bei kritischer Dämpfung praktisch nichts
+            // mehr übrig. Kleiner heisst weichere Feder, also längere Fahrt.
+            const double omega = 2.0 / Fahrzeit;
+
+            double x = omega * dt;
+            double daempfung = 1.0 / (1.0 + x + 0.48 * x * x + 0.235 * x * x * x);
+
+            double abstand = ist - ziel;
+            double schub = (geschwindigkeit + omega * abstand) * dt;
+
+            geschwindigkeit = (geschwindigkeit - omega * schub) * daempfung;
+            return ziel + (abstand + schub) * daempfung;
         }
 
         /// <summary>Schreibt den angezeigten Stand in die Transformationen.</summary>
@@ -434,14 +536,25 @@ namespace TestImage.Ansichten
         /// </summary>
         private void PanBegrenzen()
         {
+            (double grenzeX, double grenzeY) = PanGrenzen(_zoomZiel);
+
+            _panZielX = Math.Clamp(_panZielX, -grenzeX, grenzeX);
+            _panZielY = Math.Clamp(_panZielY, -grenzeY, grenzeY);
+        }
+
+        /// <summary>
+        /// Wie weit der Ausschnitt bei dieser Stufe nach beiden Seiten wandern darf.
+        /// Getrennt von <see cref="PanBegrenzen"/>, weil die laufende Fahrt gegen die
+        /// <b>angezeigte</b> Stufe begrenzt werden muss und nicht gegen die angestrebte.
+        /// </summary>
+        private (double X, double Y) PanGrenzen(double stufe)
+        {
             double breite = imgVollbild.ActualWidth;
             double hoehe = imgVollbild.ActualHeight;
 
             if (breite <= 0 || hoehe <= 0 || imgVollbild.Source is not ImageSource quelle)
             {
-                _panZielX = 0;
-                _panZielY = 0;
-                return;
+                return (0, 0);
             }
 
             // Stretch="Uniform": Das Bild füllt nur einen Teil des Elements, der Rest ist
@@ -450,11 +563,21 @@ namespace TestImage.Ansichten
                 ? Math.Min(breite / quelle.Width, hoehe / quelle.Height)
                 : 1.0;
 
-            double grenzeX = Math.Max(0, (quelle.Width * einpassung * _zoomZiel - breite) / 2);
-            double grenzeY = Math.Max(0, (quelle.Height * einpassung * _zoomZiel - hoehe) / 2);
+            return (Math.Max(0, (quelle.Width * einpassung * stufe - breite) / 2),
+                    Math.Max(0, (quelle.Height * einpassung * stufe - hoehe) / 2));
+        }
 
-            _panZielX = Math.Clamp(_panZielX, -grenzeX, grenzeX);
-            _panZielY = Math.Clamp(_panZielY, -grenzeY, grenzeY);
+        /// <summary>
+        /// Hält den Bildpunkt unter dem Zeiger fest: Die Verschiebung wird aus der gerade
+        /// angezeigten Stufe gerechnet, nicht angenähert. Am Anschlag greift die Begrenzung
+        /// — dann wandert der Punkt zwangsläufig, weiter ginge es nicht.
+        /// </summary>
+        private void AnkerAnwenden()
+        {
+            (double grenzeX, double grenzeY) = PanGrenzen(_zoomIst);
+
+            _panIstX = Math.Clamp(_ankerSchirmX - _ankerBildX * _zoomIst, -grenzeX, grenzeX);
+            _panIstY = Math.Clamp(_ankerSchirmY - _ankerBildY * _zoomIst, -grenzeY, grenzeY);
         }
 
         /// <summary>
@@ -464,11 +587,15 @@ namespace TestImage.Ansichten
         /// </summary>
         private void SchnelleSkalierungWaehrendDerBewegung()
         {
+            // Während der Bewegung immer grob zeichnen. Der Versuch, für alles unter
+            // 12 Millionen Bildpunkten durchgehend die hochwertige Fant-Skalierung zu
+            // behalten, brachte genau die Ruckler zurück, gegen die sie einmal eingeführt
+            // wurde: Sie kostet je Bild zu viel. Scharf wird gleich danach, siehe Wartezeit.
             RenderOptions.SetBitmapScalingMode(imgVollbild, BitmapScalingMode.Linear);
 
             if (_zoomFeinTimer is null)
             {
-                _zoomFeinTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(220) };
+                _zoomFeinTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(90) };
                 _zoomFeinTimer.Tick += (_, _) =>
                 {
                     _zoomFeinTimer!.Stop();
@@ -544,6 +671,11 @@ namespace TestImage.Ansichten
             }
 
             var p = e.GetPosition(GRD_VollbildWurzel);
+
+            // Der Zeigeranker des Rollens gilt nicht mehr: Jetzt bestimmt die Hand, wo das
+            // Bild steht. Liesse man ihn stehen, zöge eine noch laufende Zoom-Annäherung
+            // das Bild gegen die Bewegung zurück.
+            _ankerGilt = false;
 
             _panZielX = _panBeimZiehStartX + (p.X - _ziehStart.X);
             _panZielY = _panBeimZiehStartY + (p.Y - _ziehStart.Y);
@@ -627,6 +759,10 @@ namespace TestImage.Ansichten
         {
             ZiehenBeenden();
 
+            // Zurück in die Mitte, nicht zum zuletzt angepeilten Punkt: Der Anker gilt
+            // nicht mehr, sonst hielte er das Bild beim Herausfahren seitlich fest.
+            _ankerGilt = false;
+
             _zoomZiel = ZoomMin;
             _panZielX = 0;
             _panZielY = 0;
@@ -643,6 +779,13 @@ namespace TestImage.Ansichten
                 _zoomIst = ZoomMin;
                 _panIstX = 0;
                 _panIstY = 0;
+
+                // Sonst nähme die Feder ihre Fahrt mit ins nächste Bild — das eingepasste
+                // Bild ruckte dann beim Wechsel kurz an.
+                _zoomGeschw = 0;
+                _panGeschwX = 0;
+                _panGeschwY = 0;
+
                 StandAnwenden();
 
                 _zoomFeinTimer?.Stop();
@@ -669,6 +812,14 @@ namespace TestImage.Ansichten
             BTN_VollbildLinks.IsHitTestVisible = !vergroessert;
             BTN_VollbildRechts.IsHitTestVisible = !vergroessert;
             BRD_HoverZoneUnten.IsHitTestVisible = !vergroessert;
+
+            // Vergrössert gilt eine andere Bedienung; alles ohne eigene Erklärung erbt
+            // diesen Text von der Wurzel, das Erklärfeld zieht ihn über die Bindung nach.
+            Erklärung.SetText(GRD_VollbildWurzel, (string)FindResource(
+                vergroessert ? "ErklärungBildVergrössert" : "ErklärungBildEingepasst"));
+
+            // Vergrössert kommt die linke Taste dazu: Ziehen und Doppelklick.
+            Erklärung.SetMaus(GRD_VollbildWurzel, vergroessert ? "Links Rad" : "Rad");
         }
 
         #endregion

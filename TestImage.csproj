@@ -47,11 +47,25 @@
   <ItemGroup>
     <None Remove="Images\HeavyO.jpg" />
     <None Remove="Images\KIFehler.png" />
+    <None Remove="Images\OcrVorschauKarte.png" />
+    <None Remove="Images\OcrVorschauStreifen.png" />
   </ItemGroup>
 
   <ItemGroup>
     <Resource Include="Images\HeavyO.jpg" />
     <Resource Include="Images\KIFehler.png" />
+
+    <!--
+      Platzhalter für die Entwurfsansicht von OcrTextAnsicht: ein Kartenausschnitt
+      mit schräger, heller Beschriftung und ein geradegerückter Streifen daraus. Zur
+      Laufzeit zeigt das Fenster das wirkliche Bild — diese beiden hängen nur an
+      d:Source, damit im Entwurf nicht zwei leere Flächen stehen.
+
+      Zusammen 65 KB. Als Resource und nicht als Datei daneben, weil d:Source eine
+      Pack-Adresse braucht.
+    -->
+    <Resource Include="Images\OcrVorschauKarte.png" />
+    <Resource Include="Images\OcrVorschauStreifen.png" />
     <Resource Include="Sternchen.ico">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Resource>
@@ -80,6 +94,44 @@
   <ItemGroup>
     <ProjectReference Include="ImageMatching.Core\ImageMatching.Core.csproj" />
     <ProjectReference Include="ImageMatching.Cnn\ImageMatching.Cnn.csproj" />
+  </ItemGroup>
+
+  <!--
+    Texterkennung schräger Schrift — optionales Plugin, NICHT im Repo.
+
+    In lib\ liegen zwei Dateien aus dem Projekt OcrTestClaude: der Vertrag
+    (Ocr.Vertrag.dll, nur Schnittstellen und Lader) und das Verfahren
+    (Plugins\Ocr.Core.dll). Beide stehen in der .gitignore — wer TestImage
+    klont, bekommt sie nicht.
+
+    Deshalb hängt alles an Exists(): Liegt der Vertrag da, wird er verwiesen und
+    OCR_PLUGIN gesetzt; fehlt er, fällt der Aufruf in PluginOcrDienst.cs auf
+    „nicht verfügbar" zurück und der Rest der Anwendung baut unverändert. Ein
+    fester Verweis würde das verhindern — ohne die DLL liesse sich dann gar
+    nicht mehr bauen.
+
+    Das Verfahren wird bewusst NICHT verwiesen, nur kopiert. Ein Verweis zöge es
+    beim Start in den normalen Laderaum, und die Trennung wäre hinfällig;
+    geladen wird es zur Laufzeit aus <Ausgabeordner>\Plugins.
+
+    Update statt Include: lib\ ist über die Standardregeln des SDK schon ein
+    None-Eintrag. Ein zweiter Include für dieselbe Datei wäre ein doppelter
+    Eintrag und damit ein Buildfehler.
+  -->
+  <PropertyGroup Condition="Exists('lib\Ocr.Vertrag.dll')">
+    <DefineConstants>$(DefineConstants);OCR_PLUGIN</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition="Exists('lib\Ocr.Vertrag.dll')">
+    <Reference Include="Ocr.Vertrag">
+      <HintPath>lib\Ocr.Vertrag.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('lib\Plugins\Ocr.Core.dll')">
+    <None Update="lib\Plugins\Ocr.Core.dll"
+          Link="Plugins\Ocr.Core.dll"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

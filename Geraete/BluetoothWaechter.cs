@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
+using Windows.Devices.Radios;
 
 namespace TestImage.Geraete
 {
@@ -27,10 +29,34 @@ namespace TestImage.Geraete
         /// </summary>
         public IReadOnlyList<string> NeueEingabegeraete { get; init; } = Array.Empty<string>();
 
+        /// <summary>
+        /// Der eigene Funkchip: Name, Bluetooth-Version, Treiberstand. <c>null</c>, wenn kein
+        /// Adapter da ist.
+        /// </summary>
+        public BluetoothAdapter? Adapter { get; init; }
+
+        /// <summary>
+        /// Der Adapter ist da, aber Bluetooth ist ausgeschaltet (Schnelleinstellungen oder
+        /// Flugmodus). Nur <c>true</c>, wenn Windows das sicher meldet; unbekannt gilt als an.
+        /// </summary>
+        public bool IstAusgeschaltet { get; init; }
+
         public bool HatGeraete => Geraete.Count > 0;
 
         public bool HatWarnung => NeueEingabegeraete.Count > 0;
     }
+
+    /// <summary>
+    /// Angaben zum eigenen Bluetooth-Adapter.
+    ///
+    /// Das Treiberdatum ist die eigentlich wichtige Angabe: Lücken im Funkchip selbst
+    /// (KNOB, BIAS, BLUFFS, BrakTooth …) schliesst nicht Windows Update, sondern die
+    /// Firmware, und die kommt beim Laden des Herstellertreibers mit. Ein Chip, für den
+    /// der Hersteller keine Treiber mehr baut, bleibt auf seinem letzten Stand stehen.
+    /// </summary>
+    /// <param name="Version">Bluetooth-Version aus der LMP-Kennung, etwa „4.2"; <c>null</c>, wenn unbekannt.</param>
+    public sealed record BluetoothAdapter(
+        string InstanzId, string Name, string? Version, DateTime? TreiberDatum, string? TreiberVersion);
 
     /// <summary>
     /// Liest den Bluetooth-Zustand über die Geräteverwaltung von Windows (SetupAPI) —
@@ -78,6 +104,16 @@ namespace TestImage.Geraete
                 // Adapter als „verbundenes Gerät", und das Feld stünde immer auf grün.
                 bool adapter = bluetooth.Any(g => !IstUeberBluetoothAngebunden(g.Id));
 
+                // Die Angaben zum Chip ändern sich nur mit dem Adapter, deshalb einmal je
+                // Adapter gelesen statt in jedem Takt.
+                var adapterAngaben = adapter
+                    ? HoleAdapterAngaben(bluetooth.First(g => !IstUeberBluetoothAngebunden(g.Id)).Id)
+                    : null;
+
+                // Der Adapterknoten bleibt auch bei ausgeschaltetem Bluetooth vorhanden;
+                // ob der Funk an ist, weiss nur der Schalter von Windows.
+                bool ausgeschaltet = adapter && IstFunkAus();
+
                 // Ein Gerät, mehrere Knoten: Ein Kopfhörer meldet sich als Freisprech-,
                 // Stereo- und Fernbedienungsdienst, jeder mit eigenem Namen. Ungefiltert
                 // stand im Tooltip dreimal derselbe Kopfhörer. Zusammengefasst wird über
@@ -107,6 +143,8 @@ namespace TestImage.Geraete
                     return new BluetoothStand
                     {
                         AdapterVorhanden = adapter,
+                        Adapter = adapterAngaben,
+                        IstAusgeschaltet = ausgeschaltet,
                         Geraete = geraete,
                         Eingabegeraete = eingabeNamen
                     };
@@ -117,6 +155,8 @@ namespace TestImage.Geraete
                 return new BluetoothStand
                 {
                     AdapterVorhanden = adapter,
+                    Adapter = adapterAngaben,
+                    IstAusgeschaltet = ausgeschaltet,
                     Geraete = geraete,
                     Eingabegeraete = eingabeNamen,
                     NeueEingabegeraete = neue
@@ -206,6 +246,143 @@ namespace TestImage.Geraete
             return ergebnis;
         }
 
+        /// <summary>Der Bluetooth-Funk aus Sicht der Windows-Schnellschalter; einmal gesucht.</summary>
+        private static Radio? _funk;
+
+        private static Task? _funkSuche;
+
+        /// <summary>
+        /// Ist Bluetooth über den Windows-Schalter oder den Flugmodus ausgeschaltet?
+        ///
+        /// Die Suche nach dem Funk ist nur asynchron zu haben, der Takt der Leiste aber
+        /// synchron. Deshalb läuft sie beim ersten Aufruf einmal los, und bis sie fertig
+        /// ist, gilt der Funk als an — das ist der Stand vor dieser Abfrage. Danach ist
+        /// der Zustand eine blosse Eigenschaft und kostet nichts.
+        /// </summary>
+        private static bool IstFunkAus()
+        {
+            _funkSuche ??= SucheFunkAsync();
+
+            try
+            {
+                return _funk?.State is RadioState.Off or RadioState.Disabled;
+            }
+            catch
+            {
+                // Adapter abgezogen: Das alte Funkobjekt gilt nicht mehr, neu suchen.
+                _funk = null;
+                _funkSuche = null;
+                return false;
+            }
+        }
+
+        private static async Task SucheFunkAsync()
+        {
+            try
+            {
+                var funke = await Radio.GetRadiosAsync();
+                _funk = funke.FirstOrDefault(f => f.Kind == RadioKind.Bluetooth);
+            }
+            catch
+            {
+                // Ohne Funkabfrage bleibt es beim bisherigen Verhalten: gilt als an.
+            }
+        }
+
+        /// <summary>Zuletzt gelesene Adapterangaben; gilt, solange derselbe Adapter steckt.</summary>
+        private static BluetoothAdapter? _adapterAngaben;
+
+        /// <summary>
+        /// Name, Bluetooth-Version und Treiberstand des Adapters mit dieser Instanzkennung.
+        /// Die Version steht als LMP-Kennung in den Funkeigenschaften, die Windows am
+        /// Adapterknoten führt — dieselbe Zahl, die der Geräte-Manager unter „Erweitert"
+        /// als Firmware-Stand zeigt.
+        /// </summary>
+        private static BluetoothAdapter? HoleAdapterAngaben(string instanzId)
+        {
+            if (string.Equals(_adapterAngaben?.InstanzId, instanzId, StringComparison.OrdinalIgnoreCase))
+                return _adapterAngaben;
+
+            IntPtr satz = SetupDiGetClassDevsW(ref _klasseBluetooth, IntPtr.Zero, IntPtr.Zero, DIGCF_PRESENT);
+            if (satz == IntPtr.Zero || satz == new IntPtr(-1))
+                return null;
+
+            try
+            {
+                var eintrag = new SP_DEVINFO_DATA { cbSize = Marshal.SizeOf<SP_DEVINFO_DATA>() };
+
+                for (int i = 0; SetupDiEnumDeviceInfo(satz, i, ref eintrag); i++)
+                {
+                    if (!string.Equals(HoleInstanzId(satz, ref eintrag), instanzId, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    string name = HoleText(satz, ref eintrag, SPDRP_FRIENDLYNAME);
+                    if (name.Length == 0)
+                        name = HoleText(satz, ref eintrag, SPDRP_DEVICEDESC);
+
+                    var lmp = HoleEigenschaft(satz, ref eintrag, _schluesselLmpVersion, out uint lmpTyp);
+                    var datum = HoleEigenschaft(satz, ref eintrag, _schluesselTreiberDatum, out uint datumTyp);
+                    var version = HoleEigenschaft(satz, ref eintrag, _schluesselTreiberVersion, out uint versionTyp);
+
+                    uint? lmpWert = lmp is null ? null : lmpTyp switch
+                    {
+                        DEVPROP_TYPE_BYTE when lmp.Length >= 1 => lmp[0],
+                        DEVPROP_TYPE_UINT16 when lmp.Length >= 2 => BitConverter.ToUInt16(lmp),
+                        DEVPROP_TYPE_UINT32 when lmp.Length >= 4 => BitConverter.ToUInt32(lmp),
+                        _ => null
+                    };
+
+                    // Das Treiberdatum liegt als FILETIME auf Mitternacht UTC; in
+                    // Ortszeit gelesen, rutschte es westlich von Greenwich auf den Vortag.
+                    DateTime? treiberDatum = datum is { Length: >= 8 } && datumTyp == DEVPROP_TYPE_FILETIME
+                        ? DateTime.FromFileTimeUtc(BitConverter.ToInt64(datum)).Date
+                        : null;
+
+                    string? treiberVersion = version is not null && versionTyp == DEVPROP_TYPE_STRING
+                        ? System.Text.Encoding.Unicode.GetString(version).TrimEnd('\0')
+                        : null;
+
+                    _adapterAngaben = new BluetoothAdapter(
+                        instanzId, name, BluetoothVersion(lmpWert), treiberDatum, treiberVersion);
+
+                    return _adapterAngaben;
+                }
+            }
+            finally
+            {
+                SetupDiDestroyDeviceInfoList(satz);
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Bluetooth-Version zur LMP-Kennung aus der Kernspezifikation (Assigned Numbers).
+        /// </summary>
+        private static string? BluetoothVersion(uint? lmp) => lmp switch
+        {
+            0 => "1.0b", 1 => "1.1", 2 => "1.2", 3 => "2.0", 4 => "2.1", 5 => "3.0",
+            6 => "4.0", 7 => "4.1", 8 => "4.2", 9 => "5.0", 10 => "5.1", 11 => "5.2",
+            12 => "5.3", 13 => "5.4", 14 => "6.0",
+            _ => null
+        };
+
+        /// <summary>Rohwert einer Geräteeigenschaft samt Typkennung; <c>null</c>, wenn sie fehlt.</summary>
+        private static byte[]? HoleEigenschaft(
+            IntPtr satz, ref SP_DEVINFO_DATA eintrag, DEVPROPKEY schluessel, out uint typ)
+        {
+            var puffer = new byte[256];
+
+            if (!SetupDiGetDevicePropertyW(
+                    satz, ref eintrag, ref schluessel, out typ, puffer, (uint)puffer.Length, out uint laenge, 0)
+                || laenge == 0)
+            {
+                return null;
+            }
+
+            return puffer[..(int)Math.Min(laenge, (uint)puffer.Length)];
+        }
+
         private static string HoleInstanzId(IntPtr satz, ref SP_DEVINFO_DATA eintrag)
         {
             var puffer = new char[512];
@@ -239,6 +416,29 @@ namespace TestImage.Geraete
         private const uint SPDRP_DEVICEDESC = 0x00;
         private const uint SPDRP_FRIENDLYNAME = 0x0C;
 
+        private const uint DEVPROP_TYPE_BYTE = 0x03;
+        private const uint DEVPROP_TYPE_UINT16 = 0x05;
+        private const uint DEVPROP_TYPE_UINT32 = 0x07;
+        private const uint DEVPROP_TYPE_FILETIME = 0x10;
+        private const uint DEVPROP_TYPE_STRING = 0x12;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct DEVPROPKEY
+        {
+            public Guid fmtid;
+            public uint pid;
+        }
+
+        // DEVPKEY_Device_DriverDate und DEVPKEY_Device_DriverVersion (devpkey.h).
+        private static readonly DEVPROPKEY _schluesselTreiberDatum =
+            new() { fmtid = new("a8b865dd-2e3d-4094-ad97-e593a70c75d6"), pid = 2 };
+        private static readonly DEVPROPKEY _schluesselTreiberVersion =
+            new() { fmtid = new("a8b865dd-2e3d-4094-ad97-e593a70c75d6"), pid = 3 };
+
+        // DEVPKEY_BluetoothRadio_LMPVersion (bthdef.h): die Funkeigenschaften am Adapterknoten.
+        private static readonly DEVPROPKEY _schluesselLmpVersion =
+            new() { fmtid = new("a92f26ca-eda7-4b1d-9db2-27b68aa5a2eb"), pid = 4 };
+
         [StructLayout(LayoutKind.Sequential)]
         private struct SP_DEVINFO_DATA
         {
@@ -266,6 +466,12 @@ namespace TestImage.Geraete
         private static extern bool SetupDiGetDeviceRegistryPropertyW(
             IntPtr satz, ref SP_DEVINFO_DATA eintrag, uint eigenschaft,
             out uint datentyp, byte[] puffer, uint puffergroesse, out uint laenge);
+
+        [DllImport("setupapi.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool SetupDiGetDevicePropertyW(
+            IntPtr satz, ref SP_DEVINFO_DATA eintrag, ref DEVPROPKEY schluessel,
+            out uint typ, byte[] puffer, uint puffergroesse, out uint laenge, uint merkmale);
 
         [DllImport("setupapi.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]

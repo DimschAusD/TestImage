@@ -33,6 +33,8 @@ namespace TestImage
         internal sealed class Inhalt
         {
             public bool SortierenWieExplorer { get; set; }
+
+            public bool ErklärungEingeklappt { get; set; }
         }
 
         /// <summary>
@@ -52,6 +54,26 @@ namespace TestImage
                 }
 
                 inhalt.SortierenWieExplorer = value;
+                Speichere();
+            }
+        }
+
+        /// <summary>
+        /// Erklärfeld im Eigenschaften-Feld eingeklappt. Wer die Bedienung kennt, klappt
+        /// es einmal zu und will es beim nächsten Start nicht wieder offen vorfinden.
+        /// </summary>
+        internal static bool ErklärungEingeklappt
+        {
+            get => Hole().ErklärungEingeklappt;
+            set
+            {
+                var inhalt = Hole();
+                if (inhalt.ErklärungEingeklappt == value)
+                {
+                    return;
+                }
+
+                inhalt.ErklärungEingeklappt = value;
                 Speichere();
             }
         }

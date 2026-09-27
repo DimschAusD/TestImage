@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Windows.Graphics.Imaging;
@@ -80,11 +81,74 @@ namespace TestImage.Bildersuche
 
             try
             {
-                SoftwareBitmap bitmap = await LadeBitmapAsync(pfad).ConfigureAwait(false);
-                using (bitmap)
+                Entpackt entpackt = await LadeBitmapAsync(pfad).ConfigureAwait(false);
+                using (entpackt.Bitmap)
                 {
-                    OcrResult ergebnis = await Engine.RecognizeAsync(bitmap);
+                    OcrResult ergebnis = await Engine.RecognizeAsync(entpackt.Bitmap);
                     return ergebnis.Text ?? string.Empty;
+                }
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Wie <see cref="LiesTextAsync"/>, liefert aber zusätzlich <b>wo</b> jedes Wort
+        /// steht — und damit die Ebene, gegen die sich alles andere vergleichen lässt.
+        ///
+        /// Das ist die Standardsuche der Anwendung, nur mit offengelegten Koordinaten:
+        /// Dieselbe Engine, dasselbe ganze Bild, dieselbe Vergrösserung kleiner Bilder.
+        /// <c>null</c> unter denselben Bedingungen wie dort.
+        ///
+        /// <b>Die Kästen sind Bildpunkte des Originals</b>, nicht der Bitmap, die die
+        /// Engine gesehen hat: Sie werden durch den Vergrösserungsfaktor zurückgerechnet.
+        /// Sonst läge jeder Kasten bei einem kleinen Bild um den Faktor 2 daneben.
+        /// </summary>
+        internal static async Task<OcrWortBefund?> SucheWoerterAsync(string pfad)
+        {
+            if (Engine is null || string.IsNullOrWhiteSpace(pfad) || !File.Exists(pfad))
+            {
+                return null;
+            }
+
+            try
+            {
+                var uhr = System.Diagnostics.Stopwatch.StartNew();
+
+                Entpackt entpackt = await LadeBitmapAsync(pfad).ConfigureAwait(false);
+
+                using (entpackt.Bitmap)
+                {
+                    OcrResult ergebnis = await Engine.RecognizeAsync(entpackt.Bitmap);
+
+                    double faktor = entpackt.Faktor <= 0 ? 1 : entpackt.Faktor;
+                    var woerter = new List<OcrWort>();
+
+                    foreach (OcrLine zeile in ergebnis.Lines)
+                    {
+                        foreach (OcrWord wort in zeile.Words)
+                        {
+                            woerter.Add(new OcrWort(
+                                wort.Text ?? string.Empty,
+                                wort.BoundingRect.X / faktor,
+                                wort.BoundingRect.Y / faktor,
+                                wort.BoundingRect.Width / faktor,
+                                wort.BoundingRect.Height / faktor));
+                        }
+                    }
+
+                    return new OcrWortBefund
+                    {
+                        Woerter = woerter,
+                        Text = ergebnis.Text ?? string.Empty,
+
+                        // Der eine Textwinkel, den die Engine je Bild kennt. Genau hier
+                        // liegt ihre Grenze: Was quer dazu läuft, findet sie nicht.
+                        TextWinkel = ergebnis.TextAngle,
+                        Dauer = uhr.Elapsed
+                    };
                 }
             }
             catch (Exception)
@@ -106,7 +170,7 @@ namespace TestImage.Bildersuche
         ///
         /// <b>Kleine Bilder werden vergrössert</b>, siehe <see cref="ZielKante"/>.
         /// </summary>
-        private static async Task<SoftwareBitmap> LadeBitmapAsync(string pfad)
+        private static async Task<Entpackt> LadeBitmapAsync(string pfad)
         {
             byte[] roh = await File.ReadAllBytesAsync(pfad).ConfigureAwait(false);
 
@@ -126,10 +190,11 @@ namespace TestImage.Bildersuche
             uint laengste = Math.Max(breite, hoehe);
 
             var wandlung = new BitmapTransform();
+            double faktor = 1;
 
             if (laengste > grenze)
             {
-                double faktor = (double)grenze / laengste;
+                faktor = (double)grenze / laengste;
                 wandlung.ScaledWidth = (uint)Math.Max(1, breite * faktor);
                 wandlung.ScaledHeight = (uint)Math.Max(1, hoehe * faktor);
                 wandlung.InterpolationMode = BitmapInterpolationMode.Fant;
@@ -139,19 +204,36 @@ namespace TestImage.Bildersuche
                 // Höchstens verdoppeln: Darüber hinaus wurde es im Versuch wieder
                 // schlechter — bei Faktor 3 und mehr fand die Engine gar keinen
                 // Textwinkel mehr und lieferte fast nichts.
-                double faktor = Math.Min(2.0, (double)ZielKante / laengste);
+                faktor = Math.Min(2.0, (double)ZielKante / laengste);
 
                 wandlung.ScaledWidth = (uint)Math.Round(breite * faktor);
                 wandlung.ScaledHeight = (uint)Math.Round(hoehe * faktor);
                 wandlung.InterpolationMode = BitmapInterpolationMode.Fant;
             }
 
-            return await decoder.GetSoftwareBitmapAsync(
+            // Nach der Rundung nachgerechnet: Der Faktor muss der sein, den die Bitmap
+            // wirklich hat, sonst wandern die zurückgerechneten Wortkästen um bis zu
+            // einen halben Bildpunkt je hundert.
+            if (wandlung.ScaledWidth > 0 && breite > 0)
+            {
+                faktor = wandlung.ScaledWidth / (double)breite;
+            }
+
+            SoftwareBitmap bitmap = await decoder.GetSoftwareBitmapAsync(
                 BitmapPixelFormat.Bgra8,
                 BitmapAlphaMode.Premultiplied,
                 wandlung,
                 ExifOrientationMode.RespectExifOrientation,
                 ColorManagementMode.DoNotColorManage);
+
+            return new Entpackt(bitmap, faktor);
         }
+
+        /// <summary>
+        /// Die entpackte Bitmap und der Faktor, mit dem sie gegenüber der Datei
+        /// skaliert wurde. Der Faktor gilt für beide Kanten gleich — auch bei
+        /// gedrehtem EXIF, wo sich Breite und Höhe tauschen.
+        /// </summary>
+        private readonly record struct Entpackt(SoftwareBitmap Bitmap, double Faktor);
     }
 }

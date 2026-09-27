@@ -817,6 +817,12 @@ namespace TestImage
                     return false;
                 }
 
+                // Der Aufrufer reicht denselben Stream an mehrere Vergleiche hintereinander.
+                // Ein vorheriger Vergleich gleich langer, aber verschiedener Dateien bricht
+                // mittendrin ab und lässt die Position dort stehen — ohne Zurückspulen würde
+                // das nächste, echte Duplikat ab dieser Stelle verglichen und übersehen.
+                stream1.Position = 0;
+
                 byte[] buffer1 = new byte[bufferSize];
                 byte[] buffer2 = new byte[bufferSize];
 
@@ -845,7 +851,33 @@ namespace TestImage
 
                 Bitmap img;
                 try { img = new Bitmap(imagePath); }
-                catch { return 0UL; }
+                catch
+                {
+                    // GDI+ kann kein WebP — die App liest es aber ein. Ohne diesen Umweg
+                    // bekam jedes WebP den Hash 0 und flog beim Grau-Abgleich immer raus.
+                    // WPF liest über WIC; klein dekodiert, weil ohnehin auf 8×8 verkleinert
+                    // wird, und als PNG an GDI+ weitergereicht.
+                    try
+                    {
+                        var bild = new BitmapImage();
+                        bild.BeginInit();
+                        bild.CacheOption = BitmapCacheOption.OnLoad;
+                        bild.UriSource = new Uri(imagePath);
+                        bild.DecodePixelWidth = 64;
+                        bild.EndInit();
+                        bild.Freeze();
+
+                        var kodierer = new PngBitmapEncoder();
+                        kodierer.Frames.Add(BitmapFrame.Create(bild));
+
+                        // Nicht freigeben: GDI+ liest aus dem Puffer, solange das Bitmap lebt.
+                        var puffer = new MemoryStream();
+                        kodierer.Save(puffer);
+                        puffer.Position = 0;
+                        img = new Bitmap(puffer);
+                    }
+                    catch { return 0UL; }
+                }
                 using (img)
                 {
                     // 1. Bild auf 8x8 verkleinern (Graustufen)
